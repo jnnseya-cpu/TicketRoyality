@@ -288,6 +288,85 @@ being true, the claim is void.
 | **Switching cost** | Seat maps, historical attendance, payout history and agent memory are all organiser-specific | Grows monotonically with tenure |
 | **Marketplace liquidity** | Two-sided: fans follow organisers, organisers follow fans | Classic network effect |
 
+### Moat strength, assessed honestly
+
+Five moats are claimed. They are not equally strong, and treating them as if they were
+is how a strategy ends up resting on the weakest one.
+
+| Moat | Real? | Time to replicate | Assessment |
+| --- | --- | --- | --- |
+| Organiser stickiness | **Strongest** | Grows with tenure | Seat maps, history, payout records, agent tuning |
+| Liquidity | **Strong, but local** | Per city | See below |
+| Data flywheel | Real, slow | 18–36 months, needs volume first | Cannot be built early |
+| Payment rails | Real if exclusive | 6–12 months per rail | See below |
+| "Proprietary ACU + LangGraph" | **Weak** | Weeks | See below |
+
+#### Liquidity is a city-level moat, not a global one
+
+Event marketplaces do not have global network effects. A fan in Manchester does not
+care how many events are listed in Kinshasa, and an organiser in Kinshasa gains nothing
+from London's audience.
+
+**The unit of liquidity is the city**, sometimes the city-and-category. That changes the
+strategy entirely: winning means going deep in a small number of markets until each is
+self-sustaining, not thin across many. A platform with 4,000 organisers spread over
+forty cities has forty weak markets; the same 4,000 across six cities has six defensible
+ones.
+
+Most marketplace failures come from assuming the network effect is global when it is
+local, and spending the growth budget accordingly.
+
+#### The technology moat as stated is not a moat
+
+*"Proprietary ACU billing + LangGraph orchestration, impossible to replicate quickly."*
+
+| Claim | Reality |
+| --- | --- |
+| ACU billing is proprietary | It is a ledger table and a multiplier. A competent team builds it in a fortnight |
+| LangGraph orchestration | LangGraph is an open-source library. Using it is not a moat — anyone can `pip install` it |
+| Impossible to replicate quickly | Both are replicable in under a quarter |
+
+This claim will not survive a diligence conversation with anyone technical, and losing
+credibility on the weakest item damages the four that are genuine.
+
+**What the actual technology moat is:** the catalogue of safe, permissioned, audited
+actions an agent may take, and the incident learning behind each boundary. That is 12–24
+months of iteration that cannot be shortcut, because most of it is knowledge about what
+went wrong. It is already stated correctly in the moat table above; the ACU-and-LangGraph
+framing should be dropped.
+
+#### The payment moat depends on a word nobody has confirmed
+
+"BitriPay integration creates exclusive competitive advantage" holds **only if it is
+exclusive.** If BitriPay will integrate with any ticketing platform that asks, this is a
+head start measured in months, not a moat.
+
+`OPEN`: is there an exclusivity arrangement, in which markets, and for how long? The
+answer changes how much weight this bears.
+
+**KODA is the stronger position** and is not on the original list. It occupies a
+category with no competitor at all, and the flat-fee structure means a percentage-taking
+rival cannot follow without cannibalising its own model (`20` §20.2). A moat built on a
+competitor's P&L is more durable than one built on a partnership someone else can also
+sign.
+
+#### Stickiness must come from value, not from lock-in
+
+*"...all locked to platform"* is the wrong framing, on two grounds.
+
+Data portability is a **GDPR right**, not a product decision — an organiser can demand
+their data in a machine-readable format and we must provide it. Building a strategy on
+their inability to leave is building on something that is not true.
+
+And it is bad business. An organiser who stays because leaving is painful churns the
+moment a competitor offers migration assistance, and tells everyone why on the way out.
+One who stays because the forecasting is better and the payouts arrive on time does not.
+
+**Adopted position: full export, on demand, in a documented format.** Confidence that
+they will stay anyway is a stronger signal to a prospect than a locked door — and it is
+the only version consistent with the fee transparency in `10` §10.2 and the data
+ownership claim in the dimension table above.
+
 ### 1.5.1 Independence — no competitor on the critical path
 
 A platform that reacts to competitors is permanently second. Independence here is an
