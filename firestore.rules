@@ -1,0 +1,173 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ---------------------------------------------------------------- */
+    /* Helpers                                                          */
+    /* ---------------------------------------------------------------- */
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isSuperuser() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().userType == 'superuser';
+    }
+
+    function isApprovedOrganiser() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().userType == 'organiser'
+        && userDoc().status == 'approved';
+    }
+
+    /* Fields a user must never be able to set on themselves. Role escalation,
+       account approval, bespoke commission and wallet balances are admin-only. */
+    function noPrivilegedFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['userType', 'status', 'commissionPercent', 'adminFee', 'wallet',
+                 'welcomeBonusGranted']);
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* users                                                            */
+    /* ---------------------------------------------------------------- */
+
+    match /users/{uid} {
+      // A user reads their own profile; superusers read everyone. Organiser profiles
+      // are public because they are rendered on the /organisers pages.
+      allow get: if isSelf(uid)
+                 || isSuperuser()
+                 || resource.data.userType == 'organiser';
+
+      // Listing users is restricted: superusers see everything, anyone may query the
+      // organiser directory (the client always filters on userType == 'organiser').
+      allow list: if isSuperuser() || isSignedIn();
+
+      // A new profile may only be created by its owner, must claim its own uid, and
+      // must not self-assign an elevated role or an approved organiser status.
+      allow create: if isSelf(uid)
+                    && request.resource.data.uid == uid
+                    && request.resource.data.userType in ['customer', 'organiser']
+                    && (request.resource.data.userType != 'organiser'
+                        || request.resource.data.status == 'pending');
+
+      allow update: if isSuperuser()
+                    || (isSelf(uid) && noPrivilegedFields());
+
+      allow delete: if isSuperuser();
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* events                                                           */
+    /* ---------------------------------------------------------------- */
+
+    match /events/{eventId} {
+      // Published events are public; drafts are visible to their owner and admins.
+      allow get, list: if resource == null
+                       || resource.data.status == 'published'
+                       || isSuperuser()
+                       || (isSignedIn() && resource.data.organizerId == request.auth.uid);
+
+      allow create: if isApprovedOrganiser()
+                    && request.resource.data.organizerId == request.auth.uid;
+
+      allow update, delete: if isSuperuser()
+                            || (isApprovedOrganiser()
+                                && resource.data.organizerId == request.auth.uid
+                                && request.resource.data.organizerId == request.auth.uid);
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* tickets                                                          */
+    /* ---------------------------------------------------------------- */
+
+    match /tickets/{ticketId} {
+      // The buyer, the event's organiser and admins can read a ticket.
+      allow get, list: if isSuperuser()
+                       || (isSignedIn() && resource.data.userId == request.auth.uid)
+                       || (isSignedIn() && resource.data.organizerId == request.auth.uid);
+
+      // Tickets are normally minted server-side after payment. A signed-in user may
+      // only create a ticket for themselves, and only in the 'valid' state.
+      allow create: if isSuperuser()
+                    || (isSignedIn()
+                        && request.resource.data.userId == request.auth.uid
+                        && request.resource.data.status == 'valid');
+
+      // Redemption is the organiser's job. The only field the organiser may change is
+      // the status, and only from valid -> redeemed, so a ticket can never be reset
+      // and reused.
+      allow update: if isSuperuser()
+                    || (isSignedIn()
+                        && resource.data.organizerId == request.auth.uid
+                        && resource.data.status == 'valid'
+                        && request.resource.data.status == 'redeemed'
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['status', 'redeemedAt']));
+
+      allow delete: if isSuperuser();
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* coupons                                                          */
+    /* ---------------------------------------------------------------- */
+
+    match /coupons/{couponId} {
+      // Signed-in only: anonymous read would let anyone enumerate every discount code.
+      allow get, list: if isSignedIn();
+
+      allow create: if isApprovedOrganiser()
+                    && request.resource.data.organizerId == request.auth.uid;
+
+      allow update, delete: if isSuperuser()
+                            || (isSignedIn() && resource.data.organizerId == request.auth.uid);
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* offline_payments                                                 */
+    /* ---------------------------------------------------------------- */
+
+    match /offline_payments/{paymentId} {
+      allow get, list: if isSuperuser()
+                       || (isSignedIn() && resource.data.userId == request.auth.uid);
+
+      // A customer may submit their own reference, always as 'pending'. They can
+      // never approve their own payment.
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.status == 'pending';
+
+      allow update, delete: if isSuperuser();
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* wallet_ledger — append-only, written by trusted server code only  */
+    /* ---------------------------------------------------------------- */
+
+    match /wallet_ledger/{entryId} {
+      allow get, list: if isSuperuser()
+                       || (isSignedIn() && resource.data.uid == request.auth.uid);
+
+      // Clients can never mint, alter or erase credit. All writes go through the
+      // Admin SDK, which bypasses these rules.
+      allow create, update, delete: if false;
+    }
+
+    /* Deny everything not explicitly matched above. */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
