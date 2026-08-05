@@ -47,19 +47,46 @@
 
 ## 7.2 Runtime layers
 
-| Layer | Technology | Responsibility |
-| --- | --- | --- |
-| Edge | Cloudflare | WAF, DDoS, bot management, CDN, rate limiting |
-| Web | Next.js 15 App Router on Firebase App Hosting | SSR, RSC, route handlers |
-| API | Cloud Run behind API Gateway | Public REST, webhooks, partner integrations |
-| Agents | Cloud Run + Genkit | Agent runtime, orchestration, memory |
-| Functions | Cloud Functions v2 | Webhook handlers, scheduled jobs, privileged writes |
-| OLTP | Firestore | Events, tickets, users, orders — the authoritative state |
-| OLAP | BigQuery | Analytics, forecasting, ML features |
-| Cache | Memorystore (Redis) | Sessions, hot catalogue, agent working memory |
-| Vector | Vertex Matching Engine | Semantic search, agent semantic memory |
-| Media | Cloud Storage + R2 | Images, PDFs, stream recordings |
-| Bus | Pub/Sub | The platform event taxonomy from M9 |
+**Target stack.** Where it differs from what this repository runs today, both are
+shown — the same discipline `08` §8.1 applies to the datastore.
+
+| Layer | Target | Shipped today | Responsibility |
+| --- | --- | --- | --- |
+| Edge | Cloudflare | — | WAF, DDoS, bot management, CDN, rate limiting |
+| Web | Next.js App Router on Vercel | Next.js 15, Firebase App Hosting | SSR, RSC, route handlers |
+| Client state | Zustand + TanStack Query | React state | Client store, server cache |
+| Mobile | React Native (Expo) — organiser, gate, fan | — | `04` M16 |
+| i18n | `next-intl` — English (UK), French (DRC), Lingala planned | — | Market coverage |
+| API | NestJS services behind Kong | Route handlers in `app/api` | Public REST, webhooks, partners |
+| Agents | Agent Orchestrator service | Genkit flows | Agent runtime, orchestration, memory |
+| **AI** | **AI Gateway** (§7.5a) | Direct Genkit → Gemini | One door to every model provider |
+| Jobs | BullMQ on Redis | Cloud Functions v2 | Scheduled agent runs, campaigns, payouts |
+| Realtime | Socket.io on Cloud Run | Firestore listeners | Scan broadcast, live dashboards |
+| Bus | Pub/Sub | — | The platform event taxonomy from M9 |
+| Containers | Docker on GKE | — | Agent plane only (`06` §6.19) |
+| OLTP | **PostgreSQL** (Cloud SQL) | Firestore | Authoritative state — `08`, `19` |
+| Cache | Redis (Memorystore) | — | QR hash set, sessions, rate limits |
+| OLAP | BigQuery | — | Analytics, forecasting, ML features |
+| Search | PostgreSQL FTS, Elasticsearch above ~1M events | Client-side filter | `08` §8.7 |
+| Vector | pgvector, Pinecone at scale | — | `06` §6.13 |
+| Media | Cloudflare R2 + CDN | Firebase Storage | Images, PDFs, recordings |
+
+### Two deliberate departures from the source specification
+
+**Firestore is not retained for user profiles.** Keeping profiles in a document store
+while orders, tickets and payments move to Postgres puts a foreign key across a network
+boundary — `orders.user_id` could not be enforced, and the access-control functions in
+`08` §8.16 join against `users` on every policy check. Profiles go to Postgres with
+everything else.
+
+Firestore's genuine strength here is **live fan-out**, which is why realtime moves to
+Socket.io rather than being kept as a second database. One authoritative store, one
+broadcast channel.
+
+**Search starts as a Postgres index, not Elasticsearch.** `events_search_idx`
+(`08` §8.7) is sufficient below roughly a million events and removes an entire
+operational dependency. Elasticsearch is specified as the escalation, triggered by
+measured p95, not adopted on day one.
 
 ## 7.3 The transactional core
 
@@ -190,6 +217,95 @@ write. Both are enforced by a shared wrapper, not left to the tool author.**
 **Retrieval is scope-filtered before the vector search, not after.** Filtering after
 retrieval leaks: the model has already seen the cross-tenant content. The tenant
 predicate is a pre-filter on the index.
+
+## 7.5a The AI Gateway
+
+**One internal door to every model provider.** No service, agent or route handler calls
+Anthropic, Google or OpenAI directly.
+
+```
+   agents · support · recommendations · ad copy · risk scoring
+                            │
+                            ▼
+        ┌───────────────────────────────────────────┐
+        │              AI GATEWAY                   │
+        │                                           │
+        │  routing · failover · metering · budgets  │
+        │  redaction · caching · logging · evals    │
+        └───┬──────────────┬──────────────┬─────────┘
+            ▼              ▼              ▼
+      Anthropic        Google         OpenAI
+      Claude       Gemini / Vertex    GPT · embeddings
+            │              │              │
+            └──────────────┴──────────────┘
+                           ▼
+                 deterministic fallback
+```
+
+### Why a gateway rather than three SDKs
+
+`01` §1.5.1 says no single vendor may sit on a path the platform cannot operate
+without. For models that rule is unusually hard to honour without a gateway, because
+provider SDKs leak into call sites: prompt formats, tool-calling shapes, streaming
+semantics and error taxonomies all differ. Ten services each importing a vendor SDK is
+ten places to change when a provider has an outage, a price rise or a policy shift.
+
+One door means switching provider is a routing-table change.
+
+### What it owns
+
+| Concern | Behaviour |
+| --- | --- |
+| **Routing** | Task class → provider → model. A table, not a model decision |
+| **Failover** | Primary unavailable or breaker open → secondary, same request, one retry |
+| **Metering** | Every call priced at provider cost × 3 into ACU. **The only place cost is measured** |
+| **Budgets** | Per agent, per principal, per chain. Hard ceilings, enforced before dispatch |
+| **Redaction** | PII stripped from prompts before egress; identity documents never leave (`06` §6.4) |
+| **Caching** | Identical prompt + model + params inside a TTL returns the cached completion |
+| **Logging** | Provider, model version, prompt hash, tokens, latency, outcome — to `agent_runs` |
+| **Evaluation** | Golden sets run against any model or version change before it takes traffic |
+| **Rate limiting** | Per provider quota, shared fairly across services |
+
+### Routing table
+
+```
+task ∈ {agent reasoning, planning, support, adversarial review}  → Claude
+task ∈ {high-volume classification, extraction, short-gen}       → Gemini Flash
+task ∈ {embeddings}                                              → OpenAI / text-embedding
+task ∈ {rerank}                                                  → Cohere
+data_residency == 'eu-only'                                      → Vertex, europe-west
+primary breaker open                                             → secondary
+all providers unavailable                                        → deterministic fallback
+```
+
+**Routing is deterministic.** A model choosing which model to call is a loop with no
+authority boundary and no cost ceiling — the same reasoning that keeps payment routing
+out of `payments.v1`'s discretion (`03` §3.5).
+
+### Metering in one place is the point
+
+The ACU system already meters at a single door (`/api/ai` today, `15` §15.5). The
+gateway generalises it: as services multiply, cost visibility survives only if there is
+exactly one place a token can be spent. Two doors means two cost models, and the second
+one is always the one nobody instruments.
+
+### Model version pinning
+
+Every route pins an explicit model version. Providers deprecate and silently reroute
+aliases; a pinned version means behaviour changes when we change it, not when a vendor
+ships.
+
+> **Model IDs must be current at build time.** The blueprint names
+> `claude-sonnet-4-20250514`, which is superseded — the current Claude family is
+> **Opus 5, Sonnet 5, Fable 5** and **Haiku 4.5**. Pin the latest appropriate model per
+> route and re-check at each version change, because a spec that ships with a stale
+> model ID gets copied into code and quietly runs a generation behind.
+
+### Failure semantics
+
+Inherited from `03` §3.2 and unchanged: retry twice with jittered backoff, then
+secondary, then the deterministic path. **Fail-open for recommendation and content;
+fail-closed for anything gating money or identity.**
 
 ## 7.6 Data plane
 
