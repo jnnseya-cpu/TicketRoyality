@@ -377,3 +377,123 @@ in exactly the room where these numbers get used.
 
 Both columns are tracked. **Subscription MRR is the health metric**, because it is the
 one that says whether organisers keep choosing to be here when they are not selling.
+
+---
+
+## 13.7 Phase 4 — Enterprise & global scale, with three decisions to take
+
+| Deliverable | Status |
+| --- | --- |
+| Enterprise contracts — UK stadiums, African promoters, conference groups | Aligned |
+| NFC wristbands for cashless events | Aligned — `08` §8.10 `nfc_tag_id` exists |
+| Pan-African expansion — Nigeria, Kenya, South Africa, Ivory Coast | Aligned, per-market KYC and rails |
+| Cross-event loyalty and tier rewards | Aligned — `04` M20 |
+| **Fan-to-fan resale marketplace** | **Contradicts `01` §1.7** — see below |
+| **NFT collectibles** | Needs a decision — see below |
+| **Licensing fan insights to brands** | Needs a boundary — see below |
+
+---
+
+### Decision 1 — resale contradicts a stated non-goal
+
+`01` §1.7 says plainly: *not a secondary marketplace. Resale is a fraud surface and a
+brand risk. Transfer is supported; profit-taking resale is not.*
+
+Phase 4 proposes exactly that marketplace. One of the two has to change, and the choice
+is a strategic one rather than a technical one — so it is stated rather than quietly
+resolved.
+
+**There is a version that keeps both.** The non-goal is aimed at *profit-taking*
+resale, not at a fan who genuinely cannot attend:
+
+| | Capped resale | Open secondary market |
+| --- | --- | --- |
+| Price ceiling | **Face value + original fees** | Whatever the market pays |
+| Who profits | Nobody | Touts |
+| Platform commission | Small, on the transaction | Large, on the markup |
+| Anti-tout positioning (`01` §1.3, DICE) | **Preserved** | Abandoned |
+| UK regulatory exposure | Low | Significant |
+
+Capped resale is a fan-protection feature. Open resale is the business model the
+platform's own market analysis criticises Ticketmaster for, and adopting it would make
+the fee-transparency argument in `10` §10.2 impossible to make with a straight face.
+
+**Regulatory note.** UK resale is regulated: the Consumer Rights Act 2015 requires
+seat, row and restriction disclosure on resale listings, and the Breaching of Limits on
+Ticket Sales Regulations 2018 criminalises bulk automated purchase. Ireland caps resale
+at face value outright. Several markets in the expansion list have their own positions.
+
+**Recommendation: capped resale at face value, in-platform, with the original ticket
+invalidated and a new one issued.** That is technically the transfer mechanism already
+specified (`08` §8.10 `transferred_to`) with a payment attached, so it is weeks of work
+rather than a new product — and it closes the fraud surface that off-platform resale
+opens, because a ticket sold on a classifieds site is a scam we currently cannot stop.
+
+`OPEN`. Owner: whoever owns strategy. Blocking before any resale UI is designed.
+
+---
+
+### Decision 2 — NFT collectibles, scoped or not at all
+
+| Framing | Risk |
+| --- | --- |
+| **Commemorative only** — no resale value implied, no marketplace, no floor price | Low. It is a digital stub |
+| **Tradeable asset** — marketplace, royalties, floor price | High. Consumer-protection and possibly financial-promotion exposure |
+
+The second framing turns a ticket platform into an issuer of speculative assets to
+consumers, which is a different regulated activity in most of the markets listed and a
+reputational position the platform would be taking on permanently.
+
+**Recommendation: commemorative only, or not at all.** A landmark-event collectible
+that a fan keeps is a nice thing. A collectible with a floor price is a financial
+product, and the people most likely to buy it are the Gen-Z audience `04` M26 targets —
+which makes getting it wrong worse, not better.
+
+Also worth saying: this is the item on the roadmap most likely to look dated by the time
+Phase 4 arrives. It should be re-tested against demand before it is built, not assumed.
+
+---
+
+### Decision 3 — licensing fan insights needs a hard boundary
+
+*Organisers licence anonymised fan data insights to brands, with consent.*
+
+This is workable, and it is one careless implementation away from being the thing
+`01` §1.3 criticises Fever for. The boundary that makes it safe:
+
+| Permitted | Never |
+| --- | --- |
+| Aggregate statistics, k-anonymised at 25 (`04` M19) | Individual records, however hashed |
+| Trends, cohorts, category affinity | Contact details, in any form |
+| Consented leads, where the fan explicitly opted in **to that brand** | Consent inferred from a ticket purchase |
+| Organiser's own audience | Another organiser's audience |
+
+**"Anonymised" is a high bar under GDPR and is usually claimed wrongly.** Data that can
+be re-identified by combining it with anything else is *pseudonymised*, not anonymised,
+and it remains personal data with every obligation attached. A dataset of "attendees of
+this event, by postcode district and age band" is re-identifiable at small event sizes —
+which is precisely why the k-anonymity floor exists and why it must apply here too.
+
+**Consent must be specific.** A checkbox at ticket purchase saying "we may share
+insights with partners" is not a lawful basis for licensing that person's behaviour to a
+named brand. Consent has to name the purpose and be as easy to withdraw as to give.
+
+**Recommendation: aggregate-only licensing, no lead sales without per-brand opt-in.**
+The revenue is smaller and it is the only version that survives a regulator reading it.
+
+---
+
+### Phase 4 commercial goal, restated
+
+Applying the correction in §13.6 — 2,000 organisers at £1m would be £500 each, which the
+tier ladder cannot produce:
+
+| | Stated | Restated |
+| --- | --- | --- |
+| Organisers | 2,000+ | 2,000+ |
+| MRR | £1m+ | **~£240,000 subscription MRR** |
+| Total monthly revenue | — | **~£1,000,000** |
+| Tickets | 10m/year | 10m/year |
+
+The £1m figure is right as total monthly revenue. It is not MRR, and the distinction is
+the one a board will check first.
