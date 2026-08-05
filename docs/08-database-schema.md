@@ -87,13 +87,15 @@ system. That divergence is deliberate, dated and tracked — not drift.
    hospitality_bookings ──▶ hospitality_guests · orders
    disputes ──▶ payments                          (deadline-indexed)
    ad_placements ──▶ organisations · events       (10 slots, duration-priced)
+   creator_partners ──▶ referrals ──▶ orders      (1% at 10k+, engagement-gated)
+   content_articles                               (published only with a human reviewer)
    follows ──▶ organisations · venues             (consent for notification)
    campaign_attribution ──▶ orders · tickets      (every touch, not just the winner)
    offline_payments ──▶ orders                    (KODA-verified, 06 §6.20)
    agent_runs · agent_memory · audit_log          (cross-cutting, append-only)
 ```
 
-Thirty-five tables. The count is higher than the blueprint's fourteen because things
+Thirty-eight tables. The count is higher than the blueprint's fourteen because things
 with their own lifecycle get their own table rather than being folded into a parent —
 `orders` and `order_items`, `refunds`, `organisation_members`, `seat_holds`,
 `ticket_addons`, `waitlist_entries`, `revenue_splits` and `invoices`.
@@ -1330,6 +1332,88 @@ everything but the winner.
 `source_ticket_id` closes the loop on M3a — a purchase originating from a
 recommendation printed on another ticket is traceable to the exact ticket that carried
 it.
+
+---
+
+## 8.15b `referrals`, `creator_partners`, `content_articles`
+
+```sql
+CREATE TABLE creator_partners (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform          text NOT NULL,      -- instagram · tiktok · youtube · x
+  handle            text NOT NULL,
+  platform_user_id  text NOT NULL,
+  follower_count    integer NOT NULL CHECK (follower_count >= 0),
+  engagement_rate   numeric(5,2),
+  audience_markets  char(2)[] NOT NULL DEFAULT '{}',
+  tier              text NOT NULL DEFAULT 'creator'
+                      CHECK (tier IN ('creator','partner','ambassador')),
+  commission_percent numeric(5,2) NOT NULL DEFAULT 1.00,
+  status            text NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending','verified','suspended','removed')),
+  verified_at       timestamptz,
+  last_verified_at  timestamptz,
+  disclosure_accepted_at timestamptz,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (platform, platform_user_id),
+  CHECK (status <> 'verified' OR (verified_at IS NOT NULL
+         AND disclosure_accepted_at IS NOT NULL
+         AND follower_count >= 10000))
+);
+
+CREATE TABLE referrals (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  referrer_id   uuid REFERENCES users(id) ON DELETE SET NULL,
+  creator_id    uuid REFERENCES creator_partners(id) ON DELETE SET NULL,
+  code          citext NOT NULL UNIQUE,
+  referred_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  order_id      uuid REFERENCES orders(id) ON DELETE SET NULL,
+  gmv           numeric(14,2),
+  commission    numeric(14,2),
+  currency      char(3),
+  status        text NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending','attended','paid','clawed_back','rejected')),
+  attended_at   timestamptz,
+  payable_at    timestamptz,
+  paid_at       timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  CHECK (referrer_id IS NOT NULL OR creator_id IS NOT NULL),
+  CHECK (status <> 'paid' OR paid_at IS NOT NULL),
+  CHECK (status NOT IN ('attended','paid') OR attended_at IS NOT NULL)
+);
+
+CREATE INDEX referrals_payable_idx ON referrals (payable_at) WHERE status = 'attended';
+
+CREATE TABLE content_articles (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug          citext NOT NULL UNIQUE,
+  title         text NOT NULL,
+  body          text NOT NULL,
+  kind          text NOT NULL,   -- city_guide · interview · data · preview
+  status        text NOT NULL DEFAULT 'draft'
+                  CHECK (status IN ('draft','in_review','published','archived')),
+  drafted_by_run_id uuid,
+  reviewed_by   uuid REFERENCES users(id) ON DELETE SET NULL,
+  published_at  timestamptz,
+  updated_at    timestamptz NOT NULL DEFAULT now(),
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  CHECK (status <> 'published' OR (reviewed_by IS NOT NULL AND published_at IS NOT NULL))
+);
+```
+
+**`CHECK (status <> 'verified' OR follower_count >= 10000)`** puts the programme
+threshold in the database. A verified creator below the threshold cannot exist, whatever
+an admin screen allows.
+
+**`CHECK (status <> 'published' OR reviewed_by IS NOT NULL)`** is the structural block on
+scaled content abuse (`04` M25). No human, no index — the same shape as the ad
+moderation constraint in `08` §8.13d, and for the same reason: a policy enforced by a
+constraint survives a change of staff.
+
+`referrals.status` moves `pending → attended → paid`, never straight to `paid`.
+`payable_at` is set 14 days after attendance, and `referrals_payable_idx` is the payout
+worklist — commission is not owed until the refund and chargeback window has closed.
 
 ---
 

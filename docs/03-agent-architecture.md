@@ -191,6 +191,30 @@ of the same envelope, so a hard brief cannot silently cost five times a simple o
 | **Value** | VIP tiers selling out a week early is un-captured revenue. Typical recovery: 4–9% of gross |
 | **Constraint** | **No surge pricing after a ticket is on sale at a lower price to an identical buyer.** Fairness is a brand asset; it is worth more than the delta |
 
+### `seo.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Grow organic discovery through structured data, internal linking and a small volume of reviewed editorial |
+| **Inputs** | `{ catalogue, queryData, rankingPositions[], competitorGaps[], internalLinkGraph, coreWebVitals }` |
+| **Outputs** | `{ metadataUpdates[], internalLinks[], draftArticles[], structuredDataFixes[], technicalIssues[] }` |
+| **Scopes** | `read:catalogue`, `write:metadata`, `write:internal_links`, `write:draft_content` — **no publish scope, and no scope touching any external domain** |
+| **Autonomy** | **L2** for metadata, internal links and structured data · **L1** for anything that becomes an indexable page |
+| **Triggers** | Event published · nightly link refresh · ranking movement > 5 positions · Core Web Vitals regression |
+| **Workflow** | Audit structured data → fix metadata gaps → rescore the internal link graph against semantic similarity → identify genuine content gaps → draft for human review |
+| **Escalation** | Any proposal that would create more than 20 indexable pages in a day → human review of the whole batch |
+| **APIs** | Search Console, internal analytics, AI Gateway (`07` §7.5a) |
+| **Budget** | 30 ACU/day |
+| **Value** | Organic is the only acquisition channel with no marginal cost per visitor |
+
+**It holds no scope that reaches another domain.** There is no legitimate automated
+action to take on somebody else's site, so the capability simply does not exist —
+stronger than a policy, for the same reason `event_architect.v1` has no publish scope.
+
+**The 20-page daily escalation exists to stop scaled content abuse structurally.** An
+agent that can quietly add a thousand pages a week will eventually be pointed at that
+task by someone measuring page count, and the penalty lands on the whole domain.
+
 ### `retention.v1`
 
 | Field | Value |
@@ -724,6 +748,7 @@ line.
 | `cro.v1` | Executive | L1 | 20 | 5s |
 | `growth.v4` | Revenue | L1 | 30 | 8s |
 | `event_architect.v1` | Revenue | L1 (no publish scope) | 45/build | 45s |
+| `seo.v1` | Revenue | L2 metadata · L1 pages | 30/day | 20s |
 | `pricing.v1` | Revenue | L1 | 12 | 4s |
 | `retention.v1` | Revenue | L2 | 10 | 4s |
 | `operations.v1` | Ops | L2 | 10 | 3s |
@@ -747,7 +772,7 @@ line.
 | `analyst.v2` | Data | L3 | 8 | 4s |
 | `research.v1` | Data | L3 | 35 | 20s |
 
-**27 agents.** Where an outline names an agent this table does not, it is because the
+**28 agents.** Where an outline names an agent this table does not, it is because the
 function already has an owner rather than because it was missed:
 
 | Named elsewhere | Owned by | Why not separate |

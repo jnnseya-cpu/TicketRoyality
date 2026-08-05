@@ -1228,3 +1228,221 @@ sees exactly what they bought.
 **Impressions are counted on 50% visibility for 1 second**, the IAB standard — not on
 render. Counting an impression for a slot that never entered the viewport is charging
 for something that did not happen.
+
+---
+
+## M25 — Content, SEO & Organic Growth Engine
+
+**Status:** `NEW`. Ranking is won with inventory nobody else has, not with volume.
+
+### The opportunity is programmatic, not editorial
+
+TicketRoyality holds something most content sites do not: **real, structured, changing
+inventory**. Every event, venue, organiser, city and category is a page that is
+genuinely unique, genuinely useful, and updates itself.
+
+| Page type | Scale | Uniqueness |
+| --- | --- | --- |
+| `/events/[slug]` | One per event | Real data — date, price, venue, availability |
+| `/[city]/[category]` | ~2,000 | Live listings, live prices |
+| `/[city]/this-weekend` | ~200 | Regenerates daily |
+| `/venues/[slug]` | One per venue | Capacity, seat map, upcoming, past |
+| `/organisers/[slug]` | One per organiser | Verified profile, history |
+| `/[category]/near-me` | ~500 | Geo-resolved |
+
+**This is where the traffic is**, and none of it requires generating an article. A page
+listing eleven real events in Manchester this Saturday, with prices and availability,
+beats any essay about Manchester nightlife — because it answers the query the person
+actually typed.
+
+### Editorial content is small, reviewed, and genuinely useful
+
+| Type | Cadence | Review |
+| --- | --- | --- |
+| City guides | ~1 per city per quarter | Human edit, always |
+| Organiser interviews | Weekly | Human, plus subject approval |
+| Data pieces — "what the UK paid for gigs in 2026" | Monthly | Human, from our own data |
+| Event previews | On demand, organiser-requested | Human |
+
+`seo.v1` drafts, researches and updates. **A human publishes.** Nothing reaches the
+index unreviewed.
+
+### Two things this module will not do
+
+**It will not mass-publish AI articles.** Google's scaled content abuse policy targets
+exactly that pattern — large volumes of generated pages made primarily to rank rather
+than to help. The penalty is site-wide, not page-level, and it would take the
+programmatic pages above down with it. Those pages are the actual asset.
+
+Ten reviewed articles that earn links beat a thousand that trigger a manual action.
+
+**It will not buy, exchange or farm backlinks.** Paid links, private blog networks and
+reciprocal-link schemes are link spam under Google's policies. The realistic outcome is
+a manual action against the domain — the same domain the ticket checkout runs on.
+
+Links are **earned**, and the platform has unusually good material to earn them with:
+
+| Asset | Who links to it naturally |
+| --- | --- |
+| Free public event listings for venues and councils | Venues, tourist boards, local press |
+| Annual ticket-pricing data report from our own data | Journalists, trade press |
+| Embeddable "what's on" widget for venue sites | Every venue that uses it |
+| Organiser profile pages | Organisers, from their own sites |
+| Free tools — capacity calculator, seat-map preview | Industry blogs, forums |
+
+The widget is the highest-yield of these: a venue embedding a live listings block links
+back from every page it appears on, and it does so because the widget is useful to
+them.
+
+### Internal linking is automated, and this part is entirely legitimate
+
+Dynamic internal links between related events, same-city listings, same-organiser
+events, same-category and same-venue pages. This is site architecture, not link
+building — it distributes authority, helps crawlers, and helps humans.
+
+| Rule | Detail |
+| --- | --- |
+| Relevance-scored | Semantic similarity via pgvector (`06` §6.13), not random |
+| Bounded | Maximum 8 contextual internal links per page |
+| Anchor variation | Natural phrasing, never repeated exact-match |
+| No links to expired events | 410 or redirect to the category, never a dead page |
+| Refreshed | Nightly, as inventory changes |
+
+### Technical SEO, which is where most of the win actually is
+
+| Control | Implementation |
+| --- | --- |
+| Structured data | `Event`, `Offer`, `Place`, `Organization` JSON-LD on every event page |
+| Rich results | Price, availability, date, and venue eligible for the events carousel |
+| Core Web Vitals | LCP < 2.0s, INP < 200ms, CLS < 0.1 — and M24 exists to protect this |
+| Sitemaps | Segmented by type, `lastmod` accurate, auto-submitted |
+| Canonicals | One canonical per event; city and category pages self-canonical |
+| Expired events | 410 after 30 days, with a link to the category — never soft-404 |
+| International | `hreflang` for en-GB and fr-CD |
+| Render | Server-rendered. Content never depends on client JS |
+
+**The events rich result is the single highest-leverage item on this list.** Correct
+`Event` JSON-LD puts date, price and availability directly into the search result, and
+Google surfaces it in a dedicated events carousel above ordinary results.
+
+### Social
+
+| Surface | Approach |
+| --- | --- |
+| Open Graph and Twitter cards | Auto-generated per event, with the real cover image |
+| Share images | Rendered server-side: title, date, venue, price — legible at thumbnail size |
+| Short-form video | The organiser's M24 ad, re-cut vertically for Reels and TikTok |
+| Organiser toolkit | Pre-sized assets and copy the organiser posts from **their own** accounts |
+
+**The organiser's audience is the distribution channel.** They have the followers and
+the credibility; the platform's job is to make posting trivial, not to compete for the
+same attention.
+
+### `seo.v1` — the agent
+
+Full contract in `03` §3.4. Scopes are `read:catalogue`, `write:draft_content`,
+`write:internal_links`, `write:metadata`. **It cannot publish**, and it holds no scope
+that touches an external site — because there is no legitimate automated action to take
+on somebody else's domain.
+
+---
+
+## M26 — Referral & Influencer Programme
+
+**Status:** `NEW`.
+
+### Fan referral
+
+| Property | Value |
+| --- | --- |
+| Reward | Both sides — referrer and referred |
+| Referrer gets | Credit toward their next ticket, released **after the friend attends** |
+| Referred gets | A discount on their first order |
+| Attribution | Unique link or code, `campaign_attribution` (`08` §8.15a) |
+| Cap | 10 successful referrals per person per 30 days |
+
+**Reward on attendance, not purchase.** Rewarding at checkout pays out on orders that
+get refunded, and it is the obvious self-referral loop. Scanned at the door means the
+event happened and a real person went.
+
+### Influencer programme — 1% for 10,000+ followers
+
+| Tier | Followers | Commission | Terms |
+| --- | --- | --- | --- |
+| **Creator** | 10,000+ | **1% of attributed GMV** | Self-serve, automatic approval on verification |
+| **Partner** | 100,000+ | 2%, negotiable | Manual review, contract |
+| **Ambassador** | Invitation | Negotiated + fee | Contract, exclusivity optional |
+
+Commission is on **attributed gross ticket value**, paid monthly in arrears, minimum
+payout £25, and it comes out of the platform's commission — not the organiser's net.
+An organiser whose margin is reduced by a promotion they did not agree to will disable
+it, which is the same rule sub-promoters follow in `04` M18.
+
+### Follower count is verified, not declared, and it is the weaker signal
+
+Follower counts are trivially bought. A 10,000-follower threshold with no verification
+is an invitation to a market in cheap accounts.
+
+| Check | Purpose |
+| --- | --- |
+| OAuth to the platform account | Proves ownership, not just a screenshot |
+| Follower count via platform API | Read directly, never typed in |
+| **Engagement rate** | The real signal — under 1% on a 10k account indicates purchased followers |
+| Audience geography | Must overlap markets we actually sell in |
+| Account age and posting history | New accounts with high counts are re-checked |
+| Periodic re-verification | Monthly; tier can fall as well as rise |
+
+**Engagement rate gates the tier, not follower count alone.** 10,000 followers at 4%
+engagement is worth more than 100,000 at 0.2%, and the second is usually purchased.
+
+### Disclosure is a legal requirement, not a courtesy
+
+In the UK the ASA requires paid partnerships to be clearly identifiable; the US FTC
+requires the same. A commission arrangement is a material connection.
+
+| Rule | Enforcement |
+| --- | --- |
+| `#ad` or the platform's paid-partnership label on every post | Term of the programme |
+| Non-disclosure detected | First: warning and education. Second: removal and forfeit |
+| Platform-generated copy ships **with** the disclosure | We never supply undisclosed copy |
+| Influencer terms state it plainly | Accepted at signup, versioned |
+
+We hold the commission relationship, so an undisclosed post is a problem for the
+platform as well as the creator. Making disclosure the default in every asset we hand
+over is cheaper than policing it afterwards.
+
+### Fraud controls
+
+| Vector | Control |
+| --- | --- |
+| Self-referral | Payment instrument, device fingerprint and address matching |
+| Cookie stuffing | Attribution requires a genuine click with a referrer, not an impression |
+| Refund farming | Commission accrues on attendance, claws back on refund |
+| Bot traffic | Seon device intelligence (`06` §6.16) on referred sessions |
+| Attribution hijack | Last-touch within 7 days, and a creator cannot overwrite a promoter's earlier touch inside 24h |
+
+Commission is **held for 14 days after the event** before payout, which is the window in
+which chargebacks and refunds surface. Paying out before that window closes means
+clawing money back from someone who has already spent it.
+
+### Gen-Z product design, stated concretely
+
+Not a tone of voice — a set of measurable properties.
+
+| Property | Requirement |
+| --- | --- |
+| Mobile-first | Every flow designed at 390px first; desktop is the adaptation |
+| Checkout speed | Ticket bought in **under 30 seconds** from event page, Apple/Google Pay first |
+| No forced account | Guest checkout; the account is offered after, not demanded before |
+| Video-first discovery | Vertical, muted, swipeable — M24 assets re-cut |
+| Wallet-native | Apple and Google Wallet by default, not as an afterthought |
+| Social proof | "14 friends going", where the fan has opted into social graph |
+| Dark mode | Default on mobile, not an option buried in settings |
+| Share is one tap | Pre-rendered share image, no app switching |
+| Price honesty | Total shown up front, fees itemised, never revealed at the last step |
+| Reduced friction over persuasion | No countdown pressure, no fake scarcity |
+
+**The last two are the ones that matter most with this audience.** Fake urgency and
+surprise fees are the most-mocked patterns in ticketing, and the demographic least
+willing to tolerate them is the one being targeted here. Being visibly straight about
+price is a differentiator against every incumbent named in `01` §1.3.
