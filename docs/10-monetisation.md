@@ -186,7 +186,46 @@ policy that gets revisited when revenue is tight — it is a condition of the pl
 existence, and the moment it is breached the organiser trust that makes everything
 else work is gone.
 
-## 10.10 Dynamic pricing engine (`NEW`)
+## 10.10 Line 9 — Ancillary event revenue (`NEW`)
+
+The unified revenue engine promised in `01` §1.2. An event sells more than admission,
+and every one of these is currently transacted somewhere the platform cannot see —
+cash at a merchandise table, a separate parking app, a sponsor invoice raised by email.
+
+| Stream | Model | Take | Why it belongs here |
+| --- | --- | --- | --- |
+| **Merchandise** | Pre-order at checkout, collect at venue | 5% | Attaches to a ticket that already exists; no new payment relationship |
+| **F&B vouchers** | Prepaid credit redeemed at the bar | 4% | Cuts queue time, and prepaid spend exceeds cash spend |
+| **Parking** | Inventory with capacity, sold as a tier | 8% | Genuinely scarce; capacity management is what we already do |
+| **Sponsorship activation** | Sponsor pass issuance, exposure reporting | Flat fee per activation | The sponsor actor (`02` §2.1) needs measurable delivery |
+| **Hospitality upsell** | Package upgrade after purchase | Commission on the uplift | The highest-margin line on this table |
+
+### Why these are one engine and not five integrations
+
+Each is **the same object with a different label**: an inventory item with a price, a
+quantity, a holder and a redemption event. Parking is a tier with 400 units. A
+merchandise pre-order is a tier redeemed at a different gate. An F&B voucher is a
+redemption against a balance.
+
+`08` models this directly — `ticket_types` carries `is_hospitality`, and the same
+pattern extends to any ancillary type without a new table. The alternative, a bespoke
+schema per stream, is how platforms end up with five reconciliation processes and no
+single view of what an event earned.
+
+**The organiser sees one settlement.** That is the whole product claim: not that we
+sell parking, but that ticket, package, voucher and parking revenue land in one
+statement with one commission calculation, computed by `settle()`.
+
+### Sequencing
+
+Ancillary revenue is **Phase 3**, not Phase 2. It depends on the `orders` model
+(`08` §8.9), which does not exist until the PostgreSQL cutover in `19` completes — a
+basket containing a ticket and a parking space is exactly the multi-item order the
+current schema cannot represent.
+
+---
+
+## 10.11 Dynamic pricing engine (`NEW`)
 
 Applies to **platform-owned inventory only**: promotional placements, API overage and
 ACU packages. It does **not** set organisers' ticket prices — `pricing.v1` only
@@ -206,7 +245,7 @@ recommends there, at L1, and a human decides.
   a dark pattern and it is prohibited.
 - Every dynamic price is explainable in one plain sentence to the customer.
 
-## 10.11 Customer lifetime value
+## 10.12 Customer lifetime value
 
 | Segment | Monthly GMV | Take | Monthly net | Avg tenure | LTV | CAC | LTV:CAC |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -219,7 +258,7 @@ recommends there, at L1, and a human decides.
 and product investment concentrate. Hobbyist clears the 3.0 bar and must stay
 self-serve — the moment it needs human touch, it stops being profitable.
 
-## 10.12 Churn prevention
+## 10.13 Churn prevention
 
 `retention.v1` (see [03](./03-agent-architecture.md)) scores churn and selects the
 cheapest effective intervention.
@@ -237,7 +276,7 @@ cheapest effective intervention.
 almost every stage — and why the agent that does it needs a real budget, not a
 token one.
 
-## 10.13 Upsell & cross-sell
+## 10.14 Upsell & cross-sell
 
 | Trigger | Offer | Conversion |
 | --- | --- | --- |
@@ -252,7 +291,7 @@ Every offer is triggered by a **fact about the customer's own usage**, not by a
 calendar. "You hit your ACU limit twice this month" converts; "It's been 30 days"
 does not.
 
-## 10.14 Three-year model
+## 10.15 Three-year model
 
 | Metric | Year 1 | Year 2 | Year 3 |
 | --- | --- | --- | --- |
@@ -277,7 +316,7 @@ toward higher-margin recurring lines.
 **No single line exceeds 40% by year three.** That was the design constraint in §10.1,
 and the model satisfies it.
 
-## 10.15 Pricing principles
+## 10.16 Pricing principles
 
 1. **Transparent.** Every fee is itemised and named. No hidden costs, ever.
 2. **Aligned.** We earn when organisers earn. Commission means we lose money on a

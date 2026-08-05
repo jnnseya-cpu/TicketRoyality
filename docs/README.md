@@ -70,7 +70,7 @@ this table is correct.
 | Quantity | Actual | Where |
 | --- | --- | --- |
 | Documents | 19 | this directory |
-| Total lines | 7,338 | `wc -l docs/*.md` |
+| Total lines | 7482 | `wc -l docs/*.md` |
 | Actor types | **13** | `02` §2.1 |
 | AI Command Centres | **10** | `02` §2.3–2.12 |
 | AI agents | **19** | `03` §3.3–3.8 |
@@ -78,7 +78,7 @@ this table is correct.
 | Platform modules | **16** | `04` M1–M16 |
 | Connector categories | **21** | `06` §6.21 |
 | Database tables (target) | **20** | `08` §8.4–8.15 |
-| Revenue lines | **8** | `10` §10.2–10.9 |
+| Revenue lines | **9** | `10` §10.2–10.10 |
 | Subscription tiers | **5** | `10` §10.3 — Free · Starter · Professional · Business · Enterprise |
 | Admin console modules | **9** | `12` §12.2–12.10 |
 | Roadmap phases | **5** | `13` — Phase 1 MVP (complete) → Phase 5 Global Scale |

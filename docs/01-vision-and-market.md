@@ -1,5 +1,48 @@
 # 01 — Executive Vision & Market Gap Analysis
 
+## Platform identity
+
+**TicketRoyality is not a ticketing app.** It is an Event Infrastructure Operating
+System: a full-stack AI-native platform that unifies every layer of the live-event
+economy — from first ticket sale to final gate scan — into one autonomous,
+self-improving system.
+
+> **Mission.** To become the world's most trusted, intelligent and profitable event
+> operating system, by giving every organiser, promoter, venue and fan a premium
+> digital experience powered by AI-native automation, fraud-proof access control and
+> real-time revenue intelligence.
+
+### Who it is built for
+
+| Segment | What they need that generic ticketing does not give them |
+| --- | --- |
+| **Stadiums & arenas** | Seat-level inventory, multi-gate entry, tiered hospitality |
+| **Festivals** | Multi-day, multi-stage, wristband and capacity zoning |
+| **Concert promoters** | Allocation to sub-promoters, settlement across parties |
+| **Sports clubs** | Season inventory, member priority, recurring fixtures |
+| **Conference organisers** | Sessions, speakers, hybrid and livestream attendance |
+| **Nightclubs** | Fast door throughput, guest lists, table service |
+| **Theatres** | Reserved seating, subscription series, accessibility holds |
+| **VIP hospitality operators** | Packages, concierge workflow, named-guest management |
+
+Nine segments, one inventory model. The alternative — a separate product per segment —
+is what forces an organiser running a £250 hospitality package to use the same tool as
+a £6 book club (`01` §1.3, Eventbrite).
+
+### Where it operates
+
+| Market | Primary rail | Regulatory posture |
+| --- | --- | --- |
+| **United Kingdom** | Stripe · Adyen | FCA-adjacent; PCI scope minimised |
+| **European Union** | Stripe · Adyen · Open Banking | GDPR native, SCA compliant |
+| **DRC** | BitriPay, direct mobile money, KODA verification | Local operator relationships |
+| **Pan-African** | BitriPay | Per-market KYC and settlement |
+
+**Both halves are first-class.** The UK/EU premium market and the DRC/pan-African
+emerging market are not a home market and an expansion market — they are two
+requirements the architecture was built to satisfy simultaneously. That is why mobile
+money is a rail rather than a plugin, and why `06` §6.20 exists.
+
 ## 1.1 What the AI-OS is
 
 TicketRoyality AI-OS is an **operating system for live commerce**. The transactional
@@ -51,6 +94,24 @@ creative failure:
 
 Each is an execution gap, not an information gap. Reporting more numbers does not
 close any of them. Acting on the numbers does.
+
+### Problem → mechanism
+
+The four failures above are the commercial framing. Below is the operational one —
+every problem an organiser actually reports, and the specific mechanism that closes it.
+
+| Problem | Mechanism | Specified in |
+| --- | --- | --- |
+| Fake and duplicate tickets leaking revenue | One-time HMAC-signed QR, identity linking, NFC wallet passes, AI fraud scoring | `08` §8.10 · `03` §3.6 |
+| Gate chaos and slow entry | Real-time multi-gate scanning, offline-tolerant sync, congestion prediction | `04` M16 · `08` §8.12 |
+| Fragmented revenue streams | One revenue engine: tickets, VIP, hospitality, merchandise, F&B vouchers, parking, sponsorship | `10` §10.10 |
+| No premium fan experience | Royal-grade digital tickets, seamless checkout, branded wallets, VIP concierge | `04` M3 · M4 · `02` §2.1 |
+| Zero insight into attendee behaviour | Fan Intelligence: behavioural analytics, predictive models, post-event reporting | `04` M9 · `03` §3.8 |
+| Manual organiser operations | Command Centre automating pricing, marketing, compliance and support | `02` §2.4 · `03` |
+| No African market capability | BitriPay — M-Pesa, Airtel, Orange, Africell, CDF — plus KODA verification | `05` · `06` §6.20 |
+
+Every row names where it is specified. A problem statement with no implementing section
+is a marketing claim; this table is a build index.
 
 ## 1.3 Market gap analysis
 
@@ -157,6 +218,29 @@ long-tail without diluting the curation that justifies its margin.
 because a competitor shipped it. The build order in `13` is driven by what the platform
 needs to be complete and safe — see §1.5.1.
 
+### The six gaps nobody occupies
+
+Distilled from the analysis above. Each is a position that is currently empty, not a
+feature somebody does worse than we would.
+
+| # | Gap | Why it is still open |
+| --- | --- | --- |
+| 1 | A unified AI-native event OS spanning creation, ticketing, VIP hospitality, fraud control and fan analytics | Each incumbent owns one or two layers; combining them breaks the fee model that funds them |
+| 2 | A credible pan-African event platform with mobile money as a first-class rail | Card-first architectures treat mobile money as an integration, not a primitive |
+| 3 | A **self-service** VIP and hospitality builder for independent promoters | Hospitality is sold through negotiated rights deals; nobody has made it self-serve |
+| 4 | A multi-agent AI workforce embedded in the platform rather than bolted on | Requires the permission model to exist first — `01` §1.4, precondition 3 |
+| 5 | A dedicated payment API door for African event revenue | Gateways serve merchants generally; none is shaped around event settlement |
+| 6 | Autonomous pricing optimisation and churn prevention as platform features | Both need the behavioural data flywheel before they work at all |
+
+Gaps 1 and 4 are the same observation from two directions: the agent layer is only
+safe because the permission model exists, and the permission model is only valuable
+because it spans every layer. That is the argument for one OS rather than five
+integrated products.
+
+Gap 6 is the honest one — it cannot be built first. Pricing and churn agents are
+worthless without volume, which is why `13` schedules them in Phase 3 rather than
+treating them as launch features.
+
 ## 1.4 Why an agent layer, and why now
 
 Three preconditions are now met that were not eighteen months ago:
@@ -174,6 +258,27 @@ Three preconditions are now met that were not eighteen months ago:
    they can be given autonomy safely.
 
 ## 1.5 Competitive advantage, restated as moats
+
+Six claims are made for this platform. Each is stated with the section that has to be
+true for it to hold — a claim with no implementing section is marketing.
+
+| Claim | Holds because | Where |
+| --- | --- | --- |
+| Eventbrite-grade self-service **and** Seat Unique-grade VIP in one OS | Hospitality is an inventory type, not a separate product | `08` §8.13 · `02` §2.1 |
+| A built-in multi-agent AI workforce, no third-party bolt-ons | 19 agents with contracts, scopes and an autonomy ladder | `03` |
+| Native to UK/EU premium **and** DRC/pan-African emerging markets | Both are first-class rails, not a market and an expansion | §Platform identity, above |
+| BitriPay for Africa, Stripe/Adyen for the West, KODA beneath both | Three independent rails plus a verification layer | `06` §6.2 · §6.20 |
+| Zero-trust security architecture | Authorisation at the database, deny by default, no network trust | `11` §11.1 · `08` §8.16 |
+| Self-healing, self-optimising infrastructure | Six self-managing agents; rollback is the only L3 in the system | `03` §3.7 |
+
+**Row 5 is the one to check hardest**, because "military-grade" and "zero trust" are the
+two most abused phrases in security marketing. What it means here is specific and
+falsifiable: every request is authorised on its own merits at the data layer, no
+principal is trusted by network position, and the platform admin — the most privileged
+human — still cannot write the ledger from a session (`17` §17.3). If those three stop
+being true, the claim is void.
+
+
 
 | Moat | Mechanism | Time to replicate |
 | --- | --- | --- |

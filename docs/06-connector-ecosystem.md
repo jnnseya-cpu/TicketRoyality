@@ -300,7 +300,7 @@ vector provider replaceable rather than load-bearing (`01` §1.5.1).
 | **ECB reference rates** | Secondary, free, sufficient for daily settlement |
 
 **Connects to:** multi-currency event pricing, BitriPay settlement, organiser payout
-statements, the three-year model in `10` §10.14.
+statements, the three-year model in `10` §10.15.
 
 **Rate discipline:** the rate used for a transaction is **frozen onto that
 transaction**, never re-derived at read time. A payout statement that changes value
