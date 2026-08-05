@@ -24,7 +24,12 @@ than preferential and it drives several other decisions.
 | Payments | **Stripe · BitriPay** | Cards and payouts · mobile money |
 | AI | **Claude · Gemini · OpenAI** | Behind the gateway (`07` §7.5a) |
 
-**Five accounts. Roughly £30–90/month before volume.**
+**Five accounts. Roughly £70–150/month** in infrastructure before transaction volume —
+worked through in `21` §21.13, where the dominant line is the always-on instance that
+removes cold starts.
+
+**Add roughly £500/month once payouts start**, for the KYB and AML providers that are
+legally required before you can pay an organiser. Infrastructure is the small part.
 
 ---
 

@@ -263,8 +263,9 @@ seconds of model calls — does not fit a short serverless ceiling. Full reasoni
 | 4 | **BitriPay** | Mobile money, CDF |
 | 5 | **Claude · Gemini · OpenAI** | AI behind the gateway — reasoning, volume, embeddings |
 
-**Indicative cost: £30–90/month before volume**, against £150–250 for the twelve-vendor
-set. One cloud project, one region, no cross-provider hop on any request path.
+**Indicative cost: £70–150/month before transaction volume.** One cloud project, one
+region, no cross-provider hop on any request path. The working is in §21.13 — the
+figure is dominated by one line, and an earlier draft of this document understated it.
 
 ### What each one actually covers
 
@@ -385,3 +386,77 @@ surprises people on a viral event.
 
 The last row is the one that is not a technical choice. Paying out without KYB risks
 the Stripe account the whole platform runs on.
+
+
+---
+
+## 21.13 Cost model, with the arithmetic shown
+
+An earlier version of this document said £30–90/month. **That was wrong**, and wrong in
+a specific way worth recording: it did not price the always-on instance that
+`apphosting.yaml` had just been configured to run. A cost estimate that contradicts the
+config in the same commit is worse than no estimate.
+
+### The line that dominates everything
+
+`minInstances: 1` keeps one Cloud Run instance provisioned around the clock. That is
+what removes cold starts, and it is billed for all 730 hours whether anyone visits or
+not.
+
+| Instance size | Always-on, idle-billed | If fully active |
+| --- | --- | --- |
+| 1 vCPU / 1 GiB | **~$26/mo** | ~$70/mo |
+| 2 vCPU / 2 GiB | ~$53/mo | ~$139/mo |
+| minInstances: 0 | $0 | — but cold starts return |
+
+**`apphosting.yaml` is now 1 vCPU / 1 GiB**, down from 2/2. At `concurrency: 80` one
+instance serves 80 simultaneous requests, and Next.js SSR is I/O-bound — most of a
+request is waiting on Firestore — so the smaller size is right for launch. Scale the
+floor when a measurement says to.
+
+### Full monthly estimate at launch volume
+
+Assuming ~50,000 page views, ~500 tickets, ~2,000 AI calls a month.
+
+| Line | Estimate | Driver |
+| --- | --- | --- |
+| Cloud Run — 1 always-on instance | **£22–30** | The floor. 24/7 regardless of traffic |
+| Cloud Run — request-time overage | £5–15 | Scales with traffic above the warm instance |
+| Firestore reads/writes | £5–20 | 50k reads + 20k writes/day are free; this is above that |
+| Firestore storage | £1–3 | £0.14/GiB/month |
+| Cloud Functions | £0–5 | 2M invocations free |
+| Storage + egress | £5–25 | **Egress is the variable to watch** — a viral event moves this |
+| Secret Manager, Scheduler, Cloud Build | £3–8 | ~15 secrets, 2 jobs, build minutes |
+| Firebase Auth | £0 | Free below 50k monthly active users |
+| Hostinger — domain + mailboxes | £3–5 | |
+| AI providers (float before resale) | £10–40 | Recovered at 4× via ACU (`10` §10.6) |
+| Stripe, BitriPay | £0 | Per-transaction only, no monthly floor |
+| **Total** | **£54–151** | Call it **£70–150** as a planning figure |
+
+### What moves it
+
+| Change | Effect |
+| --- | --- |
+| `minInstances: 0` | −£25, cold starts return. **Not recommended** |
+| 2 vCPU / 2 GiB floor | +£26 |
+| A viral event | Storage egress and Firestore reads both spike |
+| 10× traffic | Roughly +£40–80, mostly request-time compute |
+| Adding Sumsub + ComplyAdvantage | **+£500** — required before the first payout (§21.3) |
+
+### The number nobody plans for
+
+**ComplyAdvantage at roughly £500/month is larger than the entire infrastructure bill.**
+It is not optional before payouts, and it is the line most likely to be missed when
+budgeting from an infrastructure estimate alone. §21.11 lists it as blocking for a
+reason.
+
+Once it is on, the monthly floor is roughly **£600, not £100.** Infrastructure is the
+small part of running a regulated payments-adjacent platform, which is the honest shape
+of this business.
+
+### Caveat
+
+Cloud pricing changes and varies by region. These figures are indicative and derived
+from published europe-west2 rates at the time of writing — **verify against the Google
+Cloud pricing calculator before committing to a budget.** Treat the arithmetic as the
+useful part, not the constants.

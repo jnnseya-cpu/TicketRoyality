@@ -3,8 +3,11 @@
 # never inline a secret value here.
 
 runConfig:
-  cpu: 2
-  memoryMiB: 2048
+  # Right-sized for launch, not for a peak that has not happened yet. One always-on
+  # instance at this size is roughly $26/month; at 2 vCPU / 2 GiB it is $53 before a
+  # single request. Scale the floor when a measurement says to, not in advance.
+  cpu: 1
+  memoryMiB: 1024
 
   # minInstances: 1 is the single most important line in this file.
   #
@@ -14,6 +17,10 @@ runConfig:
   # price of a coffee a month, and it is the fix for "the backend feels slow".
   minInstances: 1
   maxInstances: 20
+
+  # 80 concurrent requests per instance. Next.js SSR is I/O-bound — most of a request
+  # is waiting on Firestore — so one instance serves far more than one user at a time.
+  # This is why a single warm instance is enough at launch volume.
   concurrency: 80
 
   # Cloud Run allows up to 3600s. AI work needs far more than a typical serverless
