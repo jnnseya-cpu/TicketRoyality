@@ -3,10 +3,10 @@
 import * as React from 'react';
 import { Banknote, Building2, CreditCard, Loader2, Wallet } from 'lucide-react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import {
   Table,
   TableBody,
@@ -14,13 +14,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { useToast } from '@/hooks/use-toast';
-import { getTicketsForOrganizer } from '@/server/database';
+} from '@/frontend/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/frontend/components/ui/tabs';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { useToast } from '@/frontend/hooks/use-toast';
+import { getTicketsForOrganizer } from '@/shared/data/repositories';
 import { DEFAULT_ADMIN_FEE, DEFAULT_COMMISSION_PERCENT } from '@/shared/constants/billing';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/shared/utils';
 import type { Ticket, UserProfile } from '@/shared/types';
 
 const MINIMUM_WITHDRAWAL = 10;

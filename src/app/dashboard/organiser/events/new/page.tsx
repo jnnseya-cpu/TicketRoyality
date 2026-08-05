@@ -1,7 +1,7 @@
 'use client';
 
-import { CreateEventForm } from '@/components/events/CreateEventForm';
-import { RequireRole } from '@/components/dashboard/RequireRole';
+import { CreateEventForm } from '@/frontend/components/events/CreateEventForm';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 
 export default function NewEventPage() {
   return (

@@ -4,7 +4,7 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
-import { dashboardPathFor, useAuth } from '@/hooks/use-auth';
+import { dashboardPathFor, useAuth } from '@/frontend/hooks/use-auth';
 
 /**
  * Single entry point for "my account". Sends every signed-in user to the dashboard

@@ -7,13 +7,13 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { KeyRound, Loader2, MailCheck } from 'lucide-react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { useAuth } from '@/hooks/use-auth';
-import { authErrorMessage } from '@/lib/errors';
+import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/frontend/components/ui/form';
+import { Input } from '@/frontend/components/ui/input';
+import { useAuth } from '@/frontend/hooks/use-auth';
+import { authErrorMessage } from '@/shared/errors';
 
 const schema = z.object({ email: z.string().email('Enter a valid email address.') });
 type FormValues = z.infer<typeof schema>;

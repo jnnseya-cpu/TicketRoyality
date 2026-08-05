@@ -3,10 +3,10 @@
 import * as React from 'react';
 import { Download, Loader2, Search } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent } from '@/frontend/components/ui/card';
+import { Input } from '@/frontend/components/ui/input';
 import {
   Table,
   TableBody,
@@ -14,10 +14,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { getTicketsForOrganizer } from '@/server/database';
-import { formatCurrency, formatEventDate } from '@/lib/utils';
+} from '@/frontend/components/ui/table';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { getTicketsForOrganizer } from '@/shared/data/repositories';
+import { formatCurrency, formatEventDate } from '@/shared/utils';
 import type { Ticket, TicketStatus, UserProfile } from '@/shared/types';
 
 const STATUS_FILTERS: Array<{ id: TicketStatus | 'all'; label: string }> = [

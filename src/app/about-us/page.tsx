@@ -3,10 +3,10 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ArrowRight, Globe, ShieldCheck, Sparkles } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { PLACEHOLDER_IMAGES, avatarSeed } from '@/lib/placeholder-images';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent } from '@/frontend/components/ui/card';
+import { PLACEHOLDER_IMAGES, avatarSeed } from '@/shared/constants/placeholder-images';
 
 export const metadata: Metadata = {
   title: 'About us',

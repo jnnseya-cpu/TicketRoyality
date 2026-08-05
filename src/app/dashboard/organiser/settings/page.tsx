@@ -1,13 +1,13 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { DeleteAccountDialog } from '@/components/dashboard/DeleteAccountDialog';
-import { ProfileForm } from '@/components/dashboard/ProfileForm';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { useAuth } from '@/hooks/use-auth';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import { DeleteAccountDialog } from '@/frontend/components/dashboard/DeleteAccountDialog';
+import { ProfileForm } from '@/frontend/components/dashboard/ProfileForm';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { useAuth } from '@/frontend/hooks/use-auth';
 import { DEFAULT_ADMIN_FEE, DEFAULT_COMMISSION_PERCENT } from '@/shared/constants/billing';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/shared/utils';
 
 export default function OrganiserSettingsPage() {
   const { refreshProfile } = useAuth();

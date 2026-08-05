@@ -4,14 +4,14 @@ import * as React from 'react';
 import Link from 'next/link';
 import { Check, KeyRound, ShieldAlert } from 'lucide-react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/use-auth';
-import { updateUserProfile } from '@/server/database';
+import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import { Separator } from '@/frontend/components/ui/separator';
+import { useToast } from '@/frontend/hooks/use-toast';
+import { useAuth } from '@/frontend/hooks/use-auth';
+import { updateUserProfile } from '@/shared/data/repositories';
 import type { UserType } from '@/shared/types';
 
 const ROLES: Array<{ id: UserType; label: string; email: string; blurb: string }> = [

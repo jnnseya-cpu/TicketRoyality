@@ -4,18 +4,18 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { CalendarDays, Clock, ExternalLink, Radio, Share2, Ticket, Users } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { EventCountdown } from '@/components/events/EventCountdown';
-import { EventMap } from '@/components/events/EventMap';
-import { EventSpeakers } from '@/components/events/EventSpeakers';
-import { SeatMapPreview } from '@/components/events/SeatMapPreview';
-import { SimilarEvents } from '@/components/events/SimilarEvents';
-import { TicketBox } from '@/components/events/TicketBox';
-import { getEventById } from '@/server/database';
-import { formatEventDate } from '@/lib/utils';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import { Separator } from '@/frontend/components/ui/separator';
+import { EventCountdown } from '@/frontend/components/events/EventCountdown';
+import { EventMap } from '@/frontend/components/events/EventMap';
+import { EventSpeakers } from '@/frontend/components/events/EventSpeakers';
+import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
+import { SimilarEvents } from '@/frontend/components/events/SimilarEvents';
+import { TicketBox } from '@/frontend/components/events/TicketBox';
+import { getEventById } from '@/shared/data/repositories';
+import { formatEventDate } from '@/shared/utils';
 
 export async function generateMetadata({
   params,

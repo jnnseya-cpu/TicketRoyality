@@ -4,11 +4,11 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { Globe, Mail } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { EventCard } from '@/components/events/EventCard';
-import { getEventsByOrganizer, getUserProfile } from '@/server/database';
-import { PLACEHOLDER_IMAGES } from '@/lib/placeholder-images';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { EventCard } from '@/frontend/components/events/EventCard';
+import { getEventsByOrganizer, getUserProfile } from '@/shared/data/repositories';
+import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
 
 export async function generateMetadata({
   params,

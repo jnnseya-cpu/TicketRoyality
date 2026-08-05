@@ -4,10 +4,10 @@ import * as React from 'react';
 import { useParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CreateEventForm } from '@/components/events/CreateEventForm';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { getEventById } from '@/server/database';
+import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
+import { CreateEventForm } from '@/frontend/components/events/CreateEventForm';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { getEventById } from '@/shared/data/repositories';
 import type { Event } from '@/shared/types';
 
 export default function EditEventPage() {

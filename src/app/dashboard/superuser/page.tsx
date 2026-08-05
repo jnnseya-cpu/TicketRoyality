@@ -13,15 +13,15 @@ import {
   Users,
 } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { RequireRole } from '@/components/dashboard/RequireRole';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import {
   getOrganisers,
   getPendingOfflinePayments,
   getPlatformStats,
-} from '@/server/database';
-import { formatCurrency } from '@/lib/utils';
+} from '@/shared/data/repositories';
+import { formatCurrency } from '@/shared/utils';
 
 function AdminOverview() {
   const [stats, setStats] = React.useState({ totalUsers: 0, totalEvents: 0, totalTickets: 0 });

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { isAiConfigured, estimateProviderCostUsd } from '@/server/ai/genkit';
+import { isAiConfigured, estimateProviderCostUsd } from '@/backend/ai/genkit';
 import { chargeForProviderCost } from '@/shared/constants/billing';
 
 export const runtime = 'nodejs';
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
 
   try {
     // Imported lazily so a missing/invalid API key cannot break unrelated routes at build time.
-    const { generateAdCopy, recommendEvents, findSimilarEvents } = await import('@/server/ai/flows');
+    const { generateAdCopy, recommendEvents, findSimilarEvents } = await import('@/backend/ai/flows');
 
     let result: unknown;
     switch (task) {

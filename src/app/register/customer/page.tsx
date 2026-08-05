@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { CustomerRegistrationForm } from '@/components/auth/CustomerRegistrationForm';
+import { CustomerRegistrationForm } from '@/frontend/components/auth/CustomerRegistrationForm';
 
 export const metadata: Metadata = {
   title: 'Customer sign-up',

@@ -1,14 +1,14 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/frontend/components/ui/separator';
 import {
   DEFAULT_ADMIN_FEE,
   DEFAULT_COMMISSION_PERCENT,
   MARKUP_MULTIPLIER,
   OFFLINE_SERVICE_FEE_PERCENT,
 } from '@/shared/constants/billing';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/shared/utils';
 
 export const metadata: Metadata = {
   title: 'Terms of service',

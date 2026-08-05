@@ -3,9 +3,9 @@
 import * as React from 'react';
 import { Loader2, Smartphone } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent } from '@/frontend/components/ui/card';
 import {
   Table,
   TableBody,
@@ -13,16 +13,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { useToast } from '@/hooks/use-toast';
+} from '@/frontend/components/ui/table';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { useToast } from '@/frontend/hooks/use-toast';
 import {
   createTicket,
   getEventById,
   getPendingOfflinePayments,
   updateOfflinePaymentStatus,
-} from '@/server/database';
-import { formatCurrency } from '@/lib/utils';
+} from '@/shared/data/repositories';
+import { formatCurrency } from '@/shared/utils';
 import type { OfflinePayment, UserProfile } from '@/shared/types';
 
 function OfflinePayments({ profile }: { profile: UserProfile }) {

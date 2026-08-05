@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 
-import { Separator } from '@/components/ui/separator';
+import { Separator } from '@/frontend/components/ui/separator';
 
 export const metadata: Metadata = {
   title: 'Privacy policy',

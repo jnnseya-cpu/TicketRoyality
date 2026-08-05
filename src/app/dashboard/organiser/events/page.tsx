@@ -4,10 +4,10 @@ import * as React from 'react';
 import Link from 'next/link';
 import { CalendarDays, Copy, Loader2, PlusCircle, ScanLine, Search } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Calendar } from '@/frontend/components/ui/calendar';
+import { Card, CardContent, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -15,8 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+} from '@/frontend/components/ui/dialog';
+import { Input } from '@/frontend/components/ui/input';
 import {
   Table,
   TableBody,
@@ -24,12 +24,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { useToast } from '@/hooks/use-toast';
-import { getEventsByOrganizer, getTicketsForOrganizer } from '@/server/database';
-import { formatCurrency, formatEventDate } from '@/lib/utils';
+} from '@/frontend/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/frontend/components/ui/tabs';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { useToast } from '@/frontend/hooks/use-toast';
+import { getEventsByOrganizer, getTicketsForOrganizer } from '@/shared/data/repositories';
+import { formatCurrency, formatEventDate } from '@/shared/utils';
 import type { Event, Ticket, UserProfile } from '@/shared/types';
 
 function CheckInLinkDialog({ event }: { event: Event }) {

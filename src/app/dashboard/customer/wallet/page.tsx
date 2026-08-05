@@ -4,9 +4,9 @@ import * as React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Loader2, Sparkles, Wallet } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import {
   Table,
   TableBody,
@@ -14,9 +14,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { getLedgerEntries } from '@/server/database';
+} from '@/frontend/components/ui/table';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { getLedgerEntries } from '@/shared/data/repositories';
 import {
   ACU_USD_RATE,
   MARKUP_MULTIPLIER,

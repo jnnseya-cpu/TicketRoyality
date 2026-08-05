@@ -3,9 +3,9 @@
 import * as React from 'react';
 import { Loader2, PlusCircle, TicketPercent } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent } from '@/frontend/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -14,16 +14,16 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from '@/frontend/components/ui/dialog';
+import { Input } from '@/frontend/components/ui/input';
+import { Label } from '@/frontend/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@/frontend/components/ui/select';
 import {
   Table,
   TableBody,
@@ -31,11 +31,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { useToast } from '@/hooks/use-toast';
-import { createCoupon, getCouponsForOrganizer } from '@/server/database';
+} from '@/frontend/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/frontend/components/ui/tabs';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { useToast } from '@/frontend/hooks/use-toast';
+import { createCoupon, getCouponsForOrganizer } from '@/shared/data/repositories';
 import type { Coupon, UserProfile } from '@/shared/types';
 
 function CreateCouponDialog({

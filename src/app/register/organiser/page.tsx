@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { OrganiserRegistrationForm } from '@/components/auth/OrganiserRegistrationForm';
+import { OrganiserRegistrationForm } from '@/frontend/components/auth/OrganiserRegistrationForm';
 
 export const metadata: Metadata = {
   title: 'Organiser sign-up',

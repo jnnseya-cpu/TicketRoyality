@@ -3,9 +3,9 @@
 import * as React from 'react';
 import { BadgeCheck, Loader2 } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent } from '@/frontend/components/ui/card';
 import {
   Table,
   TableBody,
@@ -13,10 +13,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { useToast } from '@/hooks/use-toast';
-import { getOrganisers, updateUserProfile } from '@/server/database';
+} from '@/frontend/components/ui/table';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { useToast } from '@/frontend/hooks/use-toast';
+import { getOrganisers, updateUserProfile } from '@/shared/data/repositories';
 import type { UserProfile } from '@/shared/types';
 
 function Approvals() {

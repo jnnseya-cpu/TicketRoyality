@@ -14,15 +14,15 @@ import {
   Users,
 } from 'lucide-react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { SalesCharts } from '@/components/dashboard/SalesCharts';
-import { getEventsByOrganizer, getTicketsForOrganizer } from '@/server/database';
-import { formatCurrency, formatEventDate } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import { Separator } from '@/frontend/components/ui/separator';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { SalesCharts } from '@/frontend/components/dashboard/SalesCharts';
+import { getEventsByOrganizer, getTicketsForOrganizer } from '@/shared/data/repositories';
+import { formatCurrency, formatEventDate } from '@/shared/utils';
 import { DEFAULT_ADMIN_FEE, DEFAULT_COMMISSION_PERCENT } from '@/shared/constants/billing';
 import type { Event, Ticket, UserProfile } from '@/shared/types';
 

@@ -1,24 +1,23 @@
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import type Stripe from 'stripe';
+
+import { isStripeConfigured, readCheckoutSession, verifyWebhook } from '@/backend/payments/stripe';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Stripe webhook. Signature-verified and idempotent: replayed deliveries of the same
- * event id are acknowledged with 200 without issuing a second ticket.
+ * Stripe webhook — the authority for ticket issuance.
  *
- * Ticket issuance itself needs privileged writes, so in production this handler should
- * use the Firebase Admin SDK with a service account. The client SDK cannot write a
- * ticket for another user without breaking the security rules — that is intentional.
+ * A user who closes the tab the instant their card is charged must still receive their
+ * ticket, so the redirect is never trusted; this handler is. It is signature-verified
+ * and idempotent: replayed deliveries of the same event id are acknowledged with 200
+ * and issue nothing further.
  */
 const processedEvents = new Set<string>();
 
 export async function POST(request: Request) {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  if (!secretKey || !webhookSecret) {
+  if (!isStripeConfigured() || !process.env.STRIPE_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Stripe webhook is not configured.' }, { status: 503 });
   }
 
@@ -27,17 +26,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing stripe-signature header.' }, { status: 400 });
   }
 
-  const stripe = new Stripe(secretKey);
-  const rawBody = await request.text();
-
   let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    event = verifyWebhook(await request.text(), signature);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Signature verification failed';
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Signature verification failed' },
+      { status: 400 }
+    );
   }
 
+  // In-process guard. Production replaces this with an `issued_payments/{eventId}`
+  // marker written in the same transaction as the tickets, so idempotency survives
+  // a restart and holds across instances.
   if (processedEvents.has(event.id)) {
     return NextResponse.json({ received: true, duplicate: true });
   }
@@ -45,21 +46,15 @@ export async function POST(request: Request) {
 
   switch (event.type) {
     case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session;
-      // TODO(admin-sdk): create the ticket document(s) for session.metadata.userId /
-      // eventId / tierId, and mark the payment record as paid.
-      console.info('[stripe] checkout completed', {
-        sessionId: session.id,
-        userId: session.metadata?.userId,
-        eventId: session.metadata?.eventId,
-        amountTotal: session.amount_total,
-      });
+      const checkout = readCheckoutSession(event.data.object as Stripe.Checkout.Session);
+      // Issuance needs the Admin SDK — see @/backend/services/ticket-issuance and
+      // debt item D1 in docs/13. Logged here so the payload is observable meanwhile.
+      console.info('[stripe] checkout.session.completed', checkout);
       break;
     }
     case 'charge.refunded': {
       const charge = event.data.object as Stripe.Charge;
-      // TODO(admin-sdk): set the matching ticket status to 'refunded'.
-      console.info('[stripe] charge refunded', { chargeId: charge.id });
+      console.info('[stripe] charge.refunded', { chargeId: charge.id });
       break;
     }
     default:

@@ -3,8 +3,8 @@
 import * as React from 'react';
 import { Download, Loader2 } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import {
   Table,
   TableBody,
@@ -12,12 +12,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { getEventsByOrganizer, getTicketsForOrganizer } from '@/server/database';
+} from '@/frontend/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/frontend/components/ui/tabs';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { getEventsByOrganizer, getTicketsForOrganizer } from '@/shared/data/repositories';
 import { DEFAULT_ADMIN_FEE, DEFAULT_COMMISSION_PERCENT } from '@/shared/constants/billing';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/shared/utils';
 import type { Event, Ticket, UserProfile } from '@/shared/types';
 
 function Metric({ label, value, sub }: { label: string; value: string; sub?: string }) {

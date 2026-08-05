@@ -8,8 +8,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Info, Loader2, LogIn } from 'lucide-react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
+import { Button } from '@/frontend/components/ui/button';
 import {
   Card,
   CardContent,
@@ -17,7 +17,7 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from '@/frontend/components/ui/card';
 import {
   Form,
   FormControl,
@@ -25,12 +25,12 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Logo } from '@/components/common/Logo';
-import { useToast } from '@/hooks/use-toast';
-import { dashboardPathFor, useAuth } from '@/hooks/use-auth';
-import { authErrorMessage } from '@/lib/errors';
+} from '@/frontend/components/ui/form';
+import { Input } from '@/frontend/components/ui/input';
+import { Logo } from '@/frontend/components/common/Logo';
+import { useToast } from '@/frontend/hooks/use-toast';
+import { dashboardPathFor, useAuth } from '@/frontend/hooks/use-auth';
+import { authErrorMessage } from '@/shared/errors';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email address.'),

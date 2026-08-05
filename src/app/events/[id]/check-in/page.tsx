@@ -3,11 +3,11 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { ShieldCheck } from 'lucide-react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Logo } from '@/components/common/Logo';
-import { TicketScanner } from '@/components/dashboard/TicketScanner';
-import { getEventById } from '@/server/database';
-import { formatEventDate } from '@/lib/utils';
+import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
+import { Logo } from '@/frontend/components/common/Logo';
+import { TicketScanner } from '@/frontend/components/dashboard/TicketScanner';
+import { getEventById } from '@/shared/data/repositories';
+import { formatEventDate } from '@/shared/utils';
 
 export const metadata: Metadata = {
   title: 'Check-in portal',

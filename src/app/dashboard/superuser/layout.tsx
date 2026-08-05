@@ -12,9 +12,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import { Logo } from '@/components/common/Logo';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/frontend/components/ui/button';
+import { Logo } from '@/frontend/components/common/Logo';
+import { Separator } from '@/frontend/components/ui/separator';
 import {
   Sheet,
   SheetContent,
@@ -22,8 +22,8 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from '@/components/ui/sheet';
-import { cn } from '@/lib/utils';
+} from '@/frontend/components/ui/sheet';
+import { cn } from '@/shared/utils';
 
 const NAV = [
   { href: '/dashboard/superuser', label: 'Overview', icon: LayoutDashboard },

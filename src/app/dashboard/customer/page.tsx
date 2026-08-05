@@ -14,19 +14,19 @@ import {
   Wallet,
 } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DeleteAccountDialog } from '@/components/dashboard/DeleteAccountDialog';
-import { ProfileForm } from '@/components/dashboard/ProfileForm';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { TicketCard } from '@/components/dashboard/TicketCard';
-import { useAuth } from '@/hooks/use-auth';
-import { getUserTickets } from '@/server/database';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import { Separator } from '@/frontend/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/frontend/components/ui/tabs';
+import { DeleteAccountDialog } from '@/frontend/components/dashboard/DeleteAccountDialog';
+import { ProfileForm } from '@/frontend/components/dashboard/ProfileForm';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { TicketCard } from '@/frontend/components/dashboard/TicketCard';
+import { useAuth } from '@/frontend/hooks/use-auth';
+import { getUserTickets } from '@/shared/data/repositories';
 import { acuToUsd } from '@/shared/constants/billing';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/shared/utils';
 import type { Ticket, UserProfile } from '@/shared/types';
 
 function CustomerDashboard({ profile }: { profile: UserProfile }) {

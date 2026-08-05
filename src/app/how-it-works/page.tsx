@@ -16,10 +16,10 @@ import {
   Wallet,
 } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent } from '@/frontend/components/ui/card';
+import { Separator } from '@/frontend/components/ui/separator';
 import {
   DEFAULT_ADMIN_FEE,
   DEFAULT_COMMISSION_PERCENT,
@@ -27,7 +27,7 @@ import {
   OFFLINE_SERVICE_FEE_PERCENT,
   WELCOME_BONUS_ACU,
 } from '@/shared/constants/billing';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/shared/utils';
 
 export const metadata: Metadata = {
   title: 'How it works',

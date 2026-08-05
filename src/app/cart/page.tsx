@@ -5,16 +5,16 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { CreditCard, Loader2, Minus, Plus, ShoppingCart, Trash2, Wallet } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { useAuth } from '@/hooks/use-auth';
-import { useCart } from '@/hooks/use-cart';
-import { useToast } from '@/hooks/use-toast';
-import { findCouponByCode } from '@/server/database';
-import { formatCurrency, formatEventDate } from '@/lib/utils';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import { Input } from '@/frontend/components/ui/input';
+import { Label } from '@/frontend/components/ui/label';
+import { Separator } from '@/frontend/components/ui/separator';
+import { useAuth } from '@/frontend/hooks/use-auth';
+import { useCart } from '@/frontend/hooks/use-cart';
+import { useToast } from '@/frontend/hooks/use-toast';
+import { findCouponByCode } from '@/shared/data/repositories';
+import { formatCurrency, formatEventDate } from '@/shared/utils';
 import type { Coupon } from '@/shared/types';
 
 export default function CartPage() {

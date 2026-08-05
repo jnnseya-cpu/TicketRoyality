@@ -1,36 +1,35 @@
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
+
+import { createCheckoutSession, isStripeConfigured, type CheckoutLine } from '@/backend/payments/stripe';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Stripe Checkout.
+ * Stripe checkout entry point.
  *
- * This route responds with a 303 redirect rather than JSON, and the client posts to
- * it with a plain HTML <form>. That keeps the navigation inside the user's original
- * click gesture — an async fetch-then-redirect gets blocked by the browser with
- * "the current window does not have permission to navigate the target frame".
+ * Responds with a 303 redirect rather than JSON, and the client posts to it with a
+ * plain HTML <form>. That keeps the navigation inside the user's original click
+ * gesture — an async fetch-then-redirect gets blocked by the browser with "the current
+ * window does not have permission to navigate the target frame".
+ *
+ * This handler only parses and routes; all Stripe knowledge lives in
+ * `@/backend/payments/stripe`.
  */
 export async function POST(request: Request) {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
+  const fail = (reason: string) =>
+    NextResponse.redirect(`${siteUrl}/checkout/cancel?reason=${encodeURIComponent(reason)}`, {
+      status: 303,
+    });
 
-  if (!secretKey) {
-    return NextResponse.redirect(
-      `${siteUrl}/checkout/cancel?reason=${encodeURIComponent('Stripe is not configured')}`,
-      { status: 303 }
-    );
-  }
+  if (!isStripeConfigured()) return fail('Stripe is not configured');
 
-  const stripe = new Stripe(secretKey);
   const form = await request.formData();
+  const lines: CheckoutLine[] = [];
 
-  // `items` is a JSON array for cart checkout; the single-event path sends flat fields.
+  // `items` is a JSON array for cart checkout; single-event checkout sends flat fields.
   const rawItems = form.get('items');
-  const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
-  let currency = String(form.get('currency') ?? 'gbp').toLowerCase();
-
   if (typeof rawItems === 'string') {
     try {
       const parsed = JSON.parse(rawItems) as Array<{
@@ -40,58 +39,43 @@ export async function POST(request: Request) {
         quantity: number;
         currency: string;
       }>;
-      if (parsed[0]) currency = parsed[0].currency.toLowerCase();
       for (const item of parsed) {
-        lineItems.push({
+        lines.push({
+          name: `${item.eventTitle} — ${item.tierName}`,
+          amount: item.price,
           quantity: item.quantity,
-          price_data: {
-            currency,
-            unit_amount: Math.round(item.price * 100),
-            product_data: { name: `${item.eventTitle} — ${item.tierName}` },
-          },
+          currency: item.currency,
         });
       }
     } catch {
       return NextResponse.json({ error: 'Malformed items payload.' }, { status: 400 });
     }
   } else {
-    const name = String(form.get('name') ?? 'Event ticket');
-    const amount = Number(form.get('amount') ?? 0);
-    const quantity = Number(form.get('quantity') ?? 1);
-    lineItems.push({
-      quantity,
-      price_data: {
-        currency,
-        unit_amount: Math.round(amount * 100),
-        product_data: { name },
-      },
+    lines.push({
+      name: String(form.get('name') ?? 'Event ticket'),
+      amount: Number(form.get('amount') ?? 0),
+      quantity: Number(form.get('quantity') ?? 1),
+      currency: String(form.get('currency') ?? 'GBP'),
     });
   }
 
-  if (lineItems.length === 0) {
-    return NextResponse.json({ error: 'Nothing to check out.' }, { status: 400 });
-  }
+  if (lines.length === 0) return NextResponse.json({ error: 'Nothing to check out.' }, { status: 400 });
 
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      line_items: lineItems,
-      success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/checkout/cancel`,
+    const url = await createCheckoutSession({
+      lines,
+      successUrl: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${siteUrl}/checkout/cancel`,
+      // Carried through to the webhook, which is what actually issues the tickets.
       metadata: {
         userId: String(form.get('userId') ?? ''),
         eventId: String(form.get('eventId') ?? ''),
         tierId: String(form.get('tierId') ?? ''),
+        quantity: String(form.get('quantity') ?? '1'),
       },
     });
-
-    if (!session.url) throw new Error('Stripe did not return a checkout URL.');
-    return NextResponse.redirect(session.url, { status: 303 });
+    return NextResponse.redirect(url, { status: 303 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Stripe checkout failed';
-    return NextResponse.redirect(
-      `${siteUrl}/checkout/cancel?reason=${encodeURIComponent(message)}`,
-      { status: 303 }
-    );
+    return fail(error instanceof Error ? error.message : 'Stripe checkout failed');
   }
 }

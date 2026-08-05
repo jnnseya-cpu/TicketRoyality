@@ -3,20 +3,20 @@
 import * as React from 'react';
 import { Crown, Loader2, Megaphone, PlayCircle } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import { Separator } from '@/frontend/components/ui/separator';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { RequireRole } from '@/components/dashboard/RequireRole';
-import { getEventsByOrganizer } from '@/server/database';
-import { formatCurrency } from '@/lib/utils';
+} from '@/frontend/components/ui/select';
+import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { getEventsByOrganizer } from '@/shared/data/repositories';
+import { formatCurrency } from '@/shared/utils';
 import type { Event, UserProfile } from '@/shared/types';
 
 /** Paid placements sold to organisers. Prices are per campaign, charged on approval. */

@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, Space_Grotesk } from 'next/font/google';
 
 import './globals.css';
-import { Header } from '@/components/common/Header';
-import { Footer } from '@/components/common/Footer';
-import { SplashScreen } from '@/components/common/SplashScreen';
-import { ThemeProvider } from '@/components/common/ThemeProvider';
-import { Toaster } from '@/components/ui/toaster';
-import { AuthProvider } from '@/hooks/use-auth';
-import { CartProvider } from '@/hooks/use-cart';
+import { Header } from '@/frontend/components/common/Header';
+import { Footer } from '@/frontend/components/common/Footer';
+import { SplashScreen } from '@/frontend/components/common/SplashScreen';
+import { ThemeProvider } from '@/frontend/components/common/ThemeProvider';
+import { Toaster } from '@/frontend/components/ui/toaster';
+import { AuthProvider } from '@/frontend/hooks/use-auth';
+import { CartProvider } from '@/frontend/hooks/use-cart';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
 const spaceGrotesk = Space_Grotesk({

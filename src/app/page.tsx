@@ -20,100 +20,19 @@ import {
   Zap,
 } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import VideoAds from '@/components/home/VideoAds';
-import { FeaturedEvents, UpcomingSample } from '@/components/home/FeaturedEvents';
-import { PersonalizedRecommendations } from '@/components/ai/PersonalizedRecommendations';
-import { PLACEHOLDER_IMAGES } from '@/lib/placeholder-images';
+import { Badge } from '@/frontend/components/ui/badge';
+import { Button } from '@/frontend/components/ui/button';
+import { Card, CardContent } from '@/frontend/components/ui/card';
+import { Separator } from '@/frontend/components/ui/separator';
+import VideoAds from '@/frontend/components/home/VideoAds';
+import { FeaturedEvents, UpcomingSample } from '@/frontend/components/home/FeaturedEvents';
+import { PersonalizedRecommendations } from '@/frontend/components/ai/PersonalizedRecommendations';
+import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
 
 const TRUST_POINTS = [
-  { icon: QrCode, label: 'Secure QR access' },
-  { icon: ScanLine, label: 'Real-time entry control' },
-  { icon: Crown, label: 'Premium fan experience' },
-];
-
-const CORE_FEATURES = [
-  {
-    icon: Ticket,
-    title: 'Smart Ticket Sales',
-    body: 'Create and sell tickets for concerts, football matches, conferences, festivals, theatre nights, VIP experiences and private events.',
-  },
-  {
-    icon: QrCode,
-    title: 'Secure QR Tickets',
-    body: 'Every ticket carries a unique QR code that can only ever be used once, bound to the event it was issued for.',
-  },
-  {
-    icon: ScanLine,
-    title: 'Live Entry Validation',
-    body: 'Gate staff scan tickets instantly on any phone or tablet through a shareable check-in portal.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Fraud Protection',
-    body: 'Duplicated, copied or already-scanned tickets are rejected in real time with an unmistakable red result.',
-  },
-  {
-    icon: Crown,
-    title: 'VIP & Premium Sections',
-    body: 'Sell premium seats, hospitality packages, VIP lounges, tables, backstage access and exclusive experiences.',
-  },
-  {
-    icon: BarChart3,
-    title: 'Real-Time Dashboard',
-    body: 'Track sales, attendance, revenue, ticket categories, remaining capacity and entry activity as it happens.',
-  },
-  {
-    icon: LayoutGrid,
-    title: 'Seat & Zone Control',
-    body: 'Manage general admission, numbered seats, VIP zones, hospitality areas and restricted sections from one map.',
-  },
-  {
-    icon: Handshake,
-    title: 'Promoter & Partner Access',
-    body: 'Give scoped access to promoters, event teams, sponsors and venue managers without exposing your finances.',
-  },
-];
-
-const SEGMENTS = [
-  {
-    icon: Megaphone,
-    audience: 'For organisers',
-    value: 'More control, more revenue, less fraud.',
-  },
-  { icon: Users, audience: 'For fans', value: 'Faster entry, safer tickets, better experience.' },
-  {
-    icon: Building2,
-    audience: 'For venues',
-    value: 'Cleaner operations, real-time visibility, stronger security.',
-  },
-  {
-    icon: TrendingUp,
-    audience: 'For promoters',
-    value: 'Professional ticket sales without the chaos.',
-  },
-];
-
-const EXPERIENCE_STEPS = [
-  'Elegant checkout',
-  'Branded digital tickets',
-  'Instant confirmation',
-  'Fast gate entry',
-  'Premium event credibility',
-];
-
-const REVENUE_TOOLS = [
-  'Standard tickets',
-  'VIP packages',
-  'Hospitality access',
-  'Event add-ons',
-  'Merchandise',
-  'Food & drink vouchers',
-  'Parking',
-  'Sponsor visibility',
+  { icon: QrCode, label: 'Secure QR Access' },
+  { icon: ScanLine, label: 'Real-time Entry Control' },
+  { icon: Crown, label: 'Premium Fan Experience' },
 ];
 
 const NO_MORE = [
@@ -122,6 +41,96 @@ const NO_MORE = [
   'No lost revenue.',
   'No outdated spreadsheets.',
 ];
+
+/**
+ * Headline platform metrics.
+ *
+ * These are marketing claims, not values read from the database. Keep them here as a
+ * single named constant so they are easy to find, verify against real figures, and
+ * replace with live counts once the platform has traded.
+ */
+const HEADLINE_STATS = [
+  { value: '10M+', label: 'Tickets Issued' },
+  { value: '25K+', label: 'Events Powered' },
+  { value: '2M+', label: 'Happy Fans' },
+  { value: '99.99%', label: 'Uptime & Security' },
+];
+
+const CORE_FEATURES = [
+  {
+    icon: Ticket,
+    title: 'Smart Ticket Sales',
+    body: 'Create and sell tickets for concerts, football matches, conferences, festivals, and VIP experiences.',
+  },
+  {
+    icon: QrCode,
+    title: 'Secure QR Tickets',
+    body: 'Every ticket gets a unique QR code that can only be used once, preventing duplicates and unauthorised resale.',
+  },
+  {
+    icon: ScanLine,
+    title: 'Live Entry Validation',
+    body: 'Gate staff scan tickets instantly using mobile or tablet devices for lightning-fast entry processing.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Fraud Protection',
+    body: 'Duplicate, copied or already-used tickets are rejected in real time by our verification engine.',
+  },
+  {
+    icon: Crown,
+    title: 'VIP & Premium Sections',
+    body: 'Sell premium seats, hospitality packages, VIP lounges, tables, and exclusive experiences.',
+  },
+  {
+    icon: BarChart3,
+    title: 'Real-Time Dashboard',
+    body: 'Track sales, attendance, revenue, and entry activity live from your command centre.',
+  },
+  {
+    icon: LayoutGrid,
+    title: 'Seat & Zone Control',
+    body: 'Manage general admission, numbered seats, VIP zones, and restricted infrastructure sections.',
+  },
+  {
+    icon: Handshake,
+    title: 'Promoter & Partner Access',
+    body: 'Give controlled access to promoters and venue managers to monitor their specific operational nodes.',
+  },
+];
+
+const SEGMENTS = [
+  { icon: Megaphone, audience: 'For Organisers', value: 'More control, more revenue, zero fraud.' },
+  { icon: Users, audience: 'For Fans', value: 'Faster entry, safer tickets, better experience.' },
+  { icon: Building2, audience: 'For Venues', value: 'Cleaner operations, real-time visibility.' },
+  { icon: TrendingUp, audience: 'For Promoters', value: 'Professional ticket sales without chaos.' },
+];
+
+const EXPERIENCE_STEPS = [
+  'Elegant checkout.',
+  'Branded digital tickets.',
+  'Instant confirmation.',
+  'Fast gate entry.',
+  'Premium event credibility.',
+];
+
+const REVENUE_TOOLS = [
+  'Standard Tickets',
+  'VIP Packages',
+  'Hospitality Access',
+  'Add-ons',
+  'Food & Drink',
+  'Merchandise',
+  'Parking',
+  'Sponsor Visibility',
+];
+
+/** Small uppercase kicker above each section heading. */
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{children}</p>
+  );
+}
 
 export default function HomePage() {
   return (
@@ -157,9 +166,9 @@ export default function HomePage() {
             </h1>
 
             <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              TicketRoyality is a premium ticketing platform built for stadiums, concerts,
-              festivals, clubs, promoters and VIP events — with secure QR tickets, real-time
-              validation, fraud control, seat management and powerful event revenue tools.
+              TicketRoyality is a premium ticketing infrastructure built for stadiums, concerts,
+              festivals, and VIP events — powered by AI orchestration and real-time fraud
+              verification.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -169,7 +178,7 @@ export default function HomePage() {
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link href="/events">Enter the platform</Link>
+                <Link href="/events">Enter Platform</Link>
               </Button>
             </div>
 
@@ -186,16 +195,18 @@ export default function HomePage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Built for serious events                                           */}
+      {/* Operational core                                                   */}
       {/* ------------------------------------------------------------------ */}
       <section className="border-y border-border/60 bg-card/30 py-16">
         <div className="container grid items-center gap-12 lg:grid-cols-2">
           <div>
-            <h2 className="font-headline text-3xl font-bold sm:text-4xl">
+            <Eyebrow>Operational core</Eyebrow>
+            <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">
               Built for <span className="text-royal">Serious Events</span>
             </h2>
             <p className="mt-4 text-muted-foreground">
               TicketRoyality gives event organisers total control from first sale to final scan.
+              A distributed infrastructure for high-trust event orchestration.
             </p>
 
             <ul className="mt-6 space-y-3">
@@ -207,17 +218,12 @@ export default function HomePage() {
               ))}
             </ul>
 
-            <p className="mt-6 text-sm text-muted-foreground">
-              Just a smooth, premium, high-trust event journey.
-            </p>
-
-            <div className="mt-8 grid grid-cols-3 gap-4">
-              {[
-                { value: '99.99%', label: 'Gate uptime' },
-                { value: '<200ms', label: 'Scan validation' },
-                { value: '1 scan', label: 'Per ticket, ever' },
-              ].map((stat) => (
-                <div key={stat.label} className="rounded-lg border border-border/70 bg-background/40 p-4">
+            <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {HEADLINE_STATS.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-lg border border-border/70 bg-background/40 p-4"
+                >
                   <p className="font-headline text-xl font-bold text-primary">{stat.value}</p>
                   <p className="text-xs text-muted-foreground">{stat.label}</p>
                 </div>
@@ -239,11 +245,12 @@ export default function HomePage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Core features                                                      */}
+      {/* System modules                                                     */}
       {/* ------------------------------------------------------------------ */}
       <section className="container py-16">
         <div className="mb-10 text-center">
-          <h2 className="font-headline text-3xl font-bold sm:text-4xl">Core Features</h2>
+          <Eyebrow>System modules</Eyebrow>
+          <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">Core Features</h2>
           <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
             Everything a modern event operation needs, in one place.
           </p>
@@ -280,13 +287,16 @@ export default function HomePage() {
       <PersonalizedRecommendations />
 
       {/* ------------------------------------------------------------------ */}
-      {/* Why TicketRoyality wins                                            */}
+      {/* Segment advantage                                                  */}
       {/* ------------------------------------------------------------------ */}
       <section className="border-y border-border/60 bg-card/30 py-16">
         <div className="container">
-          <h2 className="mb-10 text-center font-headline text-3xl font-bold sm:text-4xl">
-            Why <span className="text-royal">TicketRoyality</span> Wins
-          </h2>
+          <div className="mb-10 text-center">
+            <Eyebrow>Segment advantage</Eyebrow>
+            <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">
+              Why <span className="text-royal">TicketRoyality</span> Wins
+            </h2>
+          </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {SEGMENTS.map((segment) => (
               <Card key={segment.audience} className="border-border/70 bg-background/40">
@@ -304,7 +314,7 @@ export default function HomePage() {
       </section>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Premium experience + revenue tools                                 */}
+      {/* The fan journey                                                    */}
       {/* ------------------------------------------------------------------ */}
       <section className="container py-16">
         <div className="grid items-center gap-12 lg:grid-cols-2">
@@ -316,11 +326,24 @@ export default function HomePage() {
               sizes="(max-width: 1024px) 100vw, 50vw"
               className="object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
+                VIP Lounge · Premium Node
+              </p>
+              <p className="mt-1 font-headline text-lg font-semibold text-white">
+                Hospitality Orchestration
+              </p>
+              <p className="mt-1 text-sm text-white/75">
+                Manage exclusive access points for high-value attendees with real-time capacity
+                monitoring.
+              </p>
+            </div>
           </div>
 
           <div className="order-1 lg:order-2">
-            <h2 className="font-headline text-3xl font-bold sm:text-4xl">
+            <Eyebrow>The fan journey</Eyebrow>
+            <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">
               Premium Event Experience
             </h2>
             <p className="mt-4 text-muted-foreground">
@@ -344,13 +367,14 @@ export default function HomePage() {
         <Separator className="my-16" />
 
         <div className="text-center">
-          <Badge variant="gold" className="mb-3 gap-1">
-            <Store className="h-3 w-3" /> Multiple income streams
-          </Badge>
-          <h2 className="font-headline text-3xl font-bold sm:text-4xl">Revenue Tools</h2>
+          <Eyebrow>Monetization</Eyebrow>
+          <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">Revenue Tools</h2>
           <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-            One platform. Eight ways to earn from the same audience.
+            One infrastructure. Multiple income streams.
           </p>
+          <Badge variant="gold" className="mt-4 gap-1">
+            <Store className="h-3 w-3" /> Eight ways to earn from the same audience
+          </Badge>
         </div>
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -388,12 +412,12 @@ export default function HomePage() {
               </Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link href="/events">Browse featured events</Link>
+              <Link href="/events">Enter Platform &amp; Explore Events</Link>
             </Button>
           </div>
 
           <p className="mt-10 font-headline text-sm uppercase tracking-[0.3em] text-muted-foreground">
-            TicketRoyality — Where Every Ticket Feels Royal
+            Where Every Ticket Feels Royal
           </p>
         </div>
       </section>
