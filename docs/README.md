@@ -34,7 +34,7 @@ billing, Firestore security rules.
 | 05 | [BitriPay gateway](./05-bitripay-gateway.md) | The BitriPay integration door for merchants and partners |
 | 06 | [Connector ecosystem](./06-connector-ecosystem.md) | Every third-party API category, provider and data contract |
 | 07 | [System architecture](./07-system-architecture.md) | Runtime, data plane, AI plane, events, observability, DR |
-| 08 | [Database schema](./08-database-schema.md) | PostgreSQL target: 38 tables, constraints, RLS policies, access matrix |
+| 08 | [Database schema](./08-database-schema.md) | PostgreSQL target (unscheduled): 38 tables, constraints, RLS policies |
 | 09 | [API specification](./09-api-specification.md) | REST endpoints, webhooks, auth, rate limits, error codes |
 | 10 | [Monetisation](./10-monetisation.md) | Every revenue line, pricing engine, unit economics |
 | 11 | [Security, compliance & risk](./11-security-compliance-risk.md) | Zero trust, fraud, KYC/AML, GDPR, PCI scope |
@@ -123,10 +123,20 @@ and promoting two subsections to top level. It resolves to these files:
 The outline has no counterpart for `14`–`17`. Those describe the code that exists now
 rather than the system being specified, which is why they are numbered after it.
 
-### Datastore decision — resolved
+### Datastore decision — superseded
 
-The blueprint specified PostgreSQL; the repository runs Firestore. **Resolved in favour
-of PostgreSQL 16 with Row-Level Security**, recorded in `08` §8.1 and sequenced in `19`.
+The blueprint specified PostgreSQL and `08` was written to that target. **The launch
+decision is now Firestore with sharded counters** (`21` §21.12), under the six-vendor
+constraint: Hostinger, Vercel, Firebase, Stripe, BitriPay and three AI providers.
+
+What changed the answer: Firebase Cloud Functions supply the trusted Admin SDK runtime
+that ticket issuance and atomic ledger writes needed, closing debts D1 and D2 without a
+new vendor. And the oversell argument was overstated — `runTransaction` is correct under
+contention, so the limit is *throughput on a hot counter*, which sharding raises.
+
+`08` and `19` stay as written. `19` is unscheduled rather than cancelled, and its
+trigger is now a measured contention ceiling under real on-sale load rather than a
+preference.
 
 The decision was not a preference. Three defects in the shipped system are structural
 to a document store rather than implementation mistakes: the ACU ledger and the balance
