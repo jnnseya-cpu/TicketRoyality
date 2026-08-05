@@ -275,7 +275,282 @@ each transaction for audit.
 
 ---
 
-## 6.13 Connector priority
+## 6.13 Vector database & semantic retrieval
+
+| Provider | Role | Notes |
+| --- | --- | --- |
+| **Pinecone** | Primary | Managed, low operational burden, sub-100ms p95 at our scale |
+| **Weaviate** | Secondary | Self-hostable — the escape hatch if Pinecone pricing or terms move |
+| **pgvector** | Fallback | Good enough below ~1M vectors; removes the category entirely if needed |
+
+**Connects to:** fan preference embeddings, semantic event search, the recommendation
+engine, and agent memory retrieval (`08` §8.10 `agent_memory`).
+
+Embeddings are written on event publish and on each completed order. The index is
+**derived state** — it can be rebuilt from Firestore at any time, which is what keeps a
+vector provider replaceable rather than load-bearing (`01` §1.5.1).
+
+---
+
+## 6.14 Currency & exchange rates
+
+| Provider | Role |
+| --- | --- |
+| **Open Exchange Rates** | Primary — CDF / GBP / USD / EUR |
+| **ECB reference rates** | Secondary, free, sufficient for daily settlement |
+
+**Connects to:** multi-currency event pricing, BitriPay settlement, organiser payout
+statements, the three-year model in `10` §10.14.
+
+**Rate discipline:** the rate used for a transaction is **frozen onto that
+transaction**, never re-derived at read time. A payout statement that changes value
+because a rate moved is a reconciliation dispute waiting to happen. Same principle as
+the frozen event details on a ticket (`16` §16.6 F3).
+
+---
+
+## 6.15 E-signature & contracts
+
+| Provider | Role |
+| --- | --- |
+| **DocuSign** | Primary — enterprise procurement expects it by name |
+| **Dropbox Sign** | Secondary, materially cheaper below enterprise volume |
+
+**Connects to:** venue contracts, promoter agreements, hospitality terms, white-label
+master services agreements, sponsor activation contracts.
+
+Signature status is a webhook, not a poll. A countersigned venue contract unblocks
+event publication for that venue, so the latency is user-visible.
+
+---
+
+## 6.16 Device intelligence & bot defence
+
+| Provider | Role |
+| --- | --- |
+| **Seon** | Primary — device fingerprint, velocity, bot detection at checkout |
+| **Fingerprint.js** | Secondary — narrower scope, but independent signal |
+
+**Connects to:** checkout risk scoring, `fraud.v3` (`03` §3.6), gate scan anomaly
+detection, account-creation abuse.
+
+**Fail-open, deliberately.** If Seon is unreachable, checkout proceeds with the
+transaction flagged for review rather than blocked. A fraud vendor outage that stops
+every sale converts a risk-management tool into an availability risk — the exact
+inversion the severance test in `01` §1.5.1 exists to catch.
+
+---
+
+## 6.17 Accounting & tax
+
+| Provider | Role |
+| --- | --- |
+| **Xero** | Primary (UK) — payout reconciliation, platform P&L |
+| **QuickBooks** | Secondary (US/international) |
+| **Avalara** | Tax determination across jurisdictions |
+| **Custom export (DRC)** | No viable SaaS provider — CSV + a documented schema |
+
+The DRC row is honest rather than aspirational. Naming a provider that does not
+adequately serve the market would make this table look complete while leaving the
+finance team to discover the gap during close.
+
+---
+
+## 6.18 CRM & enterprise sales
+
+| Provider | Role |
+| --- | --- |
+| **HubSpot** | Primary — organiser CRM sync, enterprise pipeline |
+| **Salesforce** | Enterprise procurement requirement |
+
+Optional by design. Per `01` §1.7 we integrate CRMs, we do not rebuild them — and an
+organiser must never need one to run an event.
+
+---
+
+## 6.19 Container orchestration & edge
+
+| Provider | Role |
+| --- | --- |
+| **Google Kubernetes Engine** | Agent workloads, long-running jobs, scheduled flows |
+| **Cloudflare** | Edge cache, DDoS, WAF, R2 object storage |
+| **Vercel** | Next.js application tier (current, `07` §7.9) |
+
+The transactional core runs on the application tier; **GKE hosts the agent plane
+only**. Keeping them separate means an agent workload that goes into a crash-loop
+cannot take ticket sales down with it.
+
+---
+
+## 6.20 Payment verification — KODA
+
+**The category everyone else skipped.** Gateways solve *collection*: they take money
+from a payer and settle it to a merchant, handling cards, cross-border and STK push.
+KODA does none of that, and does not try to.
+
+The observation it is built on: **most African merchants already receive mobile money
+directly to their own number.** For them collection was never the problem. Knowing was
+— knowing that the payment landed, that the reference matches the order, that the
+amount is right, and that the person claiming to have paid actually did.
+
+That layer sits *beneath* the gateways, and it is where this platform already bleeds.
+
+### The problem it closes in this codebase, today
+
+The shipped `offline_payments` flow (`15` §15.6 F3, `17` §17.6 F3) is exactly the
+manual process KODA automates:
+
+```
+customer pays Vodacom / Airtel / Orange / Africell direct to the displayed number
+   ▼
+submits a reference by hand ──▶ status: 'pending'
+   ▼
+════════ a human admin compares it against the provider statement ════════
+   ▼
+approve → tickets issued        deny → nothing issued
+```
+
+Everything between the double lines is a person reading a bank statement. It is slow,
+it does not scale, it is the platform's single largest operational cost per
+transaction, and every minute it takes is a paying customer holding nothing.
+
+With KODA:
+
+```
+customer pays direct to the merchant number
+   ▼
+KODA observes the inbound payment on the merchant's own account
+   ▼
+webhook: { reference, amount, currency, msisdn, timestamp, confidence }
+   ▼
+match against the pending order ──▶ auto-approve ──▶ tickets issued
+   ▼
+no match, or ambiguous ──▶ the human queue, now carrying only the hard cases
+```
+
+| | Today | With KODA |
+| --- | --- | --- |
+| Time to ticket | Minutes to hours, business hours only | Seconds, always |
+| Cost per verification | Admin attention | Near-zero, flat |
+| Scales with volume | No | Yes |
+| Human queue | Every payment | Exceptions only |
+
+### Contract
+
+| Field | Value |
+| --- | --- |
+| **Category** | Payment verification — distinct from acceptance, settlement and reconciliation |
+| **Role** | Primary, and the only provider in its category |
+| **Direction** | Read-only. KODA observes; it never holds, moves or touches funds |
+| **Connects to** | `offline_payments` verification, order matching, organiser direct-payment reconciliation, `fraud.v3` signal |
+| **Data out** | Merchant account identifier, expected reference, expected amount |
+| **Data in** | `{ reference, amount, currency, msisdn, timestamp, confidence }` |
+| **Failure mode** | **Fail-open to the existing human queue.** KODA down means slow, never broken |
+| **Autonomy** | Auto-approve only on exact reference **and** exact amount match. Anything else escalates |
+
+### Why it is complementary, not competitive
+
+Stated plainly, because overclaiming here would be easy and would not survive
+diligence:
+
+- **KODA does not beat gateways at their own job.** It does not collect, settle, do
+  cards, do cross-border, or do STK push. Those are gateway functions and KODA has
+  none of them.
+- **It addresses the share the gateway never sees.** Direct-to-number payments do not
+  pass through an aggregator, so no gateway can verify them — not because gateways are
+  deficient, but because those transactions are outside their path entirely.
+- **It runs alongside a gateway, not instead of one.** BitriPay handles collected
+  mobile money; KODA verifies the direct share. A merchant can and usually should have
+  both.
+
+### The pricing moat
+
+KODA charges a flat, very low fee rather than a percentage of the transaction.
+
+That is not a discount, it is a structural defence. A percentage-taking competitor
+cannot match it without cannibalising its own primary revenue on the transactions it
+*does* collect. Following KODA down means abandoning the model that funds them; not
+following means conceding the verification layer. The moat is their P&L, not our
+technology.
+
+**Comparative figures used in commercial material must carry a source URL per claim**,
+and must state that these are complementary services with approximate FX conversion.
+An unfootnoted comparison table is the fastest way to lose a room that would otherwise
+have agreed with you.
+
+### Effect on independence
+
+This materially improves the one genuine single-vendor exposure in §6.21:
+
+| Path | Before | After |
+| --- | --- | --- |
+| Collected mobile money | BitriPay | BitriPay |
+| **Direct-to-number mobile money** | **Manual admin verification** | **KODA-verified, automatic** |
+| Both providers down | Manual queue | Manual queue |
+
+Direct-to-number plus KODA is a mobile-money path that **needs no aggregator at all**.
+The severance test in `01` §1.5.1 improves from "degraded to a manual queue" to "a
+second independent rail continues automatically."
+
+---
+
+## 6.21 Connector inventory
+
+Twenty-one categories, and the independence rule from `01` §1.5.1 applied to each:
+
+| # | Category | § | Providers | Single-vendor risk |
+| --- | --- | --- | --- | --- |
+| 1 | Payments — card | 6.2 | Stripe, Adyen | No |
+| 2 | Payments — Africa / mobile money | 6.2 | BitriPay, direct operator APIs | **Yes** — see below |
+| 3 | Banking & open banking | 6.3 | Plaid, Modulr, TrueLayer | No |
+| 4 | Identity, KYC & KYB | 6.4 | Sumsub, Veriff, Persona | No |
+| 5 | AML & sanctions screening | 6.4 | ComplyAdvantage, Refinitiv | No |
+| 6 | Fraud & risk scoring | 6.5 | Stripe Radar, Seon | No |
+| 7 | Email | 6.6 | SendGrid, Brevo | No |
+| 8 | SMS & OTP | 6.6 | Twilio, Vonage | No |
+| 9 | WhatsApp Business | 6.6 | Twilio, Brevo | No |
+| 10 | Push notification | 6.6 | Firebase FCM, OneSignal | No |
+| 11 | AI model providers | 6.7 | Anthropic Claude, Google Vertex/Gemini, OpenAI | No |
+| 12 | Maps & location | 6.8 | Google Maps, Mapbox | No |
+| 13 | CRM & marketing | 6.9, 6.18 | HubSpot, Salesforce | No |
+| 14 | Accounting & tax | 6.10, 6.17 | Xero, QuickBooks, Avalara | Partial — DRC |
+| 15 | Cloud, storage & CDN | 6.11 | Cloudflare R2, Google Cloud Storage | No |
+| 16 | Observability & APM | 6.12 | Datadog, Sentry, Google Cloud Monitoring | No |
+| 17 | Vector database | 6.13 | Pinecone, Weaviate, pgvector | No |
+| 18 | Currency & FX rates | 6.14 | Open Exchange Rates, ECB | No |
+| 19 | E-signature | 6.15 | DocuSign, Dropbox Sign | No |
+| 20 | Device intelligence | 6.16 | Seon, Fingerprint.js | No |
+| 21 | **Payment verification** | 6.20 | **KODA** | Yes — see below |
+
+### The two categories with genuine single-vendor exposure
+
+**Payment verification is sole-source on KODA**, and unlike the row below there is no
+second provider to name because the category barely exists — that is precisely why it
+is worth occupying. The exposure is bounded by the failure mode rather than by a
+competitor: KODA is read-only and fails open to the manual queue that runs the platform
+today. Losing it costs speed and admin hours, never a sale and never a ticket.
+
+
+
+**Mobile money is concentrated on BitriPay**, and pretending otherwise would defeat the
+purpose of this table. The mitigation is not a second aggregator — there is no
+equivalent with the same DRC operator coverage — it is that the platform holds direct
+operator relationships as the fallback path:
+
+| Layer | Status |
+| --- | --- |
+| BitriPay aggregation | Primary |
+| Direct Vodacom / Airtel / Orange / Africell APIs | Fallback, contracts `OPEN` |
+| Manual verification workflow | **Already live** — `offline_payments`, `17` §17.6 F3 |
+
+The third row is why this is exposure rather than a defect: the manual workflow in the
+shipped code accepts a payment reference, holds it `pending`, and issues on admin
+approval. It is slower, it is human, and it means a total BitriPay outage degrades
+mobile money to a queue instead of taking it to zero.
+
+---
+
+## 6.22 Connector priority
 
 | Phase | Connectors | Rationale |
 | --- | --- | --- |
@@ -287,7 +562,7 @@ each transaction for audit.
 
 ---
 
-## 6.14 Connector health
+## 6.23 Connector health
 
 Every connector exposes the same health contract, surfaced in the Admin Command Centre
 and consumed by `reliability.v1`:

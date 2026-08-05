@@ -318,6 +318,88 @@ matches the tuple `(agent_id, scope, principal, autonomy_level, budget_remaining
 **The asymmetry is deliberate:** demotion is fast and automatic; promotion is slow and
 requires a human. Safety must be cheap to apply and capability expensive to grant.
 
+### `bug_detection.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Find regressions in telemetry before a user reports them |
+| **Inputs** | `{ errorLogs[], releaseMarkers[], performanceTraces[], userReports[] }` |
+| **Outputs** | `{ issues: [{ title, severity, signature, firstSeen, suspectedRelease, evidence }] }` |
+| **Scopes** | `read:telemetry`, `open:issues` — **no source write, no deploy** |
+| **Autonomy** | **L2** — filing an issue is reversible and costs only attention |
+| **Triggers** | Error rate for any signature up > 3σ · new signature after a deploy · p95 latency regression > 25% |
+| **Workflow** | Cluster errors by signature → correlate against release markers → classify severity by affected users and money at risk → deduplicate against open issues → file with evidence attached |
+| **Escalation** | Sev-1 (checkout, scan, or auth broken) → page on-call immediately, do not wait for the issue to be triaged |
+| **APIs** | Datadog, Sentry, GitHub, Cloud Monitoring |
+| **Budget** | 25 ACU/day |
+| **Value** | Compresses time-to-detection from a support ticket to a telemetry threshold |
+
+Deliberately separate from `auto_repair.v1`. Detection is cheap, safe and should run
+constantly; repair is expensive, risky and runs rarely. Fusing them would force the
+whole pipeline to the higher risk tier and the lower frequency.
+
+### `infra_optimisation.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Keep infrastructure spend proportional to load |
+| **Inputs** | `{ costReports[], podUtilisation[], requestVolume[], storageGrowth[], idleResources[] }` |
+| **Outputs** | `{ recommendations: [{ resource, action, monthlySaving, riskNote }], applied[] }` |
+| **Scopes** | `read:billing`, `read:metrics`, `write:non_production_scaling` |
+| **Autonomy** | **L2 in non-production · L1 in production** — a right-sizing that is wrong is an outage |
+| **Triggers** | Weekly · cost anomaly > 20% week-on-week · sustained utilisation < 30% for 7 days |
+| **Workflow** | Attribute spend by service → find idle and over-provisioned resources → size against p99 not mean → propose with an explicit risk note → apply in non-production, queue production for approval |
+| **Escalation** | Any recommendation touching the transactional core or the database → human approval, always |
+| **APIs** | GCP Billing, GKE, Cloudflare Analytics |
+| **Budget** | 20 ACU/week |
+| **Value** | Infrastructure waste compounds silently; nobody's job is to notice a 12% overspend |
+
+**Sized against p99, never the mean.** A pod right-sized to average load is a pod that
+fails on the on-sale spike, which is the one hour that matters.
+
+### `release_management.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Own the deploy, and own the rollback |
+| **Inputs** | `{ candidateBuild, testResults, errorRateBaseline, latencyBaseline, activeIncidents[] }` |
+| **Outputs** | `{ decision: 'proceed'\|'hold'\|'rollback', stage, metrics, rationale }` |
+| **Scopes** | `read:ci`, `write:deployment_traffic`, `execute:rollback` |
+| **Autonomy** | **L3 for rollback · L1 for promotion to 100%** |
+| **Triggers** | Merge to main · error rate above baseline post-deploy · manual invocation |
+| **Workflow** | Verify green CI and no active Sev-1 → deploy to the blue slot → shift 5% of traffic → hold and compare error rate and p95 against baseline → 25% → 50% → **request human approval for 100%** |
+| **Escalation** | Rollback executed → notify immediately with the metric that triggered it and the diff that was reverted |
+| **APIs** | GitHub Actions, Vercel, GKE, Datadog |
+| **Budget** | 15 ACU/deploy |
+| **Value** | Cuts the blast radius of a bad deploy from every user to 5% of users for one minute |
+
+**This is the only agent in the system holding L3**, and the exception is narrow and
+principled: L3 applies to **rollback only** — returning the platform to a state that
+was already running and already approved. Going forward always needs a human. An agent
+that can undo without asking is a safety mechanism; an agent that can ship without
+asking is not.
+
+It moves no money and changes no identity, so it does not breach the constraint in
+`01` §1.7.
+
+### The six self-managing agents
+
+| Agent | Watches | Acts on | Autonomy |
+| --- | --- | --- | --- |
+| `reliability.v1` | Uptime, latency, error rate, connector health | Alerts, failover, circuit breakers | L2 |
+| `auto_repair.v1` | Recurring defect signatures | Opens pull requests, never merges | L1 permanently |
+| `bug_detection.v1` | Telemetry, release markers | Files issues, pages on Sev-1 | L2 |
+| `infra_optimisation.v1` | Cost and utilisation | Right-sizing, idle reclamation | L2 non-prod / L1 prod |
+| `release_management.v1` | Deploy health | Progressive traffic shift, rollback | L3 rollback / L1 promote |
+| `governance.v1` | The other five, and every other agent | Autonomy and budget changes | L2 demote / L1 promote |
+
+Together these are what makes a 99.99% target survivable with a lean team: routine
+detection, repair proposal, cost control and deploy safety run without a human in the
+loop, while every irreversible step still requires one.
+
+`governance.v1` governs the other five as it governs everything else. A self-managing
+layer with nothing watching *it* is just an unsupervised layer.
+
 ## 3.8 Data & intelligence agents
 
 ### `analyst.v2`

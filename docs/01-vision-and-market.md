@@ -90,6 +90,33 @@ model is seat-based SaaS, not transactional.
 **Gap we take:** one inventory model covering physical, online and live-stream, with
 identical ticketing, identical entry validation and identical revenue reporting.
 
+### Seat Unique
+**Does well:** the sharpest premium-hospitality proposition in the UK — official
+partnerships with rights holders, curated packages that bundle a seat with dining and
+access rather than selling a seat with an upsell bolted on, and a checkout that treats
+a £400 purchase as a considered decision rather than a queue to survive.
+**Fails:** hospitality-only by construction. There is no general admission model, no
+long-tail self-serve, and inventory arrives through negotiated rights-holder deals
+rather than a platform any organiser can publish onto. The result is a beautiful
+product with a hard ceiling on how many events can exist inside it.
+**Gap we take:** hospitality treated as a **first-class inventory type in a general
+platform**, not a separate business. A VIP package, a general-admission ticket and a
+livestream pass are the same object with different tiers, so an organiser sells all
+three from one event without running two products or two reconciliations.
+
+### Fever
+**Does well:** demand generation at genuine scale. Fever originates experiences rather
+than listing them, and its discovery engine converts intent into attendance better than
+anything else in the category. The Original brand is real supply, not aggregation.
+**Fails:** it is a media and production company wearing a marketplace's clothes. The
+economics are built on owning the experience, which makes third-party organisers
+suppliers rather than customers. There is no meaningful organiser back office, no
+public API, and no route for an organiser to build their own audience — the audience
+belongs to Fever by design.
+**Gap we take:** Fever's discovery quality **with the organiser owning the
+relationship**. Our fan data belongs to the organiser who earned it; our discovery
+surface is a distribution channel they use, not a wall between them and their audience.
+
 ### Stripe / Adyen (the payments layer they all sit on)
 **Does well:** payment rails, developer experience, global card coverage.
 **Fails:** card-centric. In DRC, Nigeria, Kenya and much of the addressable emerging
@@ -100,22 +127,35 @@ BitriPay wallet settlement — already live in this codebase.
 
 ### Consolidated gap table
 
-| Capability | Eventbrite | Ticketmaster | DICE | Hopin | **AI-OS** |
-| --- | --- | --- | --- | --- | --- |
-| Self-serve publishing | ✅ | ❌ | ❌ | ✅ | ✅ |
-| Seat-level assignment | ❌ | ✅ | ❌ | ❌ | ✅ |
-| VIP / hospitality inventory | ❌ | ✅ | ❌ | ❌ | ✅ |
-| Scoped door-staff access | ❌ | ⚠️ | ⚠️ | n/a | ✅ |
-| Physical + online + stream, one model | ❌ | ❌ | ❌ | ⚠️ | ✅ |
-| Mobile money | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Public API + partner ecosystem | ⚠️ | ❌ | ❌ | ⚠️ | ✅ |
-| Autonomous agents that **act** | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Usage-metered AI with hard credit ceiling | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Capability | Eventbrite | Ticketmaster | DICE | Hopin | Seat Unique | Fever | **AI-OS** |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Self-serve publishing | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ |
+| Seat-level assignment | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ |
+| VIP / hospitality inventory | ❌ | ✅ | ❌ | ❌ | ✅ | ⚠️ | ✅ |
+| Hospitality **inside** a general platform | ❌ | ⚠️ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Scoped door-staff access | ❌ | ⚠️ | ⚠️ | n/a | ⚠️ | ⚠️ | ✅ |
+| Physical + online + stream, one model | ❌ | ❌ | ❌ | ⚠️ | ❌ | ❌ | ✅ |
+| Mobile money | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Organiser owns the fan relationship | ⚠️ | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ |
+| Public API + partner ecosystem | ⚠️ | ❌ | ❌ | ⚠️ | ❌ | ❌ | ✅ |
+| Autonomous agents that **act** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Usage-metered AI with hard credit ceiling | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 **The defensible position:** nobody combines stadium-grade inventory control,
 self-serve access, emerging-market payment rails and an acting agent layer. Each is
 individually replicable; the combination is a two-to-three year build for an incumbent
 because it requires them to break their existing fee model.
+
+Read the table by column, not by row. Every competitor is strong somewhere and each of
+their strengths is buildable. What none of them can do cheaply is hold all eleven rows
+at once, because the rows conflict with the businesses they already run: Ticketmaster
+cannot open self-serve without cannibalising promoter deals, Fever cannot hand the fan
+relationship back without dismantling its own economics, and Seat Unique cannot go
+long-tail without diluting the curation that justifies its margin.
+
+**This is a gap analysis, not a roadmap.** Nothing in this document set is scheduled
+because a competitor shipped it. The build order in `13` is driven by what the platform
+needs to be complete and safe — see §1.5.1.
 
 ## 1.4 Why an agent layer, and why now
 
@@ -142,6 +182,47 @@ Three preconditions are now met that were not eighteen months ago:
 | **Agent action library** | The value is not the model, it is the catalogue of safe, permissioned, audited actions an agent may take | 12–24 months of iteration and incident learning |
 | **Switching cost** | Seat maps, historical attendance, payout history and agent memory are all organiser-specific | Grows monotonically with tenure |
 | **Marketplace liquidity** | Two-sided: fans follow organisers, organisers follow fans | Classic network effect |
+
+### 1.5.1 Independence — no competitor on the critical path
+
+A platform that reacts to competitors is permanently second. Independence here is an
+engineering constraint with a testable definition, not a slogan.
+
+**The rule:** no competitor, and no single vendor, may sit on a path the platform
+cannot operate without.
+
+| Path | Must never depend on | Why it holds |
+| --- | --- | --- |
+| Ticket issuance | Any external ticketing platform | `backend/services/ticket-issuance` mints from our own inventory model |
+| Entry validation | Any external scanning service | QR reference + `firestore.rules` redeem; works with one venue tablet |
+| The record of who owns what | Any external system | `tickets` and `wallet_ledger` are ours, append-only, exportable |
+| Fan relationship | Any discovery aggregator | Organiser owns their attendee data; our surface is a channel, not a gate |
+| Payment acceptance | Any single PSP | Three independent rails: card, BitriPay wallet, mobile money |
+| Knowing a payment landed | Any collecting gateway | KODA verifies direct-to-number payments no aggregator can see (`06` §6.20) |
+| Model inference | Any single AI provider | Provider-abstracted; see `06` §6.7 |
+
+**Two-provider minimum.** Every connector category in `06` names at least two viable
+providers behind one internal interface. A category with one provider is a dependency
+wearing an integration's clothes, and is marked as such.
+
+**The severance test.** For each dependency, one question: *if this vendor terminated
+us tomorrow, what stops working, for how long?*
+
+| Answer | Verdict |
+| --- | --- |
+| Nothing — a second provider takes the traffic | Acceptable |
+| Degraded feature, core transactions unaffected | Acceptable, documented |
+| Cannot sell, cannot admit, or cannot prove who owns what | **Unacceptable — architectural defect** |
+
+Nothing in the third row exists today, and the two-provider minimum is what keeps it
+that way. Payment rails already pass: with Stripe removed the platform still sells via
+BitriPay and mobile money, at reduced coverage rather than zero.
+
+**What independence does not mean.** It is not vertical integration for its own sake.
+We do not build a CDN, a card network, an accounting package or a CRM — §1.7 is
+explicit about that. Owning the *critical path* means owning inventory, entitlement,
+entry and the ledger. Everything else is a supplier, and suppliers are replaceable
+precisely because we designed them to be.
 
 ## 1.6 What success looks like
 

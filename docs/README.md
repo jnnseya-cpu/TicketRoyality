@@ -53,6 +53,7 @@ claim quotes the rule that enforces it.
 | 15 | [Customer role](./15-customer-role.md) | Account, features, functions, structure, flows, workflows |
 | 16 | [Event organiser role](./16-organiser-role.md) | The same nine-part treatment, plus the approval gate and the door |
 | 17 | [Platform admin role](./17-admin-role.md) | Privileged operations, what even an admin cannot do, open items |
+| 18 | [Glossary & reference](./18-glossary.md) | Every term, defined once |
 
 Read 14 before 15–17: the role documents refer to the layer boundaries constantly, and
 the reason a given operation lives in `backend` rather than `frontend` is usually the
@@ -67,14 +68,14 @@ this table is correct.
 
 | Quantity | Actual | Where |
 | --- | --- | --- |
-| Documents | 17 | this directory |
-| Total lines | 5,789 | `wc -l docs/*.md` |
-| Actor types | **11** | `02` §2.1 |
+| Documents | 18 | this directory |
+| Total lines | 6,389 | `wc -l docs/*.md` |
+| Actor types | **13** | `02` §2.1 |
 | AI Command Centres | **10** | `02` §2.3–2.12 |
-| AI agents | **16** | `03` §3.3–3.8 |
-| — of which self-managing | **3** | `03` §3.7 — `reliability` · `auto_repair` · `governance` |
-| Platform modules | **15** | `04` M1–M15 |
-| Connector categories | **11** | `06` §6.2–6.12 |
+| AI agents | **19** | `03` §3.3–3.8 |
+| — of which self-managing | **6** | `03` §3.7 |
+| Platform modules | **16** | `04` M1–M16 |
+| Connector categories | **21** | `06` §6.21 |
 | Firestore collections | **9** top-level + 2 subcollections | `08` §8.3–8.12 |
 | Revenue lines | **8** | `10` §10.2–10.9 |
 | Subscription tiers | **5** | `10` §10.3 — Free · Starter · Professional · Business · Enterprise |
@@ -82,9 +83,13 @@ this table is correct.
 | Roadmap phases | **5** | `13` — Phase 1 MVP (complete) → Phase 5 Global Scale |
 
 Competitors analysed in `01` §1.3: Eventbrite, Ticketmaster / Live Nation, DICE,
-Hopin / Zoom Events, and Stripe / Adyen as the payments layer beneath all of them.
-Seat Unique and Fever are **not** covered — they are plausible additions, not omissions
-being papered over.
+Hopin / Zoom Events, Seat Unique, Fever, and Stripe / Adyen as the payments layer
+beneath all of them.
+
+The market review exists to locate the gap, not to set the build order. §1.5.1 states
+the independence constraint that follows from it: **no competitor and no single vendor
+may sit on a path the platform cannot operate without**, with a two-provider minimum
+per connector category and a severance test applied to each.
 
 ### Mapping from the 17-section outline
 
@@ -108,9 +113,22 @@ and promoting two subsections to top level. It resolves to these files:
 | 15 Build roadmap | `13-roadmap-and-production-readiness.md` |
 | 16 Competitive advantage | `01` §1.5 — moats are argued where the market gap is established |
 | 17 Self-managing platform | `03` §3.7 — the maintenance agents live with every other agent contract |
+| 18 Glossary & reference | `18-glossary.md` |
 
 The outline has no counterpart for `14`–`17`. Those describe the code that exists now
 rather than the system being specified, which is why they are numbered after it.
+
+### One unresolved conflict
+
+The uploaded blueprint specifies **PostgreSQL** with 14 relational tables (its §10) and
+a GKE-hosted microservice backend (its §9). This repository runs **Firestore** with the
+security rules in `firestore.rules` as the authorisation layer, on Next.js — which is
+what `07`, `08` and `14`–`17` document, and what the shipped code does.
+
+Both are defensible; they are not compatible. `08` §8.15 holds the migration policy.
+Until that decision is taken, **the Firestore model is authoritative** because it is
+the one the code implements — and a schema document that disagrees with the database is
+worse than no schema document. Marked `OPEN`.
 
 ## Conventions used throughout
 

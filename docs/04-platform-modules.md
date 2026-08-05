@@ -434,3 +434,42 @@ Full specification in [09](./09-api-specification.md). Summary:
 | Transcript | Every action, reversible where physics allows |
 | Budget | ACU per agent, per principal, per chain |
 | Evaluation | Golden sets, CI gates, drift detection |
+
+---
+
+## M16 — Organiser Mobile App
+
+**Status:** `NEW`. The door is the one place where the product is used under time
+pressure, in poor light, on bad connectivity, by staff who were briefed ten minutes
+ago. It earns a native surface.
+
+| Capability | Specification |
+| --- | --- |
+| Live sales counter | Tickets sold, revenue, sell-through rate, updating in real time |
+| Multi-gate scanning | Device camera; **many devices, many gates, simultaneously** |
+| Door sales | Sell at the gate via Stripe Terminal or BitriPay POS |
+| Guest list | Search by name, email or QR lookup |
+| Staff roles per gate | `scan_only` · `sell` · `manage` — assigned per gate, not per person |
+| Emergency blocklist | Instant ban by email or ticket ID, effective across every device |
+| Refunds | Requested from the app, released on organiser approval |
+| Attendance | Scanned / capacity / no-shows, live |
+| Push alerts | Sold out, suspicious scan, gate congestion, revenue milestone |
+
+### Requirements that are not negotiable
+
+**Offline-tolerant scanning.** Venues have bad signal; that is a fact about buildings,
+not a bug. The scanner holds a signed local copy of the valid-reference set for its own
+event, admits against it, and reconciles when connectivity returns. Conflicts —
+the same ticket admitted at two gates during a partition — surface as incidents rather
+than being silently resolved.
+
+**Roles are per gate.** A steward on the east gate at 19:00 is not the same principal
+as the same person on the VIP entrance at 21:00. Binding the role to the assignment
+rather than the human is what makes `scan_only` meaningful.
+
+**The blocklist propagates in seconds, not on next launch.** Its entire purpose is the
+case where someone must not get in *now*.
+
+**Door sales use the same inventory model as online.** A ticket sold at the gate is the
+same object, in the same tier, decrementing the same count. Anything else produces two
+sources of truth about capacity on the night it matters most.

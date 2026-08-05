@@ -2,23 +2,52 @@
 
 ## 2.1 The complete actor model
 
-Eleven actor types. Each has a distinct authority boundary, a distinct data scope, and
-a distinct Command Centre. The first three exist in the codebase today; the remaining
-eight are additive.
+Thirteen actor types. Each has a distinct authority boundary, a distinct data scope, and
+a distinct Command Centre. The first four exist in the codebase today; the remaining
+nine are additive.
 
 | # | Actor | Status | Authority | Data scope |
 | --- | --- | --- | --- | --- |
-| 1 | **Attendee (customer)** | Live | Buy, transfer, refund-request, manage own profile | Own tickets, own wallet, public catalogue |
+| 1 | **Attendee (fan)** | Live | Buy, transfer, refund-request, manage own profile | Own tickets, own wallet, public catalogue |
 | 2 | **Organiser** | Live | Publish, price, refund, delegate check-in, buy promotion, withdraw | Own events, own attendees, own revenue |
-| 3 | **Platform admin (superuser)** | Live | Approve, suspend, set commission, verify offline payments, grant credit | Everything, fully audited |
-| 4 | **Door operator** | Live (scoped link) | Scan and admit for **one** event | Ticket validity only — no name lists, no finances |
-| 5 | **Venue manager** | New | Capacity, licensing constraints, blackout dates, house rules | Events at their venue only |
-| 6 | **Promoter / partner** | New | Sell allocation, earn commission, run campaigns | Their allocation and its performance only |
-| 7 | **Merchant (BitriPay)** | New | Accept payments via the gateway, manage keys, settle | Own transactions and settlements |
-| 8 | **Developer** | New | Provision API keys, call the public API, subscribe webhooks | Whatever their key's scopes permit |
-| 9 | **Sponsor** | New | Buy visibility, measure exposure | Impression and engagement metrics only |
-| 10 | **Support agent (human)** | New | Act on behalf of a user, time-boxed and consented | Impersonation session, fully logged |
-| 11 | **Regulator / auditor** | New | Read-only, immutable, exportable | Audit log, KYC/AML records, transaction trail |
+| 3 | **Platform admin** | Live | Approve, suspend, set commission, verify offline payments, grant credit, resolve disputes | Everything operational, fully audited |
+| 4 | **Gate staff / security** | Live (scoped link) | Scan and admit for **one** event; report incidents; check blocklist | Ticket validity only — no name lists, no finances |
+| 5 | **Super admin (platform owner)** | New | Everything a platform admin can do, **plus** revenue controls, agent governance, compliance override, admin role grants | Unrestricted, every action hash-chained |
+| 6 | **Venue manager** | New | Capacity, licensing constraints, blackout dates, gate configuration, security zones, house rules | Events at their venue only |
+| 7 | **Promoter / partner** | New | Sell allocation, earn commission, run campaigns, manage sub-promoters | Their allocation and its performance only |
+| 8 | **VIP hospitality host** | New | Build packages, run concierge workflow, manage guest lists, upsell | Hospitality inventory and its guests only |
+| 9 | **Merchant (BitriPay)** | New | Accept payments via the gateway, manage keys, settle, refund | Own transactions and settlements |
+| 10 | **Developer** | New | Provision API keys, call the public API, subscribe webhooks | Whatever their key's scopes permit |
+| 11 | **Sponsor** | New | Buy visibility, manage sponsor passes, measure exposure | Impression and engagement metrics only |
+| 12 | **Support agent (human)** | New | Act on behalf of a user, time-boxed and consented | Impersonation session, fully logged |
+| 13 | **Regulator / auditor** | New | Read-only, immutable, exportable | Audit log, KYC/AML records, transaction trail |
+
+### Why super admin and platform admin are two actors, not one
+
+Doc `17` §17.8 records this as debt **D5**: today `superuser` is a single self-propagating
+role with no second signature. Splitting it is the fix.
+
+| | Platform admin | Super admin |
+| --- | --- | --- |
+| Approve / suspend organisers | ✅ | ✅ |
+| Resolve disputes, verify offline payments | ✅ | ✅ |
+| Set commission terms | ✅ | ✅ |
+| **Grant the admin role** | ❌ | ✅, two-person |
+| **Change platform-wide pricing** | ❌ | ✅ |
+| **Agent governance and kill switch** | ❌ | ✅ |
+| **Compliance override** | ❌ | ✅, always escalated to audit |
+
+The operations team needs the first block daily and the second block never. Granting
+both to everyone who needs the first is how a support login becomes a platform-wide
+incident.
+
+### VIP hospitality host
+
+The actor that makes hospitality a first-class inventory type rather than a separate
+product (`01` §1.3, Seat Unique). A host is not an organiser: they sell against
+allocation someone else created, they hold guest lists containing named individuals at
+high value, and their concierge workflow touches personal data an ordinary organiser
+never sees. Distinct authority, distinct data scope, therefore a distinct actor.
 
 ### Authority inheritance rule
 
