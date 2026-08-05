@@ -492,3 +492,121 @@ a puzzle at all.
 | Blocking VPNs outright | Privacy-conscious users are not attackers |
 | Permanent IP bans | Addresses are shared and reassigned; you ban a household, then a university |
 | Hidden shadow-banning | Unaccountable and unappealable — suspend visibly or not at all |
+
+---
+
+## 11.14 Compliance register, with four corrections
+
+### Data protection
+
+| Control | Specification |
+| --- | --- |
+| Privacy by design | Minimal collection; explicit consent at registration and checkout |
+| Cookie consent | Cookiebot, with non-essential cookies off until accepted (`04` M24) |
+| Subject access | Automated export from the admin panel, answered within 30 days |
+| Processor agreements | DPAs with Stripe, Adyen, BitriPay, KODA, SendGrid, Twilio, Sumsub, Datadog |
+| Sub-processor register | Published, with notice before any addition |
+| Transfers | SCCs where data leaves the UK/EU — including `africa-south1` (`07` §7.12) |
+
+### PCI-DSS
+
+| Control | Specification |
+| --- | --- |
+| Scope | **SAQ-A.** Card data is tokenised by Stripe/Adyen and never touches our servers |
+| Mobile money | No PANs in scope at all |
+| Transport | TLS 1.3, HSTS preload on every payment path |
+| Assurance | Annual SAQ-A, quarterly ASV vulnerability scans |
+
+SAQ-A holds **only while payment fields are hosted by the provider**. The moment a card
+number is rendered in our own DOM — an "improved" inline form, a well-meant autofill fix
+— scope jumps to SAQ-A-EP and the annual assessment burden multiplies. Any change to the
+checkout DOM is a PCI decision, not a UI one.
+
+### KYC / KYB / AML
+
+| Trigger | Action |
+| --- | --- |
+| Organiser before going live | Full KYB via Sumsub — blocking |
+| Any BitriPay merchant | Full KYB before processing |
+| Hospitality booking > £500 | Enhanced identity verification on the lead booker |
+| All organisers, ongoing | ComplyAdvantage sanctions, PEP and adverse media |
+| Velocity, geography, pattern deviation | Automated monitoring, continuous |
+
+**Suspicious activity workflow:** agent flags → `compliance.v1` assembles → **human
+decides** → filing. `03` §3.6 sets the autonomy; no agent files a report, and no agent
+clears one.
+
+---
+
+### Correction 1 — "SAR" means two different things and must not
+
+In this document set:
+
+| Term | Always written as | Never abbreviated |
+| --- | --- | --- |
+| Subject Access Request (GDPR) | **DSAR** | — |
+| Suspicious Activity Report (AML) | **Suspicious Activity Report** | — |
+
+They appear within pages of each other, they route to entirely different teams, and one
+of them carries a criminal offence for getting the handling wrong. A compliance document
+where one acronym means both is a document that will eventually be misread under time
+pressure.
+
+### Correction 2 — the DPO threshold is the wrong test
+
+The source states a DPO is required above 250 employees. **That is the Article 30 test
+for records of processing, not the Article 37 test for a DPO.**
+
+Article 37 requires a DPO where core activities involve:
+
+- **large-scale, regular and systematic monitoring** of data subjects, or
+- large-scale processing of **special-category** data.
+
+This platform does both. Behavioural analytics, attendance tracking, scan logs and
+recommendation profiling are systematic monitoring at scale; hospitality guest records
+hold dietary and accessibility data, which is special-category (`08` §8.13c).
+
+**A DPO is likely required from launch, at any headcount.** Waiting for 250 employees
+would mean operating without one for the entire period the obligation actually applies.
+`OPEN`, and it needs counsel rather than a headcount.
+
+### Correction 3 — 7-year retention and 30-day erasure are not in conflict, but must be written as though someone will test them
+
+| Data | Retention | On erasure request |
+| --- | --- | --- |
+| Order, invoice, tax records | **7 years** (UK) | **Retained** — Article 17(3)(b), legal obligation |
+| Name, email, phone, address on the profile | Life of account | Deleted within 30 days |
+| Behavioural, recommendation, marketing profile | 24 months rolling | Deleted immediately |
+| Hospitality dietary and accessibility | **90 days after the event** | Deleted immediately |
+| Scan logs | 24 months | Pseudonymised, not deleted — fraud defence |
+| Audit log | 7 years | **Retained, immutable** — Article 17(3)(b) |
+
+**Erasure does not mean deletion of everything.** It means deleting what has no
+surviving lawful basis, and being able to say precisely which records survive and under
+which article. A blanket "we delete everything in 30 days" is both untrue and a breach
+of the tax obligation.
+
+The honest sentence for the privacy policy: *we remove your personal details from your
+account and our marketing systems; we keep the financial record of what you bought,
+because the law requires us to.*
+
+### Correction 4 — a filed Suspicious Activity Report must not be disclosed
+
+Telling a customer their transaction was reported is **tipping off**, a criminal offence
+under the UK Proceeds of Crime Act.
+
+This collides with the platform's default posture, which is to explain every action:
+
+| Normal | Under an open report |
+| --- | --- |
+| Suspension explains its reason | Suspension is generic; no reason given |
+| Agent transcript is user-visible | The relevant entries are hidden from the user |
+| Support can see the case | Support sees only "escalated — compliance" |
+| Admin console shows the flag | Restricted to the nominated officer |
+
+**This must be built, not remembered.** A support agent who sees an AML flag will
+eventually mention it, because being helpful is their job. The control is that they
+cannot see it.
+
+Requires a nominated officer (MLRO) and a restricted case queue that the ordinary
+compliance surface does not expose. `OPEN`, blocking before AML monitoring goes live.
