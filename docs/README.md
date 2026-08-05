@@ -34,7 +34,7 @@ billing, Firestore security rules.
 | 05 | [BitriPay gateway](./05-bitripay-gateway.md) | The BitriPay integration door for merchants and partners |
 | 06 | [Connector ecosystem](./06-connector-ecosystem.md) | Every third-party API category, provider and data contract |
 | 07 | [System architecture](./07-system-architecture.md) | Runtime, data plane, AI plane, events, observability, DR |
-| 08 | [Database schema](./08-database-schema.md) | PostgreSQL target: 20 tables, constraints, RLS policies, access matrix |
+| 08 | [Database schema](./08-database-schema.md) | PostgreSQL target: 38 tables, constraints, RLS policies, access matrix |
 | 09 | [API specification](./09-api-specification.md) | REST endpoints, webhooks, auth, rate limits, error codes |
 | 10 | [Monetisation](./10-monetisation.md) | Every revenue line, pricing engine, unit economics |
 | 11 | [Security, compliance & risk](./11-security-compliance-risk.md) | Zero trust, fraud, KYC/AML, GDPR, PCI scope |
@@ -56,6 +56,8 @@ claim quotes the rule that enforces it.
 | 18 | [Glossary & reference](./18-glossary.md) | Every term, defined once |
 | 19 | [Firestore → PostgreSQL](./19-firestore-to-postgres.md) | The datastore cutover: phases, gates, rollback, what it closes |
 | 20 | [KODA gateway API door](./20-koda-gateway.md) | The verification layer: API, webhooks, matching, consent, acceptance |
+| 21 | [Provider register](./21-provider-register.md) | Every external dependency: cost, status, alternative, what breaks without it |
+| 22 | [Production architecture](./22-production-architecture.md) | Frontend / backend / shared recommendation, deployment, and what blocks launch |
 
 Read 14 before 15–17: the role documents refer to the layer boundaries constantly, and
 the reason a given operation lives in `backend` rather than `frontend` is usually the
@@ -70,8 +72,8 @@ this table is correct.
 
 | Quantity | Actual | Where |
 | --- | --- | --- |
-| Documents | 20 | this directory |
-| Total lines | 11,003 | `wc -l docs/*.md` |
+| Documents | 22 | this directory |
+| Total lines | 11,587 | `wc -l docs/*.md` |
 | Actor types | **13** | `02` §2.1 |
 | AI Command Centres | **10** | `02` §2.3–2.12 |
 | AI agents | **28** | `03` §3.12 registry |
@@ -116,7 +118,7 @@ and promoting two subsections to top level. It resolves to these files:
 | 16 Competitive advantage | `01` §1.5 — moats are argued where the market gap is established |
 | 17 Self-managing platform | `03` §3.7 — the maintenance agents live with every other agent contract |
 | 18 Glossary & reference | `18-glossary.md` |
-| — (not in the outline) | `19-firestore-to-postgres.md` · `20-koda-gateway.md` |
+| — (not in the outline) | `19-firestore-to-postgres.md` · `20-koda-gateway.md` · `21-provider-register.md` · `22-production-architecture.md` |
 
 The outline has no counterpart for `14`–`17`. Those describe the code that exists now
 rather than the system being specified, which is why they are numbered after it.

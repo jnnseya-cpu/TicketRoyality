@@ -1,0 +1,25 @@
+name: Security rules
+
+on:
+  pull_request:
+    paths: ['firestore.rules', 'tests/rules/**']
+  push:
+    paths: ['firestore.rules', 'tests/rules/**']
+
+# Authorisation lives in firestore.rules, so a change to it is a security change.
+# This job is intended to be a required check: docs/13 §13.4 marks rules testing
+# blocking, and a rule with no negative test is an assumption.
+jobs:
+  emulator:
+    name: Rules unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run rules tests against the emulator
+        run: npm run test:rules --if-present

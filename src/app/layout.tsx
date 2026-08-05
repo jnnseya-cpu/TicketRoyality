@@ -9,6 +9,8 @@ import { ThemeProvider } from '@/frontend/components/common/ThemeProvider';
 import { Toaster } from '@/frontend/components/ui/toaster';
 import { AuthProvider } from '@/frontend/hooks/use-auth';
 import { CartProvider } from '@/frontend/hooks/use-cart';
+import { SiteStructuredData } from '@/frontend/components/seo/StructuredData';
+import { siteUrl } from '@/shared/site';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
 const spaceGrotesk = Space_Grotesk({
@@ -18,6 +20,8 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
+  // Makes every relative OG image and canonical resolve against the real origin.
+  metadataBase: new URL(siteUrl()),
   title: {
     default: 'TicketRoyality — Premium Event Access. Verified Tickets.',
     template: '%s · TicketRoyality',
@@ -53,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // and browser extensions (password managers) inject attributes into form controls.
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <body suppressHydrationWarning className="min-h-screen bg-background">
+        <SiteStructuredData />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
             <CartProvider>

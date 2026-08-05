@@ -1,6 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+
+import { EventStructuredData } from '@/frontend/components/seo/StructuredData';
 import type { Metadata } from 'next';
 import { CalendarDays, Clock, ExternalLink, Radio, Share2, Ticket, Users } from 'lucide-react';
 
@@ -44,6 +46,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   return (
     <article>
+      <EventStructuredData event={event} />
       {/* Hero */}
       <div className="relative h-[38vh] min-h-[280px] w-full overflow-hidden">
         <Image

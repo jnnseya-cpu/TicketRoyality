@@ -1,6 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+
+import { OrganiserStructuredData } from '@/frontend/components/seo/StructuredData';
 import type { Metadata } from 'next';
 import { Globe, Mail } from 'lucide-react';
 
@@ -39,6 +41,7 @@ export default async function OrganiserDetailPage({
 
   return (
     <div>
+      <OrganiserStructuredData organiser={organiser} />
       <div className="relative h-52 w-full overflow-hidden">
         <Image
           src={organiser.coverUrl || PLACEHOLDER_IMAGES.organiserCover}

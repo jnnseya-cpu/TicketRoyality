@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Typecheck · Lint · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Ordered cheapest-first so a type error fails in seconds rather than
+      # after a four-minute build.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint (layer boundaries enforced here)
+        run: npx eslint src --max-warnings=0
+
+      - name: Build
+        run: npm run build
+        env:
+          # The build must succeed with no credentials — that property is what makes
+          # preview deployments and this CI job possible at all.
+          NEXT_PUBLIC_SITE_URL: https://ci.invalid
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect committed credentials
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
