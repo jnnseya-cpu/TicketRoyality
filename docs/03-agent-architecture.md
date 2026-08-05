@@ -581,6 +581,57 @@ loop, while every irreversible step still requires one.
 `governance.v1` governs the other five as it governs everything else. A self-managing
 layer with nothing watching *it* is just an unsupervised layer.
 
+### Operating parameters
+
+| Agent | Cadence | Acts by |
+| --- | --- | --- |
+| `reliability.v1` | Every **30 seconds** | Alert, failover, breaker; triggers `auto_repair.v1` on breach |
+| `auto_repair.v1` | On signature threshold | Restart pods, redeploy last known good via rolling update, open a PR |
+| `bug_detection.v1` | Continuous | Cluster Datadog errors, classify severity, file a GitHub issue |
+| `infra_optimisation.v1` | Weekly | Right-size pods, reclaim idle resources, **report monthly savings** |
+| `release_management.v1` | Per deploy | Progressive traffic shift, auto-rollback on error-rate breach |
+| `governance.v1` | Weekly + on incident | Enforce scope boundaries, **detect prompt injection**, block policy violations |
+
+**Prompt-injection detection sits with `governance.v1` deliberately.** It is the only
+agent whose job is watching other agents, and injection attempts arrive through
+attacker-controlled text — a support message, an event description, a webhook payload,
+a scraped page. Detection belongs with the principal that can actually revoke a scope,
+not with the agent being attacked. Full treatment in `11` §11.7.
+
+### What this layer does not remove
+
+The closing claim in the source specification is that human engineers can *"focus
+exclusively on product innovation."* That overstates it in a way worth correcting, because
+teams staff against it.
+
+| Removed | Not removed |
+| --- | --- |
+| Manual log trawling | Deciding whether an alert matters |
+| Restarting a crashed pod at 03:00 | Being paged for a Sev-1 |
+| Noticing a cost regression | Approving a production right-size |
+| Writing the first draft of a fix | **Reviewing and merging it** |
+| Remembering to roll back | Deciding whether to roll forward |
+
+Look at the autonomy column and the reason is structural: `auto_repair.v1` is **L1
+permanently** — it opens pull requests and never merges. `release_management.v1` holds
+L3 for rollback only. `infra_optimisation.v1` needs approval in production. Every one of
+those is a human in the loop by design, and each was set there for a reason that has not
+changed.
+
+**On-call does not go away. It gets quieter and better-informed.** A team that plans for
+no on-call because agents handle it discovers otherwise during its first real incident —
+at which point nobody is rostered.
+
+The layer also creates work that did not exist before: somebody owns the agents. PRs need
+reviewing, escalations need deciding, `governance.v1`'s promotion and demotion proposals
+need a named human signing them off (`03` §3.1). That is a smaller job than the toil it
+replaces, and it is not zero.
+
+**And it does not deliver 99.99% on its own.** Availability is set by architecture, not
+by agents — `07` §7.12 shows a single failover at the stated 1-hour RTO consuming the
+entire annual error budget. Self-healing reduces how often you fail over; it does not
+change what failing over costs.
+
 ## 3.8 Data & intelligence agents
 
 ### `analyst.v2`
