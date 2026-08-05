@@ -1,0 +1,334 @@
+# 11 — Security, Compliance & Risk
+
+## 11.1 Zero-trust model
+
+**Never trust, always verify.** Every request is authenticated, authorised and logged,
+regardless of origin. There is no trusted internal network.
+
+| Principle | Implementation |
+| --- | --- |
+| Identity is the perimeter | Every request carries a verifiable identity; no IP allowlist substitutes for auth |
+| Least privilege | Scopes are granted narrowest-first; widening requires explicit action |
+| Assume breach | Segmentation, short-lived credentials, blast-radius limits |
+| Verify explicitly | Authority re-checked at execution, not only at plan time |
+| Continuous validation | Session risk is re-scored on every privileged action |
+
+**The rule that has already shaped this codebase:** authorisation lives in
+`firestore.rules`, not in React. A client-side guard is a UX affordance. If the rules
+would allow it, the platform allows it — so the rules are the thing that gets tested.
+
+## 11.2 Identity & access
+
+### Authentication
+
+| Control | Requirement |
+| --- | --- |
+| Password | ≥ 12 chars, checked against HaveIBeenPwned, Argon2id |
+| MFA | **Mandatory** for superuser and any organiser with payout access |
+| Social sign-in | Google + Apple (Apple required by App Store if Google is offered) |
+| Session | 30d attendee · 12h organiser · 1h superuser, sliding |
+| Device binding | Fingerprint recorded; a new device triggers step-up |
+| Step-up | Re-auth before payout changes, role changes, bulk email, key creation |
+
+### Privilege escalation defence
+
+Already enforced in `firestore.rules` via `noPrivilegedFields()`. A user cannot write
+`userType`, `status`, `commissionPercent`, `adminFee`, `wallet` or
+`welcomeBonusGranted` on their own document.
+
+**Additional controls:**
+- Organisers are created `pending` and cannot create an event until approved.
+- Role changes are superuser-only and always audited.
+- The `/dev-access` role switcher is **development-only and must be removed before
+  launch** — it is listed as a blocking item in the pre-launch checklist.
+
+`OPEN` — decide whether `/dev-access` is deleted or gated behind an IP allowlist plus
+a feature flag. Owner: Engineering. Due: before Phase 3.
+
+### Impersonation
+
+Four mandatory controls, all four enforced server-side:
+1. Recorded consent or documented lawful basis at session start.
+2. Hard 30-minute expiry, no silent renewal.
+3. Persistent banner for the whole session.
+4. `acting_as` on every audit row, and surfaced to the impersonated user afterwards.
+
+## 11.3 Application security
+
+### The OWASP surface
+
+| Threat | Control |
+| --- | --- |
+| Injection (SQL/NoSQL) | Parameterised queries only. `analyst.v2` generates **parameterised** SQL with the tenant predicate injected by the runtime, never by the model |
+| Broken auth | Firebase Auth, MFA, short sessions, step-up |
+| Sensitive data exposure | TLS 1.3, encryption at rest, field-level encryption for PII |
+| XXE | No XML parsing anywhere in the stack |
+| Broken access control | Security rules + server-side scope checks; **rules are unit-tested in CI** |
+| Misconfiguration | IaC, no default credentials, hardened CSP |
+| XSS | React escaping, strict CSP, `dangerouslySetInnerHTML` banned by lint rule |
+| Insecure deserialisation | Schema validation on every boundary (Zod) |
+| Vulnerable dependencies | Dependabot, `npm audit` in CI, blocked on high severity |
+| Insufficient logging | Comprehensive audit log; **reads of PII logged, not only writes** |
+
+### Content Security Policy
+
+```
+default-src 'self';
+script-src 'self' 'nonce-{random}' https://js.stripe.com;
+style-src 'self' 'unsafe-inline';
+img-src 'self' data: https://firebasestorage.googleapis.com https://maps.googleapis.com;
+connect-src 'self' https://*.googleapis.com https://api.stripe.com;
+frame-src https://js.stripe.com https://hooks.stripe.com;
+object-src 'none'; base-uri 'self'; form-action 'self';
+frame-ancestors 'none'; upgrade-insecure-requests;
+```
+
+Nonce-based, not `unsafe-inline` for scripts. `frame-ancestors 'none'` blocks
+clickjacking on the checkout flow.
+
+### Anti-automation
+
+Ticket on-sales are the most adversarial traffic in consumer software. Layered defence:
+
+| Layer | Control |
+| --- | --- |
+| Edge | Cloudflare bot management, JS challenge on the checkout path |
+| Rate limit | Per IP, per device, per payment instrument, per account |
+| Inventory | Server-enforced per-order and per-person limits. **Never client-enforced** |
+| Behaviour | `fraud.v3` velocity features across accounts sharing a fingerprint |
+| Queue | Virtual waiting room admits at a controlled rate |
+| Verification | Phone verification for high-demand on-sales |
+
+## 11.4 Data protection
+
+### Classification
+
+| Class | Examples | Controls |
+| --- | --- | --- |
+| **Critical** | Payment credentials, API secrets, stream keys, QR secrets | Never stored in the DB; Secret Manager; never logged; never client-readable |
+| **Sensitive** | ID documents, DOB, full address | Field-encrypted; ID docs never stored (provider reference only) |
+| **Personal** | Name, email, phone, purchase history | Encrypted at rest; access logged; retention enforced |
+| **Internal** | Analytics, aggregates | Standard controls |
+| **Public** | Published events, organiser profiles | No restriction |
+
+**Two things are never stored on our infrastructure:** raw card numbers (hosted fields
+keep us in PCI SAQ-A) and identity documents (we keep the provider's verification
+reference). Both are the highest-consequence data classes and the ones we gain least
+from holding.
+
+### Encryption
+
+| State | Method |
+| --- | --- |
+| In transit | TLS 1.3, HSTS with preload, certificate pinning in mobile apps |
+| At rest | AES-256, Google-managed keys; CMEK for enterprise tenants |
+| In use | Field-level encryption for the Sensitive class |
+| Backups | Encrypted, separate key |
+| Secrets | Cloud Secret Manager, versioned, access-logged |
+
+### Retention & erasure
+
+| Data | Retention | Basis |
+| --- | --- | --- |
+| Account | Duration + 30 days | Recovery window |
+| Tickets & orders | 7 years | Tax and accounting |
+| Payments | 7 years | Financial regulation |
+| Audit log | 7 years | Compliance |
+| KYC records | 5 years post-relationship | AML |
+| Technical logs | 90 days | Operations |
+| Agent memory | 7 years episodic, indefinite semantic (revisable) | Product |
+| Marketing consent | Until withdrawn + 3 years | Proof of consent |
+
+**Erasure handling:** a GDPR erasure request deletes personal data but retains
+transaction records under the legal-obligation basis, with identifiers replaced by a
+pseudonymous token. The response to the subject states plainly what was deleted and
+what was retained and why. Claiming full deletion while retaining records is worse
+than retaining them openly.
+
+## 11.5 Payment security
+
+| Control | Implementation |
+| --- | --- |
+| **PCI scope** | **SAQ-A only.** Hosted fields; card data never touches our systems |
+| 3D Secure | SCA-compliant, triggered by risk score and regulation |
+| Tokenisation | Provider tokens only; no PAN storage under any circumstance |
+| Idempotency | Unique key on every payment; unique index in the schema |
+| Webhook verification | HMAC signature + 5-minute timestamp window + constant-time compare |
+| Refund authority | Laddered by amount (see [04 §M11](./04-platform-modules.md#m11--support--disputes)) |
+| Payout verification | Bank account verified against the KYC'd legal entity |
+| Reserve | Risk-tiered, automatically recalculated |
+
+**Any proposal that would move us from SAQ-A to SAQ-D is rejected by default.** The
+compliance cost, audit burden and breach exposure are disproportionate to any benefit
+we could obtain from touching card data.
+
+## 11.6 Fraud prevention
+
+### Vectors and controls
+
+| Vector | Detection | Response |
+| --- | --- | --- |
+| Stolen cards | Radar + `fraud.v3` | Challenge → block (L1 human confirm) |
+| Friendly fraud | Scan record proves attendance | Auto-assembled chargeback evidence |
+| Ticket duplication | Rotating QR + one-scan enforcement | Refused at the gate |
+| Account takeover | `security.v1` geo/device anomaly | Step-up, session revoke, notify |
+| Organiser fraud | Payout holds, velocity, complaint rate | Freeze payouts, human review |
+| Scalping | Bot detection, purchase limits, velocity | Block, cancel, refund |
+| Refund abuse | Pattern across accounts | Restrict, require human approval |
+| AML / layering | Transaction monitoring | SAR filing, freeze |
+
+### Chargeback evidence
+
+Assembled automatically on dispute — the win rate depends entirely on evidence quality:
+1. Scan record with timestamp and operator (proof of delivery).
+2. Terms accepted, with version and timestamp.
+3. Ticket delivery confirmation (email open, download).
+4. Device fingerprint and IP matching the purchase session.
+5. Refund policy shown at checkout.
+6. Any customer communication.
+
+A scan record is close to conclusive proof that the service was delivered, which is
+why it is captured on every admission and retained for seven years.
+
+## 11.7 AI-specific security
+
+The agent layer introduces threats that do not exist in a conventional platform.
+
+| Threat | Control |
+| --- | --- |
+| **Prompt injection** | User content is delimited and marked untrusted. **A tool call appearing in user-supplied text is never executed.** Tool calls are validated against the agent's declared scopes before execution |
+| **Data exfiltration via prompt** | Prompts receive ids and aggregates, not raw PII. Retrieval is scope-filtered **before** the vector search, not after |
+| **Cross-tenant leakage** | Memory partitioned by `principalId`; only k-anonymised (k ≥ 5) procedural memory crosses tenants — enforced at the retrieval layer, never by instruction |
+| **Excessive agency** | Autonomy ladder; L1 mandatory for money and identity; **no writing agent is ever L3** |
+| **Model DoS / cost attack** | ACU budgets per agent, per principal, per chain. Hard ceilings |
+| **Output injection** | Agent output rendered as text; never `eval`'d, never executed as markup |
+| **Model supply chain** | Models pinned per agent; version changes are a deploy, never a silent upstream update |
+| **Agent chain runaway** | Max depth 5, max 3 invocations per agent per chain, 200 ACU total |
+| **Hallucinated authority** | Every tool re-checks scope at execution; a plan-time check is insufficient because state changes between plan and execute |
+
+**The most important sentence in this section:** an agent is a client of the platform
+with strictly narrower authority than the principal it serves. It is never a
+privileged internal process. Every guarantee in this document depends on that.
+
+## 11.8 Regulatory compliance
+
+### GDPR / UK GDPR
+
+| Requirement | Implementation |
+| --- | --- |
+| Lawful basis | Contract (tickets), legitimate interest (fraud), consent (marketing, geolocation, AI) |
+| Data subject rights | Self-serve access, rectification, export, erasure |
+| Consent | Granular, per purpose, withdrawable, timestamped with the version shown |
+| Breach notification | 72 hours to the ICO; runbook maintained and drilled |
+| DPIA | Completed for the agent layer, biometric-adjacent processing and profiling |
+| Processor agreements | DPAs with every sub-processor; register maintained |
+| International transfers | Adequacy or SCCs; documented per provider |
+| Privacy by design | PII minimisation in prompts; retention enforced by scheduled job |
+
+### AML / CTF
+
+Applies once we operate as a payment facilitator.
+
+| Control | Implementation |
+| --- | --- |
+| KYC | Sumsub/Persona, triggered by payout and volume thresholds |
+| KYB | Full company verification for every gateway merchant |
+| Sanctions | ComplyAdvantage, screened at onboarding and re-screened on change |
+| PEP | Screened, escalated to human review |
+| Transaction monitoring | Rules + anomaly detection |
+| SAR | Filed by the MLRO; **tipping-off prohibited** |
+| Record keeping | 5 years post-relationship |
+
+`OPEN` — appoint a named MLRO before Phase 3. Owner: Compliance.
+
+### PSD2 / SCA
+
+Strong Customer Authentication via 3DS, with exemptions applied correctly (low value,
+TRA, recurring). Getting exemptions wrong costs either conversion or liability shift.
+
+### Accessibility (WCAG 2.2 AA)
+
+Legally required in the UK public sector and a straightforward commercial requirement
+elsewhere.
+
+| Requirement | Implementation |
+| --- | --- |
+| Keyboard navigation | Full, including the seat map editor |
+| Screen readers | Semantic HTML, ARIA on every custom control |
+| Contrast | ≥ 4.5:1 body, ≥ 3:1 large — verified in both themes |
+| Focus visible | Never removed; `focus-visible` rings throughout |
+| Motion | `prefers-reduced-motion` honoured |
+| Forms | Labels, error identification, suggestions |
+| Accessible ticketing | Wheelchair spaces, companion tickets, assistance requests |
+
+**The static QR fallback exists for accessibility reasons**, not convenience: an
+attendee without a working smartphone must still be able to enter. Accessibility beats
+anti-fraud where they conflict, and the static path is flagged to the operator instead
+of being refused.
+
+## 11.9 Risk register
+
+| # | Risk | Likelihood | Impact | Mitigation | Owner |
+| --- | --- | --- | --- | --- | --- |
+| R1 | Payment provider outage during a major on-sale | Medium | High | Multi-provider failover, edge queue | Eng |
+| R2 | Data breach exposing attendee PII | Low | Critical | Encryption, least privilege, tested rules, IR plan | Sec |
+| R3 | Agent takes a harmful autonomous action | Low | High | Autonomy ladder, L1 on money, reversibility, governance | AI |
+| R4 | Regulatory action over facilitator status | Medium | Critical | Legal sign-off gate before merchant onboarding | Legal |
+| R5 | Scalping at scale damages brand | High | Medium | Bot mgmt, limits, verification, rotating QR | Prod |
+| R6 | Organiser fraud — sells and does not deliver | Medium | High | Payout holds, reserves, KYC, complaint monitoring | Risk |
+| R7 | Model provider price rise compresses ACU margin | Medium | Medium | Multi-provider routing, 3× markup headroom | Fin |
+| R8 | Firestore hot-key limit at on-sale | Medium | High | Counter sharding, Redis inventory | Eng |
+| R9 | Cross-tenant leak via agent memory | Low | Critical | Partitioned memory, pre-filtered retrieval, k ≥ 5 | AI |
+| R10 | Chargeback rate breaches scheme threshold | Low | High | Fraud scoring, evidence automation, monitoring | Risk |
+| R11 | Key personnel dependency | Medium | Medium | Documentation, pairing, runbooks | Eng |
+| R12 | Cloud region outage during a live event | Low | High | Multi-region, **offline scanning** | Eng |
+
+**R12's mitigation is the reason offline scanning is a requirement.** An event can run
+its entire door with our platform completely unavailable. That converts a catastrophic
+risk into an operational inconvenience.
+
+## 11.10 Incident response
+
+### Severity
+
+| Sev | Definition | Response | Comms |
+| --- | --- | --- | --- |
+| **1** | Checkout or scanning down; data breach | Page immediately, 24/7 | Statuspage within 15 min |
+| **2** | Major degradation; payment provider down | Page in hours | Statuspage within 60 min |
+| **3** | Single feature degraded | Next business day | In-app notice |
+| **4** | No user impact | Backlog | None |
+
+### Breach runbook
+
+```
+T+0     Detect (automated or reported)
+T+15m   Contain — revoke credentials, isolate, stop the bleed
+T+1h    Assess — scope, data classes, subject count
+T+4h    Notify leadership; engage legal and, if needed, external IR
+T+24h   Preliminary root cause
+T+72h   Regulator notification if required (GDPR Art. 33)
+T+7d    Subject notification if high risk (Art. 34)
+T+14d   Postmortem published internally, actions assigned with owners and dates
+```
+
+**Containment precedes investigation.** Understanding an ongoing breach fully before
+stopping it maximises the damage.
+
+## 11.11 Security testing
+
+| Activity | Frequency |
+| --- | --- |
+| SAST | Every commit |
+| Dependency scan | Every commit; blocked on high severity |
+| DAST | Weekly against staging |
+| **Firestore rules unit tests** | **Every commit — blocking** |
+| Penetration test | Annual + before major releases |
+| Red team | Annual |
+| Restore drill | Quarterly |
+| Access review | Quarterly |
+| Prompt injection suite | Every agent release |
+
+**Rules tests are blocking because the rules are the authorisation layer.** Every role
+× every collection × positive and negative cases. A rules change without a test is an
+untested authorisation change, and the whole zero-trust model rests on them being
+correct.

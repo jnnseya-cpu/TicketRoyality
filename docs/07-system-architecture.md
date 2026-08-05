@@ -1,0 +1,390 @@
+# 07 — System Architecture
+
+## 7.1 Topology
+
+```
+                            ┌──────────────────┐
+   Browser · Mobile ───────▶│   CLOUDFLARE     │  WAF · DDoS · bot mgmt · CDN
+   Partner API clients      │   edge           │  rate limit · cache
+                            └────────┬─────────┘
+                                     │
+                            ┌────────▼─────────┐
+                            │  FIREBASE APP    │  Next.js 15 App Router
+                            │    HOSTING       │  SSR · RSC · route handlers
+                            └────────┬─────────┘
+                                     │
+        ┌────────────────────────────┼────────────────────────────┐
+        ▼                            ▼                            ▼
+┌───────────────┐          ┌──────────────────┐         ┌──────────────────┐
+│  API GATEWAY  │          │  AGENT CONTROL   │         │  CLOUD FUNCTIONS │
+│ auth · quota  │          │  PLANE           │         │ webhooks · cron  │
+│ versioning    │          │ policy · runtime │         │ privileged writes│
+└───────┬───────┘          └────────┬─────────┘         └────────┬─────────┘
+        │                           │                            │
+        └───────────────┬───────────┴────────────────────────────┘
+                        ▼
+        ┌───────────────────────────────────────────────┐
+        │              DATA PLANE                       │
+        │  Firestore (OLTP) · BigQuery (OLAP)           │
+        │  Redis (cache/session) · Vector (embeddings)  │
+        │  Cloud Storage (media) · Pub/Sub (events)     │
+        └───────────────────────────────────────────────┘
+```
+
+### Why this shape
+
+- **Edge first.** Cloudflare absorbs DDoS, bots and scalper traffic before it costs
+  compute. Ticket on-sales are the single most adversarial traffic pattern in
+  consumer software; the first line of defence must be free at the margin.
+- **App Hosting for the web tier.** SSR plus RSC keeps time-to-first-byte low on
+  catalogue pages, which are the SEO surface and therefore the acquisition channel.
+- **Cloud Functions for privileged writes.** Anything the client is forbidden from
+  doing — minting tickets, writing the ledger, granting credit — runs here with the
+  Admin SDK, behind the same policy engine.
+- **Separated OLTP and OLAP.** Firestore serves the transaction; BigQuery serves the
+  question. Running analytics against the transactional store is how a platform gets
+  slow at exactly the moment it gets popular.
+
+## 7.2 Runtime layers
+
+| Layer | Technology | Responsibility |
+| --- | --- | --- |
+| Edge | Cloudflare | WAF, DDoS, bot management, CDN, rate limiting |
+| Web | Next.js 15 App Router on Firebase App Hosting | SSR, RSC, route handlers |
+| API | Cloud Run behind API Gateway | Public REST, webhooks, partner integrations |
+| Agents | Cloud Run + Genkit | Agent runtime, orchestration, memory |
+| Functions | Cloud Functions v2 | Webhook handlers, scheduled jobs, privileged writes |
+| OLTP | Firestore | Events, tickets, users, orders — the authoritative state |
+| OLAP | BigQuery | Analytics, forecasting, ML features |
+| Cache | Memorystore (Redis) | Sessions, hot catalogue, agent working memory |
+| Vector | Vertex Matching Engine | Semantic search, agent semantic memory |
+| Media | Cloud Storage + R2 | Images, PDFs, stream recordings |
+| Bus | Pub/Sub | The platform event taxonomy from M9 |
+
+## 7.3 The transactional core
+
+**Firestore is authoritative for anything a user can see change in under a second.**
+Everything else derives from it.
+
+### Consistency requirements
+
+| Operation | Guarantee | Mechanism |
+| --- | --- | --- |
+| Ticket issuance | Exactly once | Idempotency key on the provider event id |
+| Ticket redemption | Exactly once | `valid → redeemed` transition guarded in security rules |
+| Inventory decrement | No oversell | Firestore transaction on the tier counter |
+| Wallet debit | No negative balance | Transaction with a pre-read balance check |
+| Payout | Exactly once | Idempotency key + state machine |
+
+### The oversell problem
+
+Naive `sold++` allows oversell under concurrency. The correct implementation reserves
+inventory inside a transaction, before payment:
+
+```ts
+await runTransaction(db, async (tx) => {
+  const tierRef = doc(db, 'events', eventId, 'tiers', tierId);
+  const snap = await tx.get(tierRef);
+  const tier = snap.data() as TicketTier;
+
+  const available = tier.quantity - tier.sold - tier.held;
+  if (available < quantity) throw new InsufficientInventoryError(available);
+
+  // Hold, don't sell. Payment may still fail.
+  tx.update(tierRef, { held: tier.held + quantity });
+  tx.set(doc(db, 'holds', holdId), {
+    tierId, quantity, userId,
+    expiresAt: Date.now() + 15 * 60 * 1000,   // 15-minute checkout window
+  });
+});
+```
+
+Payment success converts the hold to a sale. Payment failure or expiry releases it via
+a scheduled sweeper running every minute. **Never decrement inventory on an unpaid
+intent, and never wait for payment before reserving it.**
+
+## 7.4 Event-driven architecture
+
+Every state change publishes to Pub/Sub using the M9 taxonomy. Consumers are
+independent and individually replayable.
+
+```
+                        ┌─────────────┐
+   State change ───────▶│   PUB/SUB   │
+                        └──────┬──────┘
+        ┌──────────────┬───────┼───────┬──────────────┐
+        ▼              ▼       ▼       ▼              ▼
+  ┌──────────┐  ┌──────────┐ ┌───┐ ┌────────┐  ┌───────────┐
+  │ Analytics│  │  Agent   │ │ N │ │ Audit  │  │ Webhook   │
+  │ BigQuery │  │ triggers │ │ o │ │  log   │  │ delivery  │
+  └──────────┘  └──────────┘ │ t │ └────────┘  └───────────┘
+                             │ i │
+                             │ f │
+                             └───┘
+```
+
+**Delivery semantics:** at-least-once. Every consumer is idempotent on `event.id`.
+**Ordering:** guaranteed per `ordering_key` (typically `eventId` or `userId`), not
+globally. Global ordering is a scalability trap and is not required by any consumer.
+**Replay:** every topic retains 7 days. A consumer bug is fixed by deploying and
+replaying, not by manual data repair.
+
+## 7.5 AI plane
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                    AGENT CONTROL PLANE                     │
+│                                                            │
+│  ┌────────────┐   ┌────────────┐   ┌──────────────────┐    │
+│  │ORCHESTRATOR│──▶│   POLICY   │──▶│  AGENT RUNTIME   │    │
+│  │ route·plan │   │deny-default│   │  Genkit flows    │    │
+│  └────────────┘   └────────────┘   └────────┬─────────┘    │
+│                                             │              │
+│  ┌──────────────────────────────────────────▼───────────┐  │
+│  │                    MEMORY                            │  │
+│  │  Working (Redis) · Episodic (Firestore)              │  │
+│  │  Semantic (Vector) · Procedural (Firestore)          │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                            │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  TOOLS — every kernel write goes through the policy   │  │
+│  │  engine. There is no direct database access.          │  │
+│  └──────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Tool contract
+
+An agent never touches Firestore. It calls declared tools, and every tool re-checks
+authority at execution time — the policy check at plan time is not sufficient, because
+state can change between plan and execute.
+
+```ts
+interface AgentTool<TInput, TOutput> {
+  name: string;
+  description: string;             // the model reads this
+  inputSchema: JSONSchema;
+  requiredScopes: Scope[];
+  reversible: boolean;
+  costEstimateAcu: number;
+
+  execute(
+    input: TInput,
+    context: { principalId: string; agentId: string; traceId: string }
+  ): Promise<TOutput>;
+}
+```
+
+**Every `execute` implementation begins with a scope re-check and ends with an audit
+write. Both are enforced by a shared wrapper, not left to the tool author.**
+
+### Retrieval-augmented generation
+
+| Store | Contents | Refresh |
+| --- | --- | --- |
+| Event embeddings | Title + description + category | On event write |
+| Knowledge base | Support articles, policies | On publish |
+| Agent semantic memory | Learned facts per principal | On decision outcome |
+| Market benchmarks | k-anonymised aggregates (k ≥ 5) | Nightly |
+
+**Retrieval is scope-filtered before the vector search, not after.** Filtering after
+retrieval leaks: the model has already seen the cross-tenant content. The tenant
+predicate is a pre-filter on the index.
+
+## 7.6 Data plane
+
+### Storage selection
+
+| Data | Store | Rationale |
+| --- | --- | --- |
+| Events, tickets, users, orders | Firestore | Real-time listeners, security rules, sub-100ms reads |
+| Analytics, ML features | BigQuery | Columnar, cheap scans, SQL |
+| Sessions, hot catalogue | Redis | Sub-ms, TTL semantics |
+| Embeddings | Vertex Matching Engine | ANN at scale |
+| Images, PDFs, recordings | Cloud Storage / R2 | Object storage with CDN egress |
+| Audit log | Firestore + BigQuery export | Real-time write, immutable, queryable |
+
+### Firestore → BigQuery
+
+Streaming export via the Firestore extension. Analytics reads never touch the
+transactional store. Latency is 2–5 seconds, which is acceptable for every analytical
+use case and unacceptable for none of them.
+
+### Caching
+
+| Layer | TTL | Invalidation |
+| --- | --- | --- |
+| Cloudflare edge (public catalogue) | 60s | Purge by tag on event write |
+| Next.js RSC cache | 300s | `revalidateTag` on write |
+| Redis hot events | 30s | Explicit delete on write |
+| Client SWR | 10s | Refetch on focus |
+
+**Never cache:** ticket status, inventory counts, wallet balances, scan results. A
+stale ticket status admits someone twice; a stale inventory count oversells.
+
+## 7.7 Scalability
+
+### Load profile
+
+Ticketing load is not smooth. It is dominated by on-sale spikes.
+
+| Scenario | Concurrent users | RPS | Duration |
+| --- | --- | --- | --- |
+| Steady state | 500 | 200 | Continuous |
+| Major on-sale | 50,000 | 15,000 | 5–10 minutes |
+| Door scanning | 200 operators | 400 | 60 minutes |
+| Livestream start | 20,000 | 3,000 | 2 minutes |
+
+**A 75× spike over 30 seconds** is the design point. Autoscaling alone does not solve
+it — cold starts arrive after the spike has already failed.
+
+### On-sale strategy
+
+1. **Virtual waiting room** at the edge (Cloudflare). Users are admitted at a
+   controlled rate. This is the single most effective control, and it is edge-side, so
+   it costs nothing at origin.
+2. **Pre-warm** to the projected concurrency 10 minutes before on-sale. Scheduled, not
+   reactive.
+3. **Inventory in Redis** during the sale, reconciled to Firestore asynchronously.
+   Redis handles the contention; Firestore holds the truth.
+4. **Queue-based checkout.** A holding token guarantees a 15-minute window, so the user
+   is not racing.
+5. **Graceful degradation.** Under extreme load, disable recommendations, search
+   facets and analytics. **Never** disable checkout or scanning.
+
+### Scaling limits and mitigations
+
+| Limit | Value | Mitigation |
+| --- | --- | --- |
+| Firestore writes/document | 1/second | Shard hot counters into 10 sub-documents |
+| Firestore collection | Unlimited | — |
+| Cloud Run instances | 1,000/region | Multi-region |
+| Pub/Sub throughput | Effectively unlimited | — |
+| Gemini rate limit | Per-project quota | Request queue + deterministic fallback |
+
+**Counter sharding** is required for any tier that will see > 1 sale/second:
+
+```
+tiers/{tierId}/shards/{0..9}   each holding a partial count
+available = quantity − Σ(shard.sold) − Σ(shard.held)
+```
+
+Reads sum 10 documents; writes hit one random shard. Contention drops 10×.
+
+## 7.8 Observability
+
+### The four signals
+
+| Signal | Tool | Retention |
+| --- | --- | --- |
+| Metrics | Cloud Monitoring | 90 days |
+| Logs | Cloud Logging | 30 days hot, 400 days archived |
+| Traces | OpenTelemetry → Cloud Trace | 30 days |
+| Errors | Sentry | 90 days |
+
+### SLOs
+
+| Service | SLI | Target | Error budget |
+| --- | --- | --- | --- |
+| Catalogue | p95 latency | < 400ms | 0.1%/28d |
+| Checkout | Success rate | > 99.5% | 0.5%/28d |
+| **Scan** | **p95 latency** | **< 200ms** | **0.05%/28d** |
+| Webhook delivery | Delivered < 5s | > 99.9% | 0.1%/28d |
+| Agent invocation | Success rate | > 98% | 2%/28d |
+| API | Availability | > 99.95% | 0.05%/28d |
+
+**Scanning has the tightest budget deliberately.** A slow catalogue costs a
+conversion. A slow gate creates a physical queue of real people outside a real
+building, which is a safety issue before it is a product issue.
+
+### Alerting
+
+| Severity | Trigger | Response |
+| --- | --- | --- |
+| **Sev-1** | Checkout or scanning down | Page immediately, 24/7 |
+| **Sev-2** | Error budget burning > 10×, payment provider down | Page in business hours, ticket otherwise |
+| **Sev-3** | Single connector degraded, non-critical | Ticket, next business day |
+| **Sev-4** | Anomaly detected, no user impact | Dashboard only |
+
+`reliability.v1` triages every alert, correlates it against recent deploys, forms a
+hypothesis, and either executes a matching runbook (L2) or pages with the hypothesis
+attached (L1). A page that arrives with a probable cause already stated is worth
+several minutes of MTTR.
+
+## 7.9 Deployment
+
+```
+feature branch → PR → CI (lint · typecheck · unit · integration · e2e · rules tests)
+              → preview deploy (isolated Firebase project)
+              → review + agent evaluation gate
+              → merge to main
+              → staging deploy → smoke tests
+              → canary 5% → 25% → 100% (automated rollback on SLO burn)
+```
+
+**CI gates — merge is blocked on all six:**
+1. `tsc --noEmit` clean.
+2. ESLint clean.
+3. Unit coverage ≥ 80% on changed files.
+4. **Firestore rules tests pass** (`@firebase/rules-unit-testing`) — every role,
+   every collection, positive and negative cases.
+5. **Agent golden-set evaluation** shows no regression.
+6. Build succeeds and bundle size is within budget.
+
+Rule 4 deserves emphasis: security rules are the actual authorisation layer. An
+untested rules change is an untested authorisation change.
+
+**Canary rollback** is automatic if, during the canary window, error rate rises above
+2× baseline, p95 latency rises above 1.5× baseline, or checkout success falls below
+99%. No human decision is required to roll back — only to roll forward.
+
+## 7.10 Disaster recovery
+
+| Metric | Target |
+| --- | --- |
+| **RPO** (max data loss) | 5 minutes |
+| **RTO** (max downtime) | 30 minutes |
+
+### Backups
+
+| Data | Method | Frequency | Retention |
+| --- | --- | --- | --- |
+| Firestore | Managed export to GCS | Hourly | 30 days |
+| Firestore PITR | Point-in-time recovery | Continuous | 7 days |
+| BigQuery | Snapshot | Daily | 90 days |
+| Cloud Storage | Dual-region + versioning | Continuous | 90 days |
+| Secrets | Cloud Secret Manager versions | On change | 10 versions |
+
+### Scenarios
+
+| Scenario | Response | RTO |
+| --- | --- | --- |
+| Region failure | Fail over to secondary; Firestore multi-region is automatic | 15 min |
+| Data corruption | PITR to the last known-good timestamp | 30 min |
+| Bad deploy | Automated canary rollback | 5 min |
+| Payment provider down | Route to secondary provider | 2 min |
+| Total account compromise | Break-glass in an isolated project from backup | 4 hours |
+
+**Restore drills run quarterly, in staging, with the result recorded.** A backup that
+has never been restored is a hypothesis, not a backup.
+
+## 7.11 Business continuity
+
+**Degraded modes, in priority order.** When capacity is constrained, this is what
+survives:
+
+| Priority | Function | Must survive |
+| --- | --- | --- |
+| **1** | **Door scanning** | Yes — offline-capable, works with the platform entirely down |
+| **2** | **Checkout** | Yes — at reduced feature richness |
+| 3 | Catalogue browse | Yes — from cache if necessary |
+| 4 | Dashboards | Degraded to cached data |
+| 5 | Agents | Suspended |
+| 6 | Analytics | Suspended |
+
+**Offline scanning is the backstop for total platform failure.** The manifest is
+pre-downloaded to the operator's device; the scanner validates locally against it and
+queues admissions for reconciliation. An event can run its entire door with our
+platform completely offline. This is the difference between an incident and a
+catastrophe, and it is the reason offline scanning is specified as a requirement and
+not a nice-to-have.
