@@ -1,0 +1,241 @@
+# 02 — User Ecosystem & AI Command Centres
+
+## 2.1 The complete actor model
+
+Eleven actor types. Each has a distinct authority boundary, a distinct data scope, and
+a distinct Command Centre. The first three exist in the codebase today; the remaining
+eight are additive.
+
+| # | Actor | Status | Authority | Data scope |
+| --- | --- | --- | --- | --- |
+| 1 | **Attendee (customer)** | Live | Buy, transfer, refund-request, manage own profile | Own tickets, own wallet, public catalogue |
+| 2 | **Organiser** | Live | Publish, price, refund, delegate check-in, buy promotion, withdraw | Own events, own attendees, own revenue |
+| 3 | **Platform admin (superuser)** | Live | Approve, suspend, set commission, verify offline payments, grant credit | Everything, fully audited |
+| 4 | **Door operator** | Live (scoped link) | Scan and admit for **one** event | Ticket validity only — no name lists, no finances |
+| 5 | **Venue manager** | New | Capacity, licensing constraints, blackout dates, house rules | Events at their venue only |
+| 6 | **Promoter / partner** | New | Sell allocation, earn commission, run campaigns | Their allocation and its performance only |
+| 7 | **Merchant (BitriPay)** | New | Accept payments via the gateway, manage keys, settle | Own transactions and settlements |
+| 8 | **Developer** | New | Provision API keys, call the public API, subscribe webhooks | Whatever their key's scopes permit |
+| 9 | **Sponsor** | New | Buy visibility, measure exposure | Impression and engagement metrics only |
+| 10 | **Support agent (human)** | New | Act on behalf of a user, time-boxed and consented | Impersonation session, fully logged |
+| 11 | **Regulator / auditor** | New | Read-only, immutable, exportable | Audit log, KYC/AML records, transaction trail |
+
+### Authority inheritance rule
+
+```
+platform_admin ⊃ { organiser ∪ merchant ∪ venue ∪ promoter }
+organiser      ⊃ { door_operator(event_id) }
+support_agent  ⊆ impersonated_principal   (never a superset, always time-boxed)
+agent(X)       ⊂ X                        (strictly narrower, always)
+```
+
+The last line is the invariant the whole system rests on. An agent acting for an
+organiser can never hold a scope that organiser does not hold, and always holds fewer.
+
+## 2.2 The AI Command Centre
+
+Every actor gets a Command Centre — a persistent surface with the same five-part
+anatomy, populated differently per role.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ 1. SITUATION      What is true right now. Live, not cached.  │
+│ 2. ATTENTION      Ranked list of what needs a decision.      │
+│ 3. FORECAST       What happens if nothing changes.           │
+│ 4. ACTIONS        What the agents propose, with £ impact.    │
+│ 5. TRANSCRIPT     Everything agents did, and why. Reversible.│
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Design rules, non-negotiable
+
+1. **Attention is ranked by cost of inaction, in currency.** Not by recency, not by
+   severity label. "£2,400 at risk" outranks "3 new comments".
+2. **Every proposed action shows its money.** An action with no quantified impact does
+   not appear in the Actions panel; it goes in the transcript.
+3. **Every executed action is reversible or explicitly flagged irreversible.** The
+   transcript exposes a one-click undo where physics allows it.
+4. **The Command Centre never blocks the classic UI.** Users who ignore it entirely
+   keep the platform they already have. Adoption is earned, not forced.
+
+## 2.3 Attendee Command Centre
+
+**Agents:** Personal Concierge · Discovery · Wallet.
+
+| Panel | Content |
+| --- | --- |
+| Situation | Next event and countdown, ticket status, travel time from home postcode, wallet balance |
+| Attention | "Doors in 90 minutes and your ticket is not downloaded" · "Event moved venue" · "Your card expires before the event" |
+| Forecast | "Tickets for the event you viewed 4 times are 82% sold; at current pace it sells out Thursday" |
+| Actions | Add to calendar · download all tickets for offline use · set a price-drop watch · transfer a spare ticket |
+| Transcript | Every recommendation and why it was made, with a "less like this" control |
+
+**Data scope:** own profile, own tickets, own wallet, public catalogue.
+**Never sees:** other attendees, organiser financials, platform metrics.
+**Max autonomy: L2** (act-and-notify) — and only for reversible actions such as
+calendar sync or watch-list changes. Purchases are always L1.
+
+## 2.4 Organiser Command Centre
+
+The commercial heart of the product. **Agents:** Chief of Staff · Analyst · Growth ·
+Operations · Support · Pricing · Research.
+
+| Panel | Content |
+| --- | --- |
+| Situation | Live sell-through per tier, revenue net of commission, scan rate during doors, refund rate, payout balance |
+| Attention | "Cardiff is 34% sold with 9 days left — £4,100 below break-even" · "VIP sold out 6 days early, you left money on the table" · "3 refund requests older than 48h" |
+| Forecast | Final sell-through with an 80% confidence band, projected net revenue, no-show rate, door queue length by 15-minute bucket |
+| Actions | Launch a lookalike campaign (£ spend → £ projected return) · release 40 held seats · reprice tier 2 by −12% · buy a homepage placement · extend early bird by 48h |
+| Transcript | Every campaign written, every price changed, every refund auto-approved, each reversible |
+
+**Data scope:** own events, own attendees, own revenue, anonymised market benchmarks.
+**Never sees:** another organiser's attendee list, pricing or conversion rates.
+Benchmarks are k-anonymised with **k ≥ 5** and suppressed below that threshold.
+**Max autonomy: L2** for marketing copy, tier release and support replies.
+**L1 mandatory** for: price changes, refunds, payouts, and anything that emails the
+full attendee list.
+
+### Worked example — the flow that has to work on day one
+
+```
+07:02  Analyst          Cardiff Half Marathon: 312/900 sold, 9 days out.
+                        Pace 4.1/day. Projected final 349 (80% CI 320–381).
+                        Break-even 465. Shortfall −116 tickets, −£4,060.
+07:02  Growth           Cause: paid traffic stopped 6 days ago (budget exhausted).
+                        Historical: your 3 previous races converted 3.2% from
+                        lookalike-of-past-attendees at £2.40 CPC.
+07:02  Growth           Proposal: £280 lookalike, 6-day flight, cap CPA £8.
+                        Projected +112 tickets, +£3,920 gross, +£3,510 net.
+                        Confidence: medium-high (n=3 comparable events).
+07:02  Chief of Staff   Ranked #1 in Attention. £4,060 at risk.
+09:14  Human            Approves.
+09:14  Growth  [L1→act] Creative written, 3 variants. Campaign live at 09:16.
+09:14  Audit            agent=growth.v4 · model=gemini-2.5-flash · principal=org_a1b2
+                        · action=campaign.create · spend_cap=28000 (minor units)
+                        · approved_by=user_c3d4 · reversible=true
+Day+6  Analyst          Delivered +97 (87% of projection). CPA £2.89.
+                        Final 421. Still −44 vs break-even. Next proposal queued.
+```
+
+Note what makes this credible: a stated confidence band, a stated sample size, a
+delivered-versus-projected reconciliation, and a follow-up. An agent that never
+reports a miss is not trusted twice.
+
+## 2.5 Platform Admin Command Centre
+
+**Agents:** Governance · Security · Fraud · Compliance · Reliability · Revenue.
+
+| Panel | Content |
+| --- | --- |
+| Situation | GMV today, take rate, active events, scans/minute, error budget burn, agent spend, open incidents |
+| Attention | "Organiser #4471: refund rate 34% vs 3% platform median" · "Mobile-money queue 41 items, oldest 19h — SLA is 12h" · "Auth error rate 4.2σ above baseline" |
+| Forecast | 30-day GMV, chargeback exposure, infrastructure cost, credit liability on unspent ACU |
+| Actions | Freeze an organiser's payouts · force step-up auth on a segment · roll back a release · adjust global commission · grant goodwill credit |
+| Transcript | Every admin and agent action, immutable, exportable for audit |
+
+**Data scope:** everything. **Every read of PII is logged**, not just writes — the
+audit trail answers "who looked at this customer's record" as well as "who changed
+it".
+**Max autonomy: L2** for reversible platform actions (scaling, cache, feature flags).
+**L1 mandatory** for anything touching a user's money, identity or account status.
+
+## 2.6 Venue Manager Command Centre
+
+| Panel | Content |
+| --- | --- |
+| Situation | Events booked, capacity utilisation, licensing headroom, staffing requirement |
+| Attention | "Saturday's event exceeds your 22:30 curfew by 40 minutes" · "Double-booked 14 March" |
+| Forecast | Occupancy by hour, projected bar revenue, staffing need by 30-minute bucket |
+| Actions | Block a date · adjust stated capacity · publish house rules to all events at this venue |
+
+**Data scope:** events at their venue. Sees aggregate attendance, **never** attendee
+identities — a venue has no lawful basis for the guest list of a promoter's event.
+
+## 2.7 Promoter / Partner Command Centre
+
+| Panel | Content |
+| --- | --- |
+| Situation | Allocation sold vs held, commission earned, tracking-link performance |
+| Attention | "Allocation 90% sold — request more?" · "Your link converts at 1.1% vs your 3.4% average" |
+| Forecast | Projected commission, allocation sell-out date |
+| Actions | Request more allocation · generate a tracking link · launch a campaign against their allocation |
+
+**Data scope:** their allocation only. Cannot see the event's total sales, the
+organiser's margin, or other promoters' performance.
+
+## 2.8 Merchant Command Centre (BitriPay)
+
+| Panel | Content |
+| --- | --- |
+| Situation | Volume today, success rate, settlement balance, next settlement time |
+| Attention | "Success rate dropped to 91.2% from 97.8% — issuer decline spike on one BIN range" · "Webhook endpoint failing, 340 undelivered" |
+| Forecast | Settlement amount and date, chargeback exposure |
+| Actions | Retry failed webhooks · rotate keys · request early settlement · open a dispute |
+
+Full specification in [05 — BitriPay gateway](./05-bitripay-gateway.md).
+
+## 2.9 Developer Command Centre
+
+| Panel | Content |
+| --- | --- |
+| Situation | Requests today, p95 latency, error rate by endpoint, rate-limit headroom |
+| Attention | "You are at 84% of your hourly quota" · "12% of your calls use a field deprecated in v2" |
+| Forecast | Projected quota exhaustion, cost at current growth |
+| Actions | Rotate keys · replay a webhook · upgrade tier · open a sandbox |
+
+## 2.10 Sponsor Command Centre
+
+| Panel | Content |
+| --- | --- |
+| Situation | Impressions, unique reach, engagement rate, spend to date |
+| Attention | "Your placement under-delivered 18% — makegood available" |
+| Forecast | Projected delivery against contracted impressions |
+| Actions | Extend flight · swap creative · request a makegood |
+
+**Data scope:** aggregate metrics only. Never individual attendee data — a sponsor has
+no relationship with the fan.
+
+## 2.11 Support Agent (human) Command Centre
+
+| Panel | Content |
+| --- | --- |
+| Situation | Queue depth, SLA breach risk, sentiment distribution |
+| Attention | Tickets predicted to escalate, ranked by predicted cost |
+| Forecast | Volume by hour, staffing need |
+| Actions | Impersonate (consented, time-boxed) · issue a refund (within a limit) · grant credit · escalate |
+
+**Impersonation controls — all four are mandatory:**
+1. Explicit user consent, or a documented lawful basis recorded at session start.
+2. Hard 30-minute expiry, no silent renewal.
+3. A persistent banner visible to the support agent for the entire session.
+4. Every action tagged `acting_as` in the audit log, and surfaced to the user in their
+   own transcript afterwards.
+
+## 2.12 Regulator / Auditor Command Centre
+
+Read-only, immutable, exportable. No agent may write to anything an auditor reads.
+
+| Panel | Content |
+| --- | --- |
+| Situation | Compliance posture, open findings, retention status |
+| Attention | Records approaching a retention deadline, unresolved SARs |
+| Forecast | Upcoming filing obligations |
+| Actions | Export an evidence pack (signed, timestamped, hash-chained) |
+
+## 2.13 Cross-cutting: the memory model
+
+Each Command Centre is backed by a four-layer memory. Without this, agents repeat
+themselves, contradict prior decisions, and lose user trust within days.
+
+| Layer | Contents | Store | TTL | Scope |
+| --- | --- | --- | --- | --- |
+| **Working** | Current session, last 20 turns | Redis | 24h | Session |
+| **Episodic** | Every decision, action, outcome, and the delta between projected and actual | Firestore `agent_memory` | 7 years | Principal |
+| **Semantic** | Learned facts: "this organiser prices below market", "this venue always over-runs" | Vector DB (Vertex Matching Engine) | Indefinite, revisable | Principal |
+| **Procedural** | Which action sequences worked, keyed by context | Firestore `agent_playbooks` | Indefinite | Platform-wide, k-anonymised |
+
+**Isolation rule:** working, episodic and semantic memory are strictly partitioned by
+principal. Only procedural memory crosses tenants, and only as k-anonymised patterns
+(k ≥ 5) — never as raw facts. A pattern learned from Organiser A's data may help
+Organiser B; a *fact* about Organiser A must never reach Organiser B. This is
+enforced at the retrieval layer, not by prompt instruction.
