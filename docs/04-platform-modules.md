@@ -811,3 +811,155 @@ from `scan_logs` (`08` §8.12) and refreshed every 10 seconds during the event w
 
 This is the one surface where **latency matters more than completeness**. A gate steward
 needs to know the queue is building now, not an exact figure a minute late.
+
+---
+
+## M22 — AI Event Architect
+
+**Status:** `NEW`. An organiser describes an event in a sentence; the platform builds
+the whole thing as a reviewable draft.
+
+### Input — whatever the organiser already has
+
+| Input | Handling |
+| --- | --- |
+| Free text | *"Afrobeats night, Kinshasa, 14 March, about 800 people, mid-price"* |
+| A poster or flyer image | OCR + vision extraction of title, date, venue, line-up |
+| A previous event | Clone and adapt — `events.cloned_from_id` (`08` §8.7) |
+| A URL | Fetch and extract, where the source permits it |
+| A voice note | Transcribed, then treated as free text |
+| Nothing but a category and date | Generates from category norms, flagged low-confidence |
+
+### Output — a complete draft
+
+| Produced | Grounded in |
+| --- | --- |
+| Title and slug | The brief, checked for collision |
+| Description, agenda, line-up | The brief, expanded to house style |
+| Category and group | The 47-subcategory taxonomy already shipped |
+| Date, time, duration | The brief; duration from category norms |
+| Venue and capacity | Named venue if known, else a capacity assumption stated |
+| **Ticket tiers** | Comparable events — see below |
+| **Prices per tier** | Comparable events + market + capacity — see below |
+| Quantities per tier | Capacity split by category-typical mix |
+| Add-ons | Parking, F&B, merch where the category supports it (`08` §8.13a) |
+| Seat map | Suggested sections if the venue is seated |
+| Refund policy, age limit, accessibility | Category defaults, always shown as chosen |
+| Cover image | See §Imagery |
+| Marketing copy | Email subject, social variants, ad headline |
+| Publish checklist | What the organiser must confirm before it can go live |
+
+### It creates a draft. It never publishes.
+
+```
+brief ──▶ event_architect.v1 ──▶ status: 'draft'
+                                      │
+                            organiser reviews every field
+                                      │
+                                 status: 'in_review'
+                                      │
+                            organiser publishes explicitly
+                                      ▼
+                                 status: 'published'
+```
+
+Publishing is a commercial and legal commitment: a price becomes an offer, a date
+becomes a promise, and a capacity becomes a licensing position. An agent that publishes
+unattended can be wrong about a price by a factor of ten and take real money at that
+price before anyone looks.
+
+`event_status` carries `in_review` for exactly this step (`08` §8.3).
+
+### Pricing is a proposal with its working shown
+
+A number with no reasoning is unusable — the organiser cannot tell whether to trust it.
+Every proposed price arrives with:
+
+```json
+{
+  "tier": "General Admission",
+  "proposed": { "value": 2500, "currency": "CDF" },
+  "range": { "low": 2000, "high": 3500 },
+  "confidence": 0.72,
+  "basis": [
+    "11 comparable Afrobeats events, Kinshasa, last 18 months",
+    "median GA 2400 CDF, IQR 2000–3200",
+    "capacity 800 sits at the 60th percentile of the comparable set",
+    "Saturday, +8% vs weekday in this category"
+  ],
+  "sensitivity": "at 2000 CDF projected sell-through 92%; at 3500 CDF, 61%"
+}
+```
+
+**Comparables are k-anonymised** and drawn across organisers, never attributed —
+the same boundary `04` M9 draws for fan intelligence. An organiser benefits from the
+aggregate without seeing a competitor's numbers.
+
+**Confidence below 0.5 means the tier arrives blank** with the reason stated, rather
+than carrying a fabricated price. A new category in a new market has no comparable set,
+and inventing one is worse than admitting it.
+
+### Imagery — the part with real risk
+
+Generated event imagery can create genuine harm, so the rules are narrow:
+
+| Rule | Why |
+| --- | --- |
+| **No photorealistic depictions of real people** | A generated image of a named artist implies they are performing |
+| **No real venue exteriors or interiors** | Implies a specific place, which may not be the venue |
+| **No third-party logos, marks or brand styling** | Trademark, and it implies sponsorship that does not exist |
+| **No crowd photos presented as this event** | It depicts something that has not happened |
+| Generated images carry C2PA provenance metadata | The origin travels with the file |
+| Licensed stock is offered first | A correctly licensed photograph beats a generated one |
+| Abstract, typographic and pattern styles are the default | Safe, on-brand, and genuinely what most listings need |
+
+If the organiser uploads a photograph of their own event or artist, that is used
+unchanged. **The generator fills a gap; it does not replace a real asset.**
+
+An organiser may override the first four rules only by confirming they hold the rights,
+and that confirmation is recorded against the event with their user id.
+
+### Provenance on every field
+
+Each generated field is stored with its origin, so the organiser always knows what they
+accepted versus what they wrote:
+
+| State | Meaning |
+| --- | --- |
+| `ai_proposed` | Generated, untouched |
+| `ai_edited` | Generated, then changed by a human |
+| `human` | Written by a human |
+
+The publish checklist requires explicit confirmation of every field still in
+`ai_proposed` that carries commercial or legal weight: price, capacity, date, venue,
+refund policy, age restriction.
+
+**Everything else can ship untouched.** Requiring a human to retype a description they
+agree with is the kind of ceremony that makes people stop reading the checklist, which
+defeats the checklist.
+
+### ACU cost, quoted before it runs
+
+| Stage | Typical | Charged |
+| --- | --- | --- |
+| Brief parsing | 3 ACU | On run |
+| Comparables and pricing | 12 ACU | On run |
+| Copy: description, agenda, marketing set | 10 ACU | On run |
+| Image generation, per image | 8 ACU | Per image, opt-in |
+| Seat map suggestion | 6 ACU | Only if seated |
+| **Typical full build** | **~35–45 ACU** (£0.35–0.45) | Quoted first |
+
+The organiser sees the estimate and confirms before anything runs. Below
+`MIN_BALANCE_ACU_TO_RUN_AI` it refuses and links to top-up (`15` §15.6 F5) — the same
+hard stop as everywhere else, no overdraft.
+
+**A failed or rejected generation is not charged.** If the agent cannot produce a
+complete draft, the organiser has received nothing and should pay nothing. Charging for
+output somebody threw away is how a metered feature acquires a reputation for being a
+tax.
+
+### Regeneration is cheap and scoped
+
+Regenerating one tier's price costs the pricing stage, not the whole build. Field-level
+regeneration is what makes the feature usable — an organiser who likes everything
+except the title should not pay 40 ACU to change six words.

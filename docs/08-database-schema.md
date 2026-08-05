@@ -315,6 +315,12 @@ CREATE TABLE events (
   contact_email       citext,
   cloned_from_id      uuid REFERENCES events(id) ON DELETE SET NULL,
 
+  -- Which fields an agent wrote, which a human touched. 04 M22.
+  field_provenance    jsonb NOT NULL DEFAULT '{}'::jsonb,
+  generated_by_run_id uuid,
+  rights_confirmed_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  rights_confirmed_at timestamptz,
+
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
 

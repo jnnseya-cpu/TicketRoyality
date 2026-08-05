@@ -147,6 +147,33 @@ matches the tuple `(agent_id, scope, principal, autonomy_level, budget_remaining
 | **Budget** | 30 ACU |
 | **Value** | Directly attributable incremental ticket revenue. Measured as: net revenue ÷ ad spend, reported per campaign |
 
+### `event_architect.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Turn a one-line brief into a complete, reviewable event draft |
+| **Inputs** | `{ brief, briefFormat: 'text'\|'image'\|'url'\|'clone', organisationId, market, knownVenue?, targetCapacity?, priorEvents[] }` |
+| **Outputs** | `{ draft: Event, tiers[], addons[], pricing: [{ tier, proposed, range, confidence, basis[], sensitivity }], copy, imagery[], checklist[], provenance{} }` |
+| **Scopes** | `read:own_events`, `read:market_benchmarks`, `write:draft_events` — **never `publish:events`** |
+| **Autonomy** | **L1, permanently.** It writes a draft; a human publishes |
+| **Triggers** | Organiser submits a brief · clone-and-adapt · field-level regeneration |
+| **Workflow** | Parse the brief → resolve venue and capacity → select category → retrieve k-anonymised comparables → propose tiers and prices with confidence → generate copy → offer imagery within the M22 rules → assemble the publish checklist → write as `draft` |
+| **Escalation** | Pricing confidence < 0.5 → leave the tier blank with the reason · no comparable set → state it rather than inventing one · brief implies a real named performer → refuse imagery, flag for a licensed asset |
+| **APIs** | AI Gateway (`07` §7.5a) · internal comparables · image generation · OCR/vision |
+| **Budget** | 45 ACU hard ceiling per full build; per-stage below that |
+| **Value** | Event creation from ~40 minutes of form-filling to a reviewed draft in under two |
+
+**Never holds `publish:events`.** The scope does not exist for this agent at any
+autonomy level, which is stronger than setting it to L1 — L1 can be promoted, an
+absent scope cannot.
+
+**It declines rather than fabricates.** A blank tier with *"no comparable events in
+this category and market"* is a useful output; a confident price drawn from nothing is
+a trap, because the organiser has no way to tell the two apart from the number alone.
+
+**The 45 ACU ceiling is per build, not per attempt.** Retries within a build come out
+of the same envelope, so a hard brief cannot silently cost five times a simple one.
+
 ### `pricing.v1`
 
 | Field | Value |
@@ -671,6 +698,7 @@ line.
 | `cfo.v1` | Executive | L0 | 15 | 5s |
 | `cro.v1` | Executive | L1 | 20 | 5s |
 | `growth.v4` | Revenue | L1 | 30 | 8s |
+| `event_architect.v1` | Revenue | L1 (no publish scope) | 45/build | 45s |
 | `pricing.v1` | Revenue | L1 | 12 | 4s |
 | `retention.v1` | Revenue | L2 | 10 | 4s |
 | `operations.v1` | Ops | L2 | 10 | 3s |
@@ -693,7 +721,7 @@ line.
 | `analyst.v2` | Data | L3 | 8 | 4s |
 | `research.v1` | Data | L3 | 35 | 20s |
 
-**25 agents.** Where an outline names an agent this table does not, it is because the
+**26 agents.** Where an outline names an agent this table does not, it is because the
 function already has an owner rather than because it was missed:
 
 | Named elsewhere | Owned by | Why not separate |

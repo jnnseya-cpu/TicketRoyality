@@ -30,7 +30,7 @@ billing, Firestore security rules.
 | 01 | [Vision & market](./01-vision-and-market.md) | What the AI-OS is, the gap it closes, why it wins |
 | 02 | [User ecosystem & command centres](./02-user-ecosystem-and-command-centres.md) | Every actor, and the AI Command Centre each one gets |
 | 03 | [Agent architecture](./03-agent-architecture.md) | Every agent: contract, permissions, triggers, escalation |
-| 04 | [Platform modules](./04-platform-modules.md) | 22 modules, specified one by one |
+| 04 | [Platform modules](./04-platform-modules.md) | 23 modules, specified one by one |
 | 05 | [BitriPay gateway](./05-bitripay-gateway.md) | The BitriPay integration door for merchants and partners |
 | 06 | [Connector ecosystem](./06-connector-ecosystem.md) | Every third-party API category, provider and data contract |
 | 07 | [System architecture](./07-system-architecture.md) | Runtime, data plane, AI plane, events, observability, DR |
@@ -71,12 +71,12 @@ this table is correct.
 | Quantity | Actual | Where |
 | --- | --- | --- |
 | Documents | 20 | this directory |
-| Total lines | 8,915 | `wc -l docs/*.md` |
+| Total lines | 9,101 | `wc -l docs/*.md` |
 | Actor types | **13** | `02` §2.1 |
 | AI Command Centres | **10** | `02` §2.3–2.12 |
-| AI agents | **25** | `03` §3.12 registry |
+| AI agents | **26** | `03` §3.12 registry |
 | — of which self-managing | **6** | `03` §3.7 |
-| Platform modules | **22** | `04` M1–M21 + M3a |
+| Platform modules | **23** | `04` M1–M22 + M3a |
 | Connector categories | **21** | `06` §6.21 |
 | Database tables (target) | **31** | `08` §8.4–8.15 |
 | Revenue lines | **9** | `10` §10.2–10.10 |
