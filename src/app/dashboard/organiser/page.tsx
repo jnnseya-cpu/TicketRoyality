@@ -23,7 +23,7 @@ import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { SalesCharts } from '@/frontend/components/dashboard/SalesCharts';
 import { getEventsByOrganizer, getTicketsForOrganizer } from '@/shared/data/repositories';
 import { formatCurrency, formatEventDate } from '@/shared/utils';
-import { DEFAULT_ADMIN_FEE, DEFAULT_COMMISSION_PERCENT } from '@/shared/constants/billing';
+import { commissionTermsFor, settle } from '@/shared/pricing';
 import type { Event, Ticket, UserProfile } from '@/shared/types';
 
 function OrganiserOverview({ profile }: { profile: UserProfile }) {
@@ -49,11 +49,8 @@ function OrganiserOverview({ profile }: { profile: UserProfile }) {
     };
   }, [profile.uid]);
 
-  const grossSales = tickets.reduce((sum, t) => sum + t.price, 0);
-  const commissionRate = profile.commissionPercent ?? DEFAULT_COMMISSION_PERCENT;
-  const adminFee = profile.adminFee ?? DEFAULT_ADMIN_FEE;
-  const commission = (grossSales * commissionRate) / 100 + adminFee * tickets.length;
-  const netSales = grossSales - commission;
+  const terms = commissionTermsFor(profile);
+  const { gross: grossSales, net: netSales } = settle(tickets, terms);
   const upcoming = events.filter((e) => new Date(e.date).getTime() > Date.now());
 
   const metrics = [
@@ -77,8 +74,8 @@ function OrganiserOverview({ profile }: { profile: UserProfile }) {
         <div>
           <h1 className="font-headline text-2xl font-bold">Overview</h1>
           <p className="text-sm text-muted-foreground">
-            {profile.companyName ?? profile.fullName} · commission {commissionRate}% +{' '}
-            {formatCurrency(adminFee)} per ticket
+            {profile.companyName ?? profile.fullName} · commission {terms.percent}% +{' '}
+            {formatCurrency(terms.adminFee)} per ticket
           </p>
         </div>
         <Button variant="royal" asChild>

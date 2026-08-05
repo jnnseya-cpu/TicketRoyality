@@ -29,6 +29,7 @@ import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { getOrganisers, updateUserProfile } from '@/shared/data/repositories';
 import { DEFAULT_ADMIN_FEE, DEFAULT_COMMISSION_PERCENT } from '@/shared/constants/billing';
+import { commissionTermsFor } from '@/shared/pricing';
 import { formatCurrency } from '@/shared/utils';
 import type { UserProfile } from '@/shared/types';
 
@@ -42,10 +43,8 @@ function OverrideDialog({
   const { toast } = useToast();
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
-  const [percent, setPercent] = React.useState(
-    organiser.commissionPercent ?? DEFAULT_COMMISSION_PERCENT
-  );
-  const [fee, setFee] = React.useState(organiser.adminFee ?? DEFAULT_ADMIN_FEE);
+  const [percent, setPercent] = React.useState(commissionTermsFor(organiser).percent);
+  const [fee, setFee] = React.useState(commissionTermsFor(organiser).adminFee);
 
   const save = async () => {
     setSaving(true);
@@ -205,10 +204,10 @@ function Commissions() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {organiser.commissionPercent ?? DEFAULT_COMMISSION_PERCENT}%
+                        {commissionTermsFor(organiser).percent}%
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatCurrency(organiser.adminFee ?? DEFAULT_ADMIN_FEE)}
+                        {formatCurrency(commissionTermsFor(organiser).adminFee)}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2">

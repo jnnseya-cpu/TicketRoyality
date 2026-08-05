@@ -41,6 +41,23 @@ billing, Firestore security rules.
 | 12 | [Admin super control centre](./12-admin-control-centre.md) | Total platform visibility and control |
 | 13 | [Roadmap & production readiness](./13-roadmap-and-production-readiness.md) | Phased build, milestones, go-live gates |
 
+### The shipped platform: layers and roles
+
+Documents 01–13 specify where the platform is going. Documents 14–17 describe what is
+in this repository today, and are written directly against the code — every permission
+claim quotes the rule that enforces it.
+
+| # | Document | What it answers |
+| --- | --- | --- |
+| 14 | [Layer architecture](./14-layer-architecture.md) | `frontend` / `backend` / `shared`: the boundaries, and how they are enforced |
+| 15 | [Customer role](./15-customer-role.md) | Account, features, functions, structure, flows, workflows |
+| 16 | [Event organiser role](./16-organiser-role.md) | The same nine-part treatment, plus the approval gate and the door |
+| 17 | [Platform admin role](./17-admin-role.md) | Privileged operations, what even an admin cannot do, open items |
+
+Read 14 before 15–17: the role documents refer to the layer boundaries constantly, and
+the reason a given operation lives in `backend` rather than `frontend` is usually the
+reason it is safe.
+
 ## Conventions used throughout
 
 - **Agent contracts** are specified as `purpose / inputs / outputs / permissions /

@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/frontend/components/
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { getTicketsForOrganizer } from '@/shared/data/repositories';
-import { DEFAULT_ADMIN_FEE, DEFAULT_COMMISSION_PERCENT } from '@/shared/constants/billing';
+import { commissionTermsFor, platformCutForTicket, settle } from '@/shared/pricing';
 import { formatCurrency } from '@/shared/utils';
 import type { Ticket, UserProfile } from '@/shared/types';
 
@@ -51,12 +51,10 @@ function Revenue({ profile }: { profile: UserProfile }) {
     };
   }, [profile.uid]);
 
-  const commissionRate = profile.commissionPercent ?? DEFAULT_COMMISSION_PERCENT;
-  const adminFee = profile.adminFee ?? DEFAULT_ADMIN_FEE;
-
-  const gross = tickets.reduce((sum, t) => sum + t.price, 0);
-  const commission = (gross * commissionRate) / 100 + adminFee * tickets.length;
-  const balance = Math.max(0, gross - commission);
+  // Memoised so the statement below is not rebuilt on every render by a fresh object identity.
+  const terms = React.useMemo(() => commissionTermsFor(profile), [profile]);
+  const { gross, platformTotal: commission, net } = settle(tickets, terms);
+  const balance = Math.max(0, net);
 
   // Running-balance statement, oldest first.
   const statement = React.useMemo(() => {
@@ -64,7 +62,7 @@ function Revenue({ profile }: { profile: UserProfile }) {
     return [...tickets]
       .sort((a, b) => a.purchasedAt.localeCompare(b.purchasedAt))
       .map((ticket) => {
-        const fee = (ticket.price * commissionRate) / 100 + adminFee;
+        const fee = platformCutForTicket(ticket.price, terms);
         const credit = ticket.price - fee;
         running += credit;
         return {
@@ -78,7 +76,7 @@ function Revenue({ profile }: { profile: UserProfile }) {
         };
       })
       .reverse();
-  }, [tickets, commissionRate, adminFee]);
+  }, [tickets, terms]);
 
   if (loading) {
     return (
@@ -93,8 +91,8 @@ function Revenue({ profile }: { profile: UserProfile }) {
       <div>
         <h1 className="font-headline text-2xl font-bold">Revenue &amp; payouts</h1>
         <p className="text-sm text-muted-foreground">
-          Your balance after platform commission of {commissionRate}% plus{' '}
-          {formatCurrency(adminFee)} per ticket.
+          Your balance after platform commission of {terms.percent}% plus{' '}
+          {formatCurrency(terms.adminFee)} per ticket.
         </p>
       </div>
 

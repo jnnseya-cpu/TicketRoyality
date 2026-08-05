@@ -16,7 +16,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/frontend/components/ui/tabs';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { getEventsByOrganizer, getTicketsForOrganizer } from '@/shared/data/repositories';
-import { DEFAULT_ADMIN_FEE, DEFAULT_COMMISSION_PERCENT } from '@/shared/constants/billing';
+import { commissionTermsFor, settle } from '@/shared/pricing';
 import { formatCurrency } from '@/shared/utils';
 import type { Event, Ticket, UserProfile } from '@/shared/types';
 
@@ -73,12 +73,9 @@ function Reports({ profile }: { profile: UserProfile }) {
     };
   }, [profile.uid]);
 
-  const commissionRate = profile.commissionPercent ?? DEFAULT_COMMISSION_PERCENT;
-  const adminFee = profile.adminFee ?? DEFAULT_ADMIN_FEE;
-
-  const gross = tickets.reduce((sum, t) => sum + t.price, 0);
+  const terms = commissionTermsFor(profile);
+  const { gross, platformTotal: commission } = settle(tickets, terms);
   const refunds = tickets.filter((t) => t.status === 'refunded').reduce((s, t) => s + t.price, 0);
-  const commission = (gross * commissionRate) / 100 + adminFee * tickets.length;
   const net = gross - refunds - commission;
 
   const byEvent = events.map((event) => {
@@ -138,7 +135,7 @@ function Reports({ profile }: { profile: UserProfile }) {
             <Metric
               label="Platform commission"
               value={formatCurrency(commission)}
-              sub={`${commissionRate}% + ${formatCurrency(adminFee)}/ticket`}
+              sub={`${terms.percent}% + ${formatCurrency(terms.adminFee)}/ticket`}
             />
             <Metric label="Net payout" value={formatCurrency(net)} />
           </div>

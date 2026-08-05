@@ -6,7 +6,7 @@ import { DeleteAccountDialog } from '@/frontend/components/dashboard/DeleteAccou
 import { ProfileForm } from '@/frontend/components/dashboard/ProfileForm';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { useAuth } from '@/frontend/hooks/use-auth';
-import { DEFAULT_ADMIN_FEE, DEFAULT_COMMISSION_PERCENT } from '@/shared/constants/billing';
+import { commissionTermsFor } from '@/shared/pricing';
 import { formatCurrency } from '@/shared/utils';
 
 export default function OrganiserSettingsPage() {
@@ -41,11 +41,9 @@ export default function OrganiserSettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-3">
+              <Badge variant="gold">Commission {commissionTermsFor(profile).percent}%</Badge>
               <Badge variant="gold">
-                Commission {profile.commissionPercent ?? DEFAULT_COMMISSION_PERCENT}%
-              </Badge>
-              <Badge variant="gold">
-                Admin fee {formatCurrency(profile.adminFee ?? DEFAULT_ADMIN_FEE)} per ticket
+                Admin fee {formatCurrency(commissionTermsFor(profile).adminFee)} per ticket
               </Badge>
               <Badge variant={profile.status === 'approved' ? 'success' : 'secondary'}>
                 Account {profile.status}

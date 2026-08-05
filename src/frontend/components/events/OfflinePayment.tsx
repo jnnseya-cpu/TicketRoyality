@@ -12,6 +12,7 @@ import { useToast } from '@/frontend/hooks/use-toast';
 import { createOfflinePayment } from '@/shared/data/repositories';
 import { formatCurrency } from '@/shared/utils';
 import { OFFLINE_PROVIDERS, OFFLINE_SERVICE_FEE_PERCENT } from '@/shared/constants/billing';
+import { offlineTotal } from '@/shared/pricing';
 import type { Event, OfflineProvider, UserProfile } from '@/shared/types';
 
 /**
@@ -37,8 +38,7 @@ export function OfflinePayment({
   const [submitted, setSubmitted] = React.useState(false);
 
   const selected = OFFLINE_PROVIDERS.find((p) => p.id === provider)!;
-  const serviceFee = (amount * OFFLINE_SERVICE_FEE_PERCENT) / 100;
-  const total = amount + serviceFee;
+  const { serviceFee, totalAmount: total } = offlineTotal(amount);
 
   const handleSubmit = async (formEvent: React.FormEvent) => {
     formEvent.preventDefault();
