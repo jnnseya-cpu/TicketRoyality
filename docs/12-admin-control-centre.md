@@ -257,3 +257,100 @@ insider risk grows without anyone deciding to accept it.
 - GDPR export completes within 30 seconds and contains every category listed in the
   privacy policy.
 - Maintenance mode cannot be applied to scanning — verified by test.
+
+---
+
+## 12.13 Dispute Centre
+
+| Capability | Detail |
+| --- | --- |
+| Active disputes | Every open chargeback, **ranked by response deadline**, not by value |
+| Evidence packs | Assembled by `dispute.v1` (`03` §3.6): order, payment, delivery proof, scan record |
+| Recommendation | Contest or accept, with the expected value of each |
+| Submission | **Human, always.** The agent drafts; a person submits |
+| Outcome tracking | Win rate by reason code, by organiser, by payment method |
+| Organiser exposure | Chargeback rate per organiser, with escalation above threshold |
+
+**Ranked by deadline, not by amount.** A £40 dispute expiring in six hours outranks a
+£900 one with nine days left, because the second can still be won and the first cannot
+once the window closes. Most chargebacks are lost by default, unanswered — sorting by
+value is how that happens while everyone is busy.
+
+`disputes_deadline_idx` (`08` §8.13c) is the query behind this screen.
+
+**The strongest evidence a ticketing platform can produce is a scan.** It shows the
+buyer received the goods and used them, which is exactly what a "goods not received"
+reason code disputes. That evidence exists only because `scan_logs` retains refusals as
+well as admissions.
+
+---
+
+## 12.14 API & Partner Management
+
+| Capability | Detail |
+| --- | --- |
+| Key inventory | Every sandbox and live key, per partner, with last-used timestamp |
+| Usage | Requests, error rate, p95 latency, quota consumed, per key |
+| Webhook health | Delivery success, retry depth, endpoints failing beyond the retry window |
+| Rate limits | Per-key override, time-boxed, with a reason recorded |
+| Sandbox | Reset a partner's sandbox, replay historical webhook events |
+| Revocation | Immediate, with the partner notified and the reason stated |
+
+**Keys are shown by prefix and last four, never in full.** An admin console that can
+redisplay a live secret turns every admin session into a credential store — and the
+secret was already delivered once, at creation. If a partner has lost it, the answer is
+rotation, not retrieval.
+
+**Rate limit overrides expire.** A temporary lift granted during a partner's on-sale
+becomes permanent the moment nobody remembers to remove it, and permanent overrides are
+how a rate limit quietly stops existing. Every override carries an end date and a
+reason.
+
+**Webhook endpoints failing past the 24-hour retry window are disabled and the partner
+is emailed**, rather than retried forever. An endpoint that has been dead for a week is
+consuming delivery capacity for nothing.
+
+---
+
+## 12.15 Impersonation is not an admin capability
+
+The source module list places *impersonate* under User Management, available to
+platform administrators. **It is not, and `11` §11.15 footnote 3 sets the rule.**
+
+| | Available to | Conditions |
+| --- | --- | --- |
+| Impersonation | **Support agents only** | Recorded user consent · time-boxed · every action attributed to the human |
+| Admin equivalent | **Read-only user view** | Sees what the user sees; cannot act as them |
+
+An administrator who can silently become a customer can place orders, change payout
+destinations, read private data and accept terms — and the audit trail records the
+*customer* doing it. The support flow exists precisely so the log names the right
+person.
+
+What admins actually need from this feature is *seeing what the user sees* while
+diagnosing a complaint, and a read-only view delivers that without any of the risk. The
+capability that was removed is the ability to **act**, which is the part nobody needs.
+
+---
+
+## 12.16 Module index
+
+| # | Module | § |
+| --- | --- | --- |
+| 1 | Platform Intelligence — live GTV, ACU burn, active events, health score | 12.2 |
+| 2 | Attention queue | 12.3 |
+| 3 | User & organiser administration | 12.4 |
+| 4 | Event administration | 12.5 |
+| 5 | Financial administration & revenue intelligence | 12.6 |
+| 6 | Agent governance & kill switch | 12.7 |
+| 7 | Platform operations & system health | 12.8 |
+| 8 | Analytics & reporting | 12.9 |
+| 9 | Compliance Centre & audit | 12.10 |
+| 10 | Admin security | 12.11 |
+| 11 | **Dispute Centre** | 12.13 |
+| 12 | **API & Partner Management** | 12.14 |
+
+Twelve modules. The Transaction Monitor from the source list is not separate here — it
+is the live feed inside Financial administration, because a fraud overlay and a manual
+review queue that live on a different screen from the money they concern get checked
+less often.

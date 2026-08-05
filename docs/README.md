@@ -71,7 +71,7 @@ this table is correct.
 | Quantity | Actual | Where |
 | --- | --- | --- |
 | Documents | 20 | this directory |
-| Total lines | 10,604 | `wc -l docs/*.md` |
+| Total lines | 10,701 | `wc -l docs/*.md` |
 | Actor types | **13** | `02` §2.1 |
 | AI Command Centres | **10** | `02` §2.3–2.12 |
 | AI agents | **28** | `03` §3.12 registry |
@@ -81,7 +81,7 @@ this table is correct.
 | Database tables (target) | **38** | `08` §8.4–8.15 |
 | Revenue lines | **9** | `10` §10.2–10.10 |
 | Subscription tiers | **5** | `10` §10.3 — Free · Starter · Professional · Business · Enterprise |
-| Admin console modules | **9** | `12` §12.2–12.10 |
+| Admin console modules | **12** | `12` §12.16 index |
 | Roadmap phases | **5** | `13` — Phase 1 MVP (complete) → Phase 5 Global Scale |
 
 Competitors analysed in `01` §1.3: Eventbrite, Ticketmaster / Live Nation, DICE,
