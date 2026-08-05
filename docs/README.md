@@ -55,6 +55,7 @@ claim quotes the rule that enforces it.
 | 17 | [Platform admin role](./17-admin-role.md) | Privileged operations, what even an admin cannot do, open items |
 | 18 | [Glossary & reference](./18-glossary.md) | Every term, defined once |
 | 19 | [Firestore → PostgreSQL](./19-firestore-to-postgres.md) | The datastore cutover: phases, gates, rollback, what it closes |
+| 20 | [KODA gateway API door](./20-koda-gateway.md) | The verification layer: API, webhooks, matching, consent, acceptance |
 
 Read 14 before 15–17: the role documents refer to the layer boundaries constantly, and
 the reason a given operation lives in `backend` rather than `frontend` is usually the
@@ -69,8 +70,8 @@ this table is correct.
 
 | Quantity | Actual | Where |
 | --- | --- | --- |
-| Documents | 19 | this directory |
-| Total lines | 8,424 | `wc -l docs/*.md` |
+| Documents | 20 | this directory |
+| Total lines | 8,799 | `wc -l docs/*.md` |
 | Actor types | **13** | `02` §2.1 |
 | AI Command Centres | **10** | `02` §2.3–2.12 |
 | AI agents | **25** | `03` §3.12 registry |
@@ -115,7 +116,7 @@ and promoting two subsections to top level. It resolves to these files:
 | 16 Competitive advantage | `01` §1.5 — moats are argued where the market gap is established |
 | 17 Self-managing platform | `03` §3.7 — the maintenance agents live with every other agent contract |
 | 18 Glossary & reference | `18-glossary.md` |
-| — (not in the outline) | `19-firestore-to-postgres.md` |
+| — (not in the outline) | `19-firestore-to-postgres.md` · `20-koda-gateway.md` |
 
 The outline has no counterpart for `14`–`17`. Those describe the code that exists now
 rather than the system being specified, which is why they are numbered after it.

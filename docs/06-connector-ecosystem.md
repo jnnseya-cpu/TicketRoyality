@@ -174,8 +174,8 @@ fallback — the pattern already implemented in `PersonalizedRecommendations.tsx
 
 | Provider | Use | Notes |
 | --- | --- | --- |
-| **Google Gemini** ✅ live | Primary — flows, agents, structured output | `gemini-2.5-flash` for volume, `2.5-pro` for hard reasoning |
-| **Anthropic Claude** | Long-context analysis, adversarial verification | Strong at "find the flaw in this plan" |
+| **Anthropic Claude** | **Primary (target)** — agents, reasoning, structured output, support | Strongest on long-context analysis and adversarial verification |
+| **Google Vertex AI / Gemini** ✅ live | **Secondary (target) · primary in the shipped code** | `gemini-2.5-flash` for volume; Vertex for private endpoints and residency |
 | **OpenAI** | Fallback, embeddings | `text-embedding-3-large` for semantic search |
 | **Vertex AI** | Managed hosting, private endpoints | Enterprise deployments needing data residency |
 | **Cohere** | Reranking | Cheap, effective for search |
@@ -184,13 +184,24 @@ fallback — the pattern already implemented in `PersonalizedRecommendations.tsx
 **Routing:**
 
 ```
-task ∈ {classification, extraction, short-generation}     → gemini-2.5-flash
-task ∈ {long-analysis, adversarial-review, planning}      → claude
+task ∈ {agents, reasoning, support, adversarial-review}   → claude
+task ∈ {high-volume classification, extraction}           → gemini-2.5-flash
 task ∈ {embedding}                                        → openai text-embedding-3-large
 task ∈ {rerank}                                           → cohere
 primary unavailable                                        → secondary, then deterministic
 data_residency == 'eu-only'                                → Vertex, europe-west
 ```
+
+### Primary provider — target versus shipped
+
+The target primary is **Anthropic Claude**; the code in this repository currently runs
+**Gemini via Genkit**. Both are recorded because the switch is a real piece of work, not
+a config line: model-specific prompts, structured-output schemas and the ACU cost table
+all need revalidating, and `03` §3.11 requires a golden-set evaluation before any
+primary model changes.
+
+The two-provider minimum (`01` §1.5.1) holds either way — whichever is primary, the
+other is a live secondary, and both fail open to the deterministic path.
 
 **Cost control:** every call is metered in ACU at provider cost × 3
 (`src/shared/constants/billing.ts`). Per-agent, per-principal and per-chain budgets are
