@@ -305,3 +305,75 @@ The ordered list for whoever picks this up on Monday.
 **Items 3–7 are correctness and security, not features.** They ship before anything
 new is built on top of them, because every feature added first makes them more
 expensive to fix.
+
+---
+
+## 13.6 Commercial targets per phase, and one correction
+
+### Deliverables by area
+
+| Area | Phase 1 (MVP) | Phase 2 (Beta) | Phase 3 (Commercial) |
+| --- | --- | --- | --- |
+| Core | Next.js, NestJS, PostgreSQL, Kong, auth | — | — |
+| Event engine | Self-serve creation, tiers, Stripe checkout, QR | Seat map builder, dynamic pricing per section | Discovery marketplace |
+| Entry | Scan validation, one-time, offline sync | Wallet passes, multi-gate | — |
+| Roles | Super admin, organiser, customer | Venue, promoter, host, gate staff | All 13 |
+| Payments | Stripe, payouts, refunds | BitriPay mobile money, CDF, KODA verification | Multi-party splits |
+| Hospitality | — | Package builder, deposits, VIP check-in | Concierge, CRM |
+| Marketing | — | SendGrid, abandoned cart, WhatsApp | Full attribution |
+| Agents | `support.v2`, `pricing.v1` | `growth.v4`, `fraud.v3`, `onboarding.v1`, `gate_intelligence.v1` | **All 28**, ACU billing, Command Centres |
+| Compliance | — | KYB automation | Full GDPR tooling, AML, PCI SAQ-A |
+| API | — | — | Developer portal, SDKs, webhook tester |
+| White label | — | — | First deployment |
+
+### The commercial targets need one word changed
+
+| Phase | Organisers | Stated as MRR | Tickets | Implied per organiser |
+| --- | --- | --- | --- | --- |
+| 1 | 10 | £5,000 | 1,000 | **£500/month** |
+| 2 | 50 | £25,000 | 25,000 | **£500/month** |
+| 3 | 250 | £100,000 | 500,000 | **£400/month** |
+
+**Those figures are not achievable as subscription MRR.** The published tier ladder tops
+out at £299 (`10` §10.3) or £149 in the alternative model, so £400–£500 per organiser
+per month cannot come from subscriptions unless nearly everyone is on an enterprise
+contract from launch — which contradicts a self-serve strategy.
+
+The numbers are entirely achievable as **total monthly revenue**. Working Phase 3
+backwards:
+
+```
+500,000 tickets over the phase ≈ 40,000/month at steady state
+40,000 × £30 average face value          = £1,200,000 GMV/month
+  commission at 5%                       =    £60,000
+  subscriptions, 250 orgs, mixed tiers   =    £22,000
+  promotion, placement, ACU, gateway     =    £18,000
+──────────────────────────────────────────────────────
+Total monthly revenue                    =   £100,000  ✓
+```
+
+The target is right. The label is wrong.
+
+### Why the distinction is worth a paragraph
+
+MRR means **contracted recurring subscription revenue** and nothing else. It is the
+number investors and boards use to value a business, precisely because it is the
+revenue that arrives next month whether or not anyone sells a ticket.
+
+Reporting £100,000 of mostly-transactional revenue as MRR overstates the durable part by
+roughly 4.5×. Somebody will eventually run the tier ladder against the organiser count,
+find it cannot reconcile, and stop trusting the rest of the model — which is expensive
+in exactly the room where these numbers get used.
+
+**Restated, and adopted:**
+
+| Phase | Organisers | **Subscription MRR** | **Total monthly revenue** | Tickets |
+| --- | --- | --- | --- | --- |
+| 1 | 10 | ~£300 | £5,000 | 1,000 |
+| 2 | 50 | ~£4,000 | £25,000 | 25,000 |
+| 3 | 250 | ~£22,000 | £100,000 | 500,000 |
+| 4 | 1,000 | ~£120,000 | £450,000 | 2,000,000 |
+| 5 | 4,000 | ~£600,000 | £2,000,000 | 10,000,000 |
+
+Both columns are tracked. **Subscription MRR is the health metric**, because it is the
+one that says whether organisers keep choosing to be here when they are not selling.
