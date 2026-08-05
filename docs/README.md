@@ -34,7 +34,7 @@ billing, Firestore security rules.
 | 05 | [BitriPay gateway](./05-bitripay-gateway.md) | The BitriPay integration door for merchants and partners |
 | 06 | [Connector ecosystem](./06-connector-ecosystem.md) | Every third-party API category, provider and data contract |
 | 07 | [System architecture](./07-system-architecture.md) | Runtime, data plane, AI plane, events, observability, DR |
-| 08 | [Database schema](./08-database-schema.md) | ERD, collections, fields, indexes, access matrix |
+| 08 | [Database schema](./08-database-schema.md) | PostgreSQL target: 20 tables, constraints, RLS policies, access matrix |
 | 09 | [API specification](./09-api-specification.md) | REST endpoints, webhooks, auth, rate limits, error codes |
 | 10 | [Monetisation](./10-monetisation.md) | Every revenue line, pricing engine, unit economics |
 | 11 | [Security, compliance & risk](./11-security-compliance-risk.md) | Zero trust, fraud, KYC/AML, GDPR, PCI scope |
@@ -54,6 +54,7 @@ claim quotes the rule that enforces it.
 | 16 | [Event organiser role](./16-organiser-role.md) | The same nine-part treatment, plus the approval gate and the door |
 | 17 | [Platform admin role](./17-admin-role.md) | Privileged operations, what even an admin cannot do, open items |
 | 18 | [Glossary & reference](./18-glossary.md) | Every term, defined once |
+| 19 | [Firestore → PostgreSQL](./19-firestore-to-postgres.md) | The datastore cutover: phases, gates, rollback, what it closes |
 
 Read 14 before 15–17: the role documents refer to the layer boundaries constantly, and
 the reason a given operation lives in `backend` rather than `frontend` is usually the
@@ -68,15 +69,15 @@ this table is correct.
 
 | Quantity | Actual | Where |
 | --- | --- | --- |
-| Documents | 18 | this directory |
-| Total lines | 6,389 | `wc -l docs/*.md` |
+| Documents | 19 | this directory |
+| Total lines | 7,338 | `wc -l docs/*.md` |
 | Actor types | **13** | `02` §2.1 |
 | AI Command Centres | **10** | `02` §2.3–2.12 |
 | AI agents | **19** | `03` §3.3–3.8 |
 | — of which self-managing | **6** | `03` §3.7 |
 | Platform modules | **16** | `04` M1–M16 |
 | Connector categories | **21** | `06` §6.21 |
-| Firestore collections | **9** top-level + 2 subcollections | `08` §8.3–8.12 |
+| Database tables (target) | **20** | `08` §8.4–8.15 |
 | Revenue lines | **8** | `10` §10.2–10.9 |
 | Subscription tiers | **5** | `10` §10.3 — Free · Starter · Professional · Business · Enterprise |
 | Admin console modules | **9** | `12` §12.2–12.10 |
@@ -114,21 +115,35 @@ and promoting two subsections to top level. It resolves to these files:
 | 16 Competitive advantage | `01` §1.5 — moats are argued where the market gap is established |
 | 17 Self-managing platform | `03` §3.7 — the maintenance agents live with every other agent contract |
 | 18 Glossary & reference | `18-glossary.md` |
+| — (not in the outline) | `19-firestore-to-postgres.md` |
 
 The outline has no counterpart for `14`–`17`. Those describe the code that exists now
 rather than the system being specified, which is why they are numbered after it.
 
-### One unresolved conflict
+### Datastore decision — resolved
 
-The uploaded blueprint specifies **PostgreSQL** with 14 relational tables (its §10) and
-a GKE-hosted microservice backend (its §9). This repository runs **Firestore** with the
-security rules in `firestore.rules` as the authorisation layer, on Next.js — which is
-what `07`, `08` and `14`–`17` document, and what the shipped code does.
+The blueprint specified PostgreSQL; the repository runs Firestore. **Resolved in favour
+of PostgreSQL 16 with Row-Level Security**, recorded in `08` §8.1 and sequenced in `19`.
 
-Both are defensible; they are not compatible. `08` §8.15 holds the migration policy.
-Until that decision is taken, **the Firestore model is authoritative** because it is
-the one the code implements — and a schema document that disagrees with the database is
-worse than no schema document. Marked `OPEN`.
+The decision was not a preference. Three defects in the shipped system are structural
+to a document store rather than implementation mistakes: the ACU ledger and the balance
+cannot be written atomically (debt D2), inventory oversell is an unfixable read-then-decide
+race, and money is stored as floating point. Each becomes a database constraint in the
+target model.
+
+**The security model is preserved, not redesigned.** Every `firestore.rules` predicate
+that `15`–`17` quote has an RLS equivalent in `08` §8.16 — including
+`allow create, update, delete: if false` on the ledger, which becomes the absence of any
+write policy and therefore applies to admins too.
+
+| Doc | Status |
+| --- | --- |
+| `08` | The PostgreSQL target — 20 tables, RLS policies, constraints |
+| `19` | The 17-week cutover: backfill → dual write → per-table read cutover → retire |
+| `14`–`17` | **Still describe the running system**, which is Firestore, until `19` Phase 3 completes |
+
+That divergence between `08` and `14`–`17` is deliberate and dated. A schema document
+that disagrees with the database is only dangerous when nobody has said which is which.
 
 ## Conventions used throughout
 
