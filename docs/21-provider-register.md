@@ -245,3 +245,141 @@ through the manual admin queue — slower, not broken (`20` §20.8).
 
 Stripe and Sumsub are the two with human review in the loop. Starting them last is the
 most common way a launch date slips by a fortnight for no engineering reason at all.
+
+---
+
+## 21.12 The constrained stack — Hostinger + Vercel + Firebase
+
+**Adopted.** No new vendors. Six accounts, all already in play, and every one of them
+serves more than one purpose.
+
+| # | Vendor | Provides | Replaces from §21.1 |
+| --- | --- | --- | --- |
+| 1 | **Hostinger** | Domain, DNS, mailboxes, SMTP | Cloudflare DNS · Resend |
+| 2 | **Vercel** | Next.js hosting, edge, KV, Cron, firewall, image optimisation | Cloudflare WAF · Upstash · R2 CDN |
+| 3 | **Firebase** | Auth, Firestore, Storage, Cloud Functions, FCM | Neon · Cloud SQL · Clerk |
+| 4 | **Stripe** | Cards, wallets, payouts, Terminal | — |
+| 5 | **BitriPay** | Mobile money, CDF | — |
+| 6 | **Anthropic · Google · OpenAI** | AI behind the gateway — reasoning, volume, embeddings | — |
+
+**Indicative cost: £40–120/month before volume**, against £150–250 for the twelve-vendor
+set. Fewer contracts, fewer secrets, fewer status pages to watch on a bad night.
+
+### What each one actually covers
+
+| Need | Served by | Notes |
+| --- | --- | --- |
+| Domain and DNS | Hostinger | `ticketroyality.com`, records in §22.10 |
+| Transactional email | Hostinger SMTP | Caveat below |
+| Hosting, SSR, edge | Vercel | `lhr1`, London |
+| Cache, rate limits, QR set | **Vercel KV** | Redis-compatible, a Vercel product |
+| Scheduled jobs | **Vercel Cron** | Hold release, placement expiry |
+| WAF, DDoS, bot challenge | **Vercel Firewall** | Attack Challenge Mode |
+| Auth, MFA | Firebase Auth | Already live |
+| Database | Firestore | Already live |
+| Media, CDN | Firebase Storage + Vercel image optimisation | |
+| **Privileged writes** | **Firebase Cloud Functions** | **This closes D1 and D2** |
+| Push | Firebase FCM | Phase 2 |
+
+---
+
+### Cloud Functions close two debts without a new vendor
+
+D1 (server-side ticket issuance) and D2 (atomic ledger writes) both needed the Admin
+SDK in a trusted runtime. **Firebase Cloud Functions is that runtime**, and it is
+already part of the Firebase project.
+
+```
+Stripe webhook ──▶ Vercel route ──▶ verify signature
+                                          │
+                        Cloud Function (Admin SDK, rules bypassed)
+                                          │
+                        ┌─────────────────┴─────────────────┐
+                        ▼                                   ▼
+              issue tickets for the buyer          write wallet_ledger
+              (rules forbid client writes)         (create/update/delete: false)
+```
+
+Both run inside a Firestore transaction, so the ledger entry and the balance land
+together or neither does — the exact guarantee `17` §17.5 says is missing today.
+
+**That is the largest single item on the blocking list closed by a decision rather than
+a migration.**
+
+---
+
+### The Postgres decision, revisited honestly
+
+`08` §8.1 argued for PostgreSQL on three defects. Under this constraint Firestore
+stays, so each has to be re-examined rather than restated.
+
+| Defect | Verdict now |
+| --- | --- |
+| Ledger atomicity | **Solved.** Firestore transactions plus a Cloud Function |
+| Money as float | **Solvable in the app.** Store integer minor units; `numeric` was convenience, not necessity |
+| Oversell race | **Partly solved — and my earlier claim was too strong** |
+
+**Correction on overselling.** I wrote in `08` §8.1 that the oversell race is
+structural to a document store. That overstated it. `runTransaction` reads and writes
+atomically with optimistic concurrency, so two buyers competing for the last seat
+resolve correctly — one commits, one retries and fails.
+
+The real limit is **contention, not correctness**. A single tier counter is one
+document, and a hot document sustains roughly one write per second. An on-sale spike of
+100× baseline queues behind that, so it becomes a *throughput* problem: slow checkouts
+and timeouts, not phantom tickets.
+
+Mitigation without Postgres: **sharded counters** — split each tier's count across N
+sub-documents, write to a random shard, sum on read. Standard Firestore practice, lifts
+the ceiling to roughly N writes per second, and is a day of work.
+
+| | Firestore + shards | PostgreSQL |
+| --- | --- | --- |
+| Correctness under contention | ✅ | ✅ |
+| Throughput at on-sale peak | ~N writes/sec, tunable | Thousands/sec |
+| Complexity | Sharding logic in the app | A `CHECK` constraint |
+| Migration cost now | Zero | 17 weeks (`19`) |
+
+**Recommendation: ship on Firestore with sharded counters.** `19` stays written and
+unscheduled — the trigger to run it is a measured contention ceiling under real on-sale
+load, not a preference. That is a better reason to migrate than the one I gave.
+
+---
+
+### Three honest caveats
+
+**Hostinger SMTP is not a transactional email platform.** It sends mail; it does not
+give you delivery webhooks, bounce handling, suppression lists or reputation
+monitoring — and shared-hosting IP reputation is outside your control.
+
+Acceptable at launch volume. The trigger to revisit is the first delivery complaint or
+roughly 5,000 emails a month, whichever comes first. Resend at $20 is the smallest
+possible upgrade and can be deferred until then. **A ticket that does not arrive is
+indistinguishable from fraud to the buyer**, so this is the caveat to watch hardest.
+
+**Vercel Firewall is not Cloudflare.** Attack Challenge Mode, rate limiting and IP
+rules cover the common cases. Sophisticated bot management for scalping defence
+(`06` §6.5) is genuinely weaker. Mitigate in the application: server-side per-person
+ticket limits, velocity checks across device and payment instrument, and the layered
+controls in `11` §11.13 — most of which do not depend on the edge at all.
+
+**Firebase Storage is not a CDN.** It serves files with egress billed per GB and no
+edge caching by default. Route images through Vercel's image optimisation, which caches
+at the edge, and the exposure stays small. Watch it: bandwidth is the line that
+surprises people on a viral event.
+
+---
+
+### What is deferred, not lost
+
+| Provider | Deferred until |
+| --- | --- |
+| Cloudflare | Bot attacks that Vercel Firewall cannot hold |
+| Resend / SendGrid | First delivery complaint, or ~5,000 emails/month |
+| Neon / Cloud SQL | Measured Firestore contention at on-sale peak |
+| Upstash | Vercel KV limits become binding |
+| R2 | Firebase Storage egress becomes material |
+| Sumsub, ComplyAdvantage | **Before the first organiser payout — not deferrable** |
+
+The last row is the one that is not a technical choice. Paying out without KYB risks
+the Stripe account the whole platform runs on.

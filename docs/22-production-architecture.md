@@ -13,44 +13,79 @@ choice, and what stands between the current repository and a production deployme
 | Client state | **Zustand + TanStack Query** | Redux, Context sprawl | Server cache and client store are different problems |
 | **Backend** | **Route handlers + service modules**, in the same deployment | NestJS microservices | See §22.3 |
 | **Shared** | Isomorphic contracts, zero dependencies | Duplicated types | Already shipped and lint-enforced (`14`) |
-| Datastore | **PostgreSQL** + RLS | Firestore | `08` §8.1 |
-| Cache | Redis | In-memory | QR invalidation must be shared across instances |
+| Cache | **Vercel KV** | In-memory | QR invalidation must be shared across instances |
 | Agent plane | **Separate deployment** from Phase 3 | In-process forever | A crash-looping agent must not take checkout down |
 | AI access | **One gateway** (`07` §7.5a) | Direct SDK calls | Metering, failover, redaction in one place |
 | Hosting | Vercel, with a Docker escape hatch | Platform lock-in | `Dockerfile` ships; Cloud Run is a config change |
+| Domain & mail | **Hostinger** | Cloudflare + Resend | Adopted — `21` §21.12 |
+| Datastore (launch) | **Firestore + sharded counters** | Neon Postgres | Adopted; `19` stays written and unscheduled |
+| Privileged writes | **Firebase Cloud Functions** | A separate service | Closes D1 and D2 without a new vendor |
 
 ---
 
 ## 22.2 The shape
 
+**Adopted stack** — Hostinger, Vercel, Firebase, Stripe, BitriPay, and three AI
+providers. Six vendors, no new ones (`21` §21.12).
+
 ```
-                          Cloudflare
-                    WAF · DDoS · bots · CDN
-                              │
-              ┌───────────────┴────────────────┐
-              ▼                                ▼
-   ┌────────────────────┐          ┌────────────────────────┐
-   │   WEB (Vercel)     │          │   AGENT PLANE (Cloud   │
-   │                    │          │   Run / GKE, Phase 3)  │
-   │  app/     routing  │          │                        │
-   │  frontend/ browser │          │  scheduled agent runs  │
-   │  backend/  server  │──────────│  long jobs · webhooks  │
-   │  shared/   both    │          │                        │
-   └─────────┬──────────┘          └───────────┬────────────┘
-             │                                 │
-             └──────────────┬──────────────────┘
-                            ▼
-          ┌─────────────────────────────────────┐
-          │  PostgreSQL (Neon) · RLS enforced   │
-          │  Redis (Upstash) · QR set, limits   │
-          │  R2 · media                         │
-          └─────────────────────────────────────┘
-                            │
-                  AI Gateway ──▶ Claude · Gemini · OpenAI
+                    HOSTINGER
+              domain · DNS · mail · SMTP
+                         │
+                         ▼
+   ┌──────────────────────────────────────────────┐
+   │                 VERCEL  (lhr1)               │
+   │                                              │
+   │   app/       routing shell                   │
+   │   frontend/  browser only                    │
+   │   backend/   server only                     │
+   │   shared/    isomorphic                      │
+   │                                              │
+   │   + KV (QR set · rate limits)                │
+   │   + Cron (hold release · placement expiry)   │
+   │   + Firewall (challenge · rate rules)        │
+   └───────┬──────────────────────────┬───────────┘
+           │                          │
+           ▼                          ▼
+   ┌────────────────────┐   ┌────────────────────────┐
+   │   AI GATEWAY       │   │   FIREBASE             │
+   │  route · meter ·   │   │                        │
+   │  redact · failover │   │  Auth   · Firestore    │
+   └─────────┬──────────┘   │  Storage · FCM         │
+             │              │                        │
+   ┌─────────┼──────────┐   │  CLOUD FUNCTIONS       │
+   ▼         ▼          ▼   │  ── Admin SDK ──       │
+ Claude   Gemini     OpenAI │  ticket issuance       │
+ (reason) (volume) (embeds) │  wallet ledger         │
+                            │  admin credit grants   │
+                            └────────────────────────┘
+                                       │
+                    Stripe ────────────┴──────────── BitriPay
+                   cards · payouts          mobile money · CDF
 ```
 
 **The four layers are already in the repository and enforced by lint** (`14`). Nothing
 in this document changes them; it changes what sits underneath.
+
+### The three AI providers, and what each is for
+
+All behind one gateway (`07` §7.5a). No service imports a provider SDK, so the split
+below is a routing table rather than an architectural commitment.
+
+| Provider | Routed work | Why this one |
+| --- | --- | --- |
+| **Claude** | Agent reasoning, planning, support, adversarial review | Strongest on long-context analysis and following a constraint |
+| **Gemini** | High-volume classification, extraction, short generation | Cheapest per token at volume; already wired via Genkit |
+| **OpenAI** | Embeddings, semantic search, tertiary fallback | `text-embedding-3-large` is the best-value embedding model |
+
+Three providers is the two-provider minimum (`01` §1.5.1) with margin. Any one of them
+going down routes to the next; all three down falls through to the deterministic path,
+which is already the shipped behaviour in `PersonalizedRecommendations.tsx`.
+
+**Embeddings deliberately sit with a different provider from reasoning.** An embedding
+model change silently invalidates every stored vector — they are not comparable across
+models — so the provider that owns embeddings should be the one you change least
+often.
 
 ---
 
@@ -91,7 +126,7 @@ crash-looping agent, a runaway token spend or a stuck job must not touch checkou
 (`06` §6.19).
 
 **Kong is not needed at this scale.** Rate limiting, auth and routing are already in
-Cloudflare plus middleware. Kong earns its place when there are many services and many
+Vercel Firewall plus middleware. Kong earns its place when there are many services and many
 partner integrations — Phase 3 at the earliest.
 
 ---
@@ -282,3 +317,143 @@ Migrating with real users is harder than migrating with seed data. It is also th
 version where you know what the load actually looks like — and `19` is designed so every
 phase is a stable resting state precisely because that migration will get deprioritised
 at least once.
+
+---
+
+## 22.10 Deployment runbook — Hostinger · Vercel · Firebase
+
+The adopted stack (`21` §21.12). Six vendors, no new ones, in the order they must be
+done.
+
+### Step 1 — Hostinger
+
+| Task | Detail |
+| --- | --- |
+| Domain | `ticketroyality.com` |
+| Nameservers | **Keep Hostinger's.** DNS is managed here |
+| Mailboxes | `info@` (published contact), `noreply@`, `security@` |
+| SMTP | Note host, port 465 (SSL) or 587 (STARTTLS), and the credentials |
+
+### Step 2 — DNS records
+
+Add after Vercel gives you the target values. Vercel will show the exact CNAME.
+
+| Type | Name | Value | Purpose |
+| --- | --- | --- | --- |
+| `A` | `@` | `76.76.21.21` | Apex → Vercel |
+| `CNAME` | `www` | `cname.vercel-dns.com` | www → Vercel |
+| `MX` | `@` | Hostinger's MX, priority 10 | Mail stays with Hostinger |
+| `TXT` | `@` | `v=spf1 include:_spf.hostinger.com ~all` | SPF |
+| `TXT` | `default._domainkey` | Hostinger's DKIM value | DKIM |
+| `TXT` | `_dmarc` | `v=DMARC1; p=quarantine; rua=mailto:info@ticketroyality.com` | DMARC |
+| `CNAME` | `mail` | Hostinger webmail | Webmail |
+
+**Start DMARC at `p=quarantine`, not `p=reject`.** Reject on day one bounces your own
+mail the first time a record is slightly wrong, and the failure is silent — you find out
+when a customer says their ticket never arrived. Move to `p=reject` after two weeks of
+clean aggregate reports.
+
+**The MX records are the ones to get right first.** Point the apex at Vercel before mail
+is configured and `info@ticketroyality.com` starts bouncing, on the address printed
+across the whole site.
+
+### Step 3 — Firebase
+
+| Task | Detail |
+| --- | --- |
+| Project | Production project, separate from any dev project |
+| Auth | Email/password; add Google and Apple sign-in |
+| Authorised domains | `ticketroyality.com`, `www.`, and the Vercel preview domain |
+| Firestore | **Production mode**, `europe-west2` |
+| Rules | `firebase deploy --only firestore:rules` |
+| Indexes | Deploy composite indexes before first query, not after the error |
+| Storage | Bucket in the same region, rules deployed |
+| Cloud Functions | Node 20, `europe-west2` — the privileged runtime (`21` §21.12) |
+| Service account | Generate for Functions; **never** commit or place in Vercel env |
+
+**Region matters and cannot be changed.** Firestore location is fixed at creation. Pick
+`europe-west2` for UK/EU proximity and GDPR posture; moving later means exporting and
+re-importing everything.
+
+### Step 4 — Vercel
+
+| Task | Detail |
+| --- | --- |
+| Import | This repository, `claude/optimistic-heisenberg-0n2w42` → main |
+| Region | `lhr1` (London) — set in `vercel.json` |
+| Domain | Add `ticketroyality.com`; Vercel issues the certificate |
+| KV | Create a store — QR one-time set, rate limits |
+| Cron | Picked up from `vercel.json` automatically |
+| Firewall | Enable Attack Challenge Mode; rate-limit `/login`, `/register`, `/api/checkout` |
+| Env | Per §22.11, scoped Production and Preview separately |
+
+### Step 5 — Payments
+
+| Task | Detail |
+| --- | --- |
+| Stripe | Activate the account — **this has human review, start it first** |
+| Webhook | `https://ticketroyality.com/api/stripe-webhook`; store the signing secret |
+| Events | `checkout.session.completed`, `charge.refunded`, `payment_intent.payment_failed` |
+| BitriPay | Production credentials; register the callback URL |
+| Test | One real card payment end to end **before** announcing anything |
+
+### Step 6 — Verify before announcing
+
+```
+□ https://ticketroyality.com resolves, valid certificate, www redirects
+□ /api/health returns 200 and status "healthy"
+□ Mail from info@ arrives and does not land in spam (check SPF/DKIM/DMARC pass)
+□ Register → verify → login works on a clean device
+□ Buy a ticket with a real card; confirmation email arrives
+□ Scan that ticket at /events/[id]/check-in — accepted
+□ Scan it again — refused as duplicate
+□ Refund it; money returns; ticket shows refunded
+□ robots.txt and sitemap.xml serve, and the sitemap lists real events
+□ Rich Results Test passes on an event page
+□ Lighthouse: performance > 85, accessibility > 95 on mobile
+□ Firestore rules: an unauthenticated client cannot read another user's ticket
+```
+
+**The last line is the one to test by hand, with `curl`, not by clicking around.** The
+UI will not let you attempt it; an attacker will not use the UI.
+
+---
+
+## 22.11 Environment variables
+
+| Variable | Where | Notes |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | Vercel | `https://ticketroyality.com`. **Set explicitly** — see `shared/site.ts` |
+| `NEXT_PUBLIC_FIREBASE_*` | Vercel | Public by design, protected by rules |
+| `STRIPE_SECRET_KEY` | Vercel, Production only | Never in Preview |
+| `STRIPE_WEBHOOK_SECRET` | Vercel | Per endpoint |
+| `BITRIPAY_CLIENT_ID` / `_SECRET` | Vercel | |
+| `ANTHROPIC_API_KEY` | Vercel | Behind the AI Gateway |
+| `KV_REST_API_URL` / `_TOKEN` | Vercel | Injected when KV is linked |
+| `CRON_SECRET` | Vercel | Without it the cron routes 401 by default |
+| `QR_SIGNING_KEY` | Vercel + Functions | **Per environment.** Staging must not sign production tickets |
+| `FIREBASE_SERVICE_ACCOUNT` | **Functions only** | Never in Vercel, never in the repo |
+
+**Preview deployments get sandbox keys or nothing.** A preview with a live Stripe key is
+a branch away from taking real money for an event that does not exist.
+
+---
+
+## 22.12 What this stack does not give you
+
+Stated plainly, so nobody discovers it during an incident.
+
+| Gap | Consequence | Mitigation now | Fix later |
+| --- | --- | --- | --- |
+| No Cloudflare bot management | Weaker scalping defence | Server-side ticket limits, velocity checks (`11` §11.13) | Cloudflare in front of Vercel |
+| Hostinger SMTP, not a delivery platform | No bounce webhooks, no suppression, shared IP reputation | Monitor manually; keep volume low | Resend, $20 |
+| Firestore contention at on-sale peak | Checkout slows under a hot tier counter | **Sharded counters** (`21` §21.12) | Postgres (`19`) |
+| Firebase Storage is not a CDN | Egress cost on a viral event | Vercel image optimisation caches at the edge | R2 |
+| No APM | Slow endpoints found by complaint | Vercel Analytics + Sentry | Better Stack |
+| Single region | UK/EU fast, DRC ~200ms | Acceptable | `africa-south1` replica |
+
+**None of these blocks launch.** Every one has a named trigger and a named fix, which is
+the difference between a constraint you have chosen and one you have not noticed.
+
+The row to watch first is email. A ticket that does not arrive is indistinguishable from
+fraud to the person who paid for it.
