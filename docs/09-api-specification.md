@@ -409,3 +409,148 @@ generation, webhook signature verification, cursor auto-pagination, and typed er
 - Webhook signature examples verify correctly in all three SDK languages.
 - p95 latency < 300ms for reads, < 500ms for writes.
 - Sandbox provisioned within 60 seconds of signup.
+
+---
+
+## 9.12 Endpoint reconciliation, and four corrections
+
+The endpoint set below is the specified surface. Four entries differ from the source
+outline, each for a reason worth stating.
+
+### Events
+
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| `POST` | `/events` | Organiser | Creates a **draft**. Never publishes |
+| `GET` | `/events/:id` | Public | Published only, unless owner or admin |
+| `PATCH` | `/events/:id` | Organiser | Partial. Rejected on frozen fields after first sale |
+| `GET` | `/events` | Public | Cursor-paginated — see below |
+| `POST` | `/events/:id/publish` | Organiser | Runs the pre-publish checklist (`04` M22) |
+| `POST` | `/events/:id/cancel` | Organiser | **Replaces `DELETE`** — see below |
+
+### Orders and tickets
+
+| Method | Path | Auth | Notes |
+| --- | --- | --- | --- |
+| `POST` | `/orders` | Customer | `Idempotency-Key` **required** |
+| `POST` | `/orders/:id/pay` | Customer | `Idempotency-Key` **required** |
+| `GET` | `/orders/:id` | Customer / Organiser | Organiser view redacts payment instrument |
+| `POST` | `/orders/:id/refund` | Organiser | Line-item scoped; policy-checked |
+| `POST` | `/tickets/:id/transfer` | Customer | Refused if `transferable = false` |
+| `POST` | `/scans` | Gate staff | **Replaces `/tickets/:id/scan`** — see below |
+
+---
+
+### Correction 1 — cancellation is not `DELETE`
+
+The outline has `DELETE /events/:id` triggering an automated refund of every order.
+That is the most destructive operation on the platform behind a verb that reads as
+routine, is fired by accident in every API client ever built, and carries no body in
+which to record a reason.
+
+```
+POST /events/:id/cancel
+{
+  "reason": "Venue withdrew the licence",
+  "refund_policy": "full",
+  "notify": true,
+  "confirm_totals": { "orders": 412, "refund_amount": 1846000, "currency": "GBP" }
+}
+```
+
+**`confirm_totals` must match what the server computes**, or the request is rejected
+with `409 totals_mismatch` and the current figures. The caller has to have looked at
+the numbers before the money moves — the same idea as typing a repository name to
+delete it, applied to £18,460.
+
+Cancellation returns `202` and a job id. Refunding 412 orders is not a request-scoped
+operation, and a mass refund is money movement, so per `01` §1.7 it requires human
+confirmation: the endpoint accepts the instruction, an admin releases the batch.
+
+`GET /events/:id/cancel-preview` returns the totals with no side effects, so the
+confirmation figures can be fetched honestly.
+
+---
+
+### Correction 2 — scanning is not keyed on a ticket id
+
+`POST /tickets/:id/scan` requires the gate to already know the ticket id, which means
+resolving the QR client-side and trusting whatever the device sends. The signature then
+verifies nothing.
+
+```
+POST /scans
+Idempotency-Key: <device-uuid>:<scan-seq>
+{
+  "qr_payload": "<signed blob>",
+  "gate_id": "east-3",
+  "device_id": "dev_88a1",
+  "scanned_at": "2026-08-05T18:42:11Z",
+  "offline": false
+}
+```
+
+The server verifies the HMAC, extracts the reference, and only then looks anything up.
+An unsigned or tampered payload never reaches the database.
+
+**`Idempotency-Key` is mandatory** because offline sync replays scans (`04` M16). A
+device reconnecting after a partition resends its queue; without idempotency every
+ticket it admitted becomes a duplicate-scan alert.
+
+`scanned_at` is the **device's** time, kept alongside the server's. During a partition
+the device clock is the only record of ordering, and the two disagreeing is itself
+diagnostic.
+
+Response distinguishes all seven outcomes from `scan_result` (`08` §8.3) — a steward
+needs `wrong_gate` and `invalid` to look completely different.
+
+---
+
+### Correction 3 — cursor pagination, not `page` and `limit`
+
+`GET /events?page=3&limit=20` is wrong for a catalogue that gains rows continuously: a
+new event published between requests shifts every subsequent page, so a client paging
+through sees duplicates and misses others.
+
+```
+GET /events?limit=20&cursor=eyJzdGFydHNfYXQiOi4uLn0
+→ { "data": [...], "next_cursor": "eyJ...", "has_more": true }
+```
+
+The cursor encodes `(starts_at, id)` — stable under insertion, and it maps directly
+onto `events_discovery_idx` (`08` §8.7) so deep pages cost the same as shallow ones.
+`OFFSET 10000` reads and discards ten thousand rows.
+
+---
+
+### Correction 4 — refunds are line-scoped and policy-checked
+
+`{amount, reason}` cannot express "refund one of the three tickets on this order", which
+is the common case. It also lets a caller name any amount.
+
+```
+POST /orders/:id/refund
+{
+  "items": [{ "order_item_id": "...", "quantity": 1 }],
+  "reason": "customer_request",
+  "override_policy": false
+}
+```
+
+The server computes the amount from the items and the order's frozen terms
+(`08` §8.9). `override_policy: true` is admin-only and always audited — an organiser
+refunding outside their own published policy is a decision someone should be able to
+find later.
+
+---
+
+### Applies to every mutating endpoint
+
+| Rule | Detail |
+| --- | --- |
+| `Idempotency-Key` | Required on order creation, payment and scans; accepted everywhere else |
+| Replay | Returns the original response. Never creates a second resource |
+| Rate limits | Per key and per principal, at the gateway |
+| Errors | `{ error: { code, message, details? } }` — codes are stable, messages are not |
+| Versioning | `/api/v1`; breaking changes get `/v2`, with both live through a deprecation window |
+| Webhooks | HMAC-SHA256 over `timestamp.body`, **reject beyond 5 minutes** (`20` §20.6) |
