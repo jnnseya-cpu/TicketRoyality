@@ -2,7 +2,7 @@
 
 ## 10.1 Revenue architecture
 
-Eight distinct lines. The design goal is that **no single line exceeds 40% of revenue
+Nine distinct lines. The design goal is that **no single line exceeds 40% of revenue
 by year three** — a platform dependent on one line is priced by whoever controls that
 line.
 
@@ -16,6 +16,7 @@ line.
 | 6 | API & developer platform | Recurring + usage | 90% | 5% |
 | 7 | White label & enterprise | Contract | 78% | 5% |
 | 8 | Marketplace & data | Transactional | 82% | 2% |
+| 9 | Ancillary event revenue | Transactional | 80% | — (Phase 3) |
 
 ## 10.2 Line 1 — Ticket commission (`LIVE`)
 
@@ -78,19 +79,50 @@ Already implemented in the organiser promotions page.
 
 | Product | Price | Duration | Inventory |
 | --- | --- | --- | --- |
-| Homepage video ad | £249 | 7 days | 3 concurrent slots |
+| Homepage video ad | **By duration, see below** | 7 days | **10 rotating slots** |
 | Featured event | £149 | 7 days | 9 concurrent slots |
 | Newsletter spotlight | £99 | Single send | 4 per newsletter |
 | Category takeover | £499 | 7 days | 1 per category |
 | Push notification | £199 | Single send | 2 per user per week |
 
-**Inventory is deliberately scarce.** Three video slots, not thirty. Scarcity sustains
-price and protects the user experience; an ad-saturated homepage destroys the
-discovery product that makes the ads valuable in the first place.
+**Inventory is deliberately scarce.** Ten video slots, not a hundred; nine featured
+positions, not unlimited. Scarcity sustains price and protects the user experience — an
+ad-saturated homepage destroys the discovery product that makes the ads valuable in the
+first place.
+
+Ten is the ceiling because the carousel rotates: every advertiser gets an equal share
+of impressions, so an eleventh slot does not add inventory, it dilutes what the
+existing ten paid for.
 
 **Auction model (Phase 4):** second-price auction with a reserve, for oversubscribed
 slots. Second-price removes the incentive to shade bids and typically raises yield
 15–25% over fixed pricing.
+
+### Homepage video carousel — priced by duration
+
+Superseding the flat £249 video slot. Ten slots, maximum 180 seconds, charged per
+15-second band per 7-day term (`04` M24):
+
+| Duration | Price / 7 days | Effective £/second |
+| --- | --- | --- |
+| 0–15s | £60 | £4.00 |
+| 16–30s | £110 | £3.67 |
+| 31–60s | £200 | £3.33 |
+| 61–90s | £280 | £3.11 |
+| 91–120s | £350 | £2.92 |
+| 121–180s | £480 | £2.67 |
+
+**The per-second rate tapers deliberately.** Charging strictly pro-rata would make a
+3-minute ad cost 12× a 15-second one, and every advertiser would cut to 15 seconds —
+which is worse inventory for us and a worse ad for them. The taper prices length as
+genuinely more valuable while leaving a reason to use it.
+
+At full occupancy this line yields £600–£4,800 per 7-day cycle depending on mix,
+against £2,490 under the old flat rate. The upside is not the headline number, it is
+that **inventory can be sold to ten advertisers instead of three**, which widens the
+buyer pool to organisers who could never justify £249.
+
+---
 
 ## 10.5 Line 4 — BitriPay gateway spread (`NEW`)
 

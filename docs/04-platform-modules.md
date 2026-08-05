@@ -1091,3 +1091,140 @@ That is a deliberate, visible operation, not a side effect of an edit.
 Quoted before it runs. Manual editing is **free** and always available — an organiser
 who prefers to draw it themselves is never metered, and every generated map is fully
 editable afterwards. The agent produces a starting point, not a locked artefact.
+
+---
+
+## M24 — Homepage Video Ad Carousel
+
+**Status:** `NEW`. Extends the promotion line in `10` §10.4. Ten paid video slots on the
+landing page, sold to organisers, **priced by video length**.
+
+### Inventory
+
+| Property | Value |
+| --- | --- |
+| Slots | **10**, rotating |
+| Maximum duration | **180 seconds** — hard, enforced on ingest |
+| Sources | YouTube URL, or direct upload (MP4/WebM) |
+| Placement term | 7 days, renewable |
+| Rotation | Deterministic, equal share of impressions across live slots |
+
+### Pricing is a function of duration
+
+A longer ad occupies more attention and more bandwidth, so it costs more. Charged per
+15-second band, per 7-day term:
+
+| Duration | Bands | Price (7 days) |
+| --- | --- | --- |
+| 0–15s | 1 | £60 |
+| 16–30s | 2 | £110 |
+| 31–60s | 4 | £200 |
+| 61–90s | 6 | £280 |
+| 91–120s | 8 | £350 |
+| 121–180s | 12 | £480 |
+
+Band 1 is £60 and each additional band adds ~£35, tapering — a 3-minute ad costs 8×
+a 15-second one, not 12×, because attention does not scale linearly with length and
+pricing it as if it does simply pushes everyone to 15 seconds.
+
+**Duration is measured, never declared.** The platform probes the actual media —
+`ffprobe` on an upload, the Data API on a YouTube id — and prices from that. An
+organiser who selects the 15-second band and supplies a 90-second file is repriced
+before approval, not after the ad has run.
+
+### Ingest and verification
+
+```
+organiser submits URL or file
+   ▼
+probe: duration · resolution · codec · audio present
+   ▼
+duration > 180s ? ──▶ reject with the measured length
+   ▼
+price from the measured band, quoted, organiser confirms
+   ▼
+moderation queue  ◀── never skipped, never agent-only
+   ▼
+approved → slot allocated, starts at the next rotation boundary
+```
+
+### Moderation cannot be fully automated
+
+A paid video on the platform's own homepage is the platform speaking. The risks are
+concrete: an ad for an event that will not happen, unlicensed music on the soundtrack,
+a performer's likeness used without permission, or content unsuitable for a general
+audience.
+
+An agent pre-screens and **ranks the queue**; a human approves. `03` §3.1 gives the
+pattern — the agent removes the labour of review, not the decision.
+
+| Check | By |
+| --- | --- |
+| Duration, codec, resolution, audio present | Automated, blocking |
+| Organiser is approved and the event is published | Automated, blocking |
+| Content classification, text overlay extraction | Agent, advisory |
+| Music rights, likeness, suitability | **Human, blocking** |
+
+### The YouTube swap problem
+
+A YouTube link is not a fixed asset. Its owner can replace the video **after approval**
+— same URL, different content — which is a bait-and-switch straight onto the homepage.
+
+| Mitigation | Detail |
+| --- | --- |
+| Snapshot at approval | Title, duration, thumbnail hash and channel id are stored |
+| Re-check every 6 hours | Any change to duration or thumbnail hash **pulls the slot immediately** and re-queues it |
+| Channel binding | The video must belong to a channel the organiser has verified |
+| Upload is preferred | Direct upload carries no swap risk; the price is identical either way |
+
+The 6-hour window is a compromise. It is not zero, and the honest position is that
+**upload is the safer product** — so the UI presents it first and the pricing gives
+YouTube no advantage.
+
+### Consent, because an embed is a third party
+
+A YouTube embed sets third-party cookies and reports to Google before any interaction.
+Under GDPR that needs consent, and a homepage that fires it on load is non-compliant.
+
+**Embeds load in `youtube-nocookie` mode behind a poster image, and the player is only
+instantiated on click.** Uploaded video is served from our own CDN and has no such
+problem — another reason to prefer it.
+
+### Performance: ten videos must not cost the landing page
+
+Ten eagerly-loaded videos would destroy Largest Contentful Paint on the platform's most
+important page.
+
+| Rule | Detail |
+| --- | --- |
+| Poster images only on first paint | WebP, sized, `fetchpriority` on the first slot alone |
+| No player instantiated until viewport + interaction | Zero video bytes above the fold |
+| One preload maximum | The visible slot; never the whole carousel |
+| Carousel is CSS-driven | Scroll-snap, no JS layout thrash |
+| Reduced motion | `prefers-reduced-motion` disables auto-advance entirely |
+
+**The section is below the hero, never in it.** The hero is what the platform is for; a
+paid carousel above it sells the top of the page and buys a worse first impression.
+
+### Playback
+
+| Rule | Why |
+| --- | --- |
+| Muted by default | Unrequested audio is the fastest way to lose a visitor |
+| Captions required on upload | Accessibility, and most viewing is muted anyway |
+| Manual advance, or 8-second auto-advance on poster | Never auto-advance a playing video |
+| Clear "Ad" label on every slot | It is a paid placement and must say so |
+
+The label is not optional and not subtle. An advertising carousel that looks like
+editorial recommendation is a dark pattern, and it also converts worse — visitors who
+feel misled do not buy tickets.
+
+### Reporting
+
+Impressions, plays, 25/50/75/100% completion, click-through, and attributed orders via
+`campaign_attribution` with `source = 'homepage_video'` (`08` §8.15a). The advertiser
+sees exactly what they bought.
+
+**Impressions are counted on 50% visibility for 1 second**, the IAB standard — not on
+render. Counting an impression for a slot that never entered the viewport is charging
+for something that did not happen.

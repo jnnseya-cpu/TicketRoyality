@@ -86,13 +86,14 @@ system. That divergence is deliberate, dated and tracked — not drift.
    invoices ──▶ orders · payouts
    hospitality_bookings ──▶ hospitality_guests · orders
    disputes ──▶ payments                          (deadline-indexed)
+   ad_placements ──▶ organisations · events       (10 slots, duration-priced)
    follows ──▶ organisations · venues             (consent for notification)
    campaign_attribution ──▶ orders · tickets      (every touch, not just the winner)
    offline_payments ──▶ orders                    (KODA-verified, 06 §6.20)
    agent_runs · agent_memory · audit_log          (cross-cutting, append-only)
 ```
 
-Thirty-four tables. The count is higher than the blueprint's fourteen because things
+Thirty-five tables. The count is higher than the blueprint's fourteen because things
 with their own lifecycle get their own table rather than being folded into a parent —
 `orders` and `order_items`, `refunds`, `organisation_members`, `seat_holds`,
 `ticket_addons`, `waitlist_entries`, `revenue_splits` and `invoices`.
@@ -1045,6 +1046,80 @@ at the door, on the night.
 
 **No `ai_agent_logs` table.** That is `agent_runs` (`08` §8.15) under a different name.
 One table, one schema, one retention policy.
+
+---
+
+## 8.13d `ad_placements`
+
+```sql
+CREATE TABLE ad_placements (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organisation_id uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  event_id        uuid REFERENCES events(id) ON DELETE CASCADE,
+  placement       text NOT NULL,          -- homepage_video · featured · newsletter
+  slot_index      integer CHECK (slot_index BETWEEN 1 AND 10),
+
+  source          text NOT NULL CHECK (source IN ('youtube','upload')),
+  media_url       text NOT NULL,
+  youtube_id      text,
+  youtube_channel_id text,
+
+  -- Measured on ingest, never declared by the advertiser.
+  duration_seconds integer NOT NULL CHECK (duration_seconds > 0 AND duration_seconds <= 180),
+  duration_bands   integer NOT NULL CHECK (duration_bands > 0),
+  poster_url       text NOT NULL,
+  captions_url     text,
+
+  -- Swap detection for third-party sources.
+  content_fingerprint text,
+  last_verified_at    timestamptz,
+
+  price           numeric(14,2) NOT NULL CHECK (price >= 0),
+  currency        char(3) NOT NULL,
+  starts_at       timestamptz NOT NULL,
+  ends_at         timestamptz NOT NULL,
+
+  status          text NOT NULL DEFAULT 'pending_review'
+                    CHECK (status IN ('pending_review','approved','live','paused',
+                                      'rejected','expired','pulled')),
+  reviewed_by     uuid REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at     timestamptz,
+  rejection_reason text,
+
+  impressions     bigint NOT NULL DEFAULT 0,
+  plays           bigint NOT NULL DEFAULT 0,
+  completions     bigint NOT NULL DEFAULT 0,
+  clicks          bigint NOT NULL DEFAULT 0,
+
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+
+  CHECK (ends_at > starts_at),
+  CHECK (status <> 'live' OR slot_index IS NOT NULL),
+  CHECK (source <> 'youtube' OR (youtube_id IS NOT NULL AND youtube_channel_id IS NOT NULL)),
+  CHECK (status NOT IN ('approved','live') OR reviewed_by IS NOT NULL)
+);
+
+-- One live occupant per slot at any moment.
+CREATE UNIQUE INDEX ad_slot_exclusive_idx
+  ON ad_placements (placement, slot_index) WHERE status = 'live';
+
+CREATE INDEX ad_verify_idx ON ad_placements (last_verified_at)
+  WHERE status = 'live' AND source = 'youtube';
+```
+
+**`duration_seconds` is `CHECK (<= 180)` at the storage layer**, so the 3-minute ceiling
+cannot be bypassed by any code path that reaches the table. `duration_bands` is stored
+alongside because it is what was *priced* — recomputing the band later from a changed
+rate card would restate what an advertiser was charged, the same reasoning that freezes
+commission onto an order (`08` §8.9).
+
+**`CHECK (status NOT IN ('approved','live') OR reviewed_by IS NOT NULL)`** makes
+unreviewed publication structurally impossible. Moderation is not a workflow convention
+here; it is a constraint.
+
+`ad_slot_exclusive_idx` guarantees ten slots means ten, and `ad_verify_idx` is the
+worklist for the 6-hour YouTube swap check in `04` M24.
 
 ---
 
