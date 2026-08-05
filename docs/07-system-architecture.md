@@ -504,3 +504,81 @@ queues admissions for reconciliation. An event can run its entire door with our
 platform completely offline. This is the difference between an incident and a
 catastrophe, and it is the reason offline scanning is specified as a requirement and
 not a nice-to-have.
+
+---
+
+## 7.12 Regions, scale and the availability target
+
+### Regions
+
+| Region | Serves | Holds |
+| --- | --- | --- |
+| `europe-west2` (London) | UK, EU | UK/EU personal data, primary OLTP |
+| `africa-south1` (Johannesburg) | DRC, pan-African | African market data and read replicas |
+
+**Johannesburg serving DRC is a cross-border transfer**, not a local deployment. DRC
+personal data leaving the DRC engages whatever transfer rules apply there, and those
+rules are not the GDPR's. Marked `OPEN` alongside the KODA position in `20` §20.3 —
+same counsel, same gate, because both questions are asked of the same regulator.
+
+Latency from Kinshasa to Johannesburg is acceptable; the question is legal, not
+technical.
+
+### Scaling
+
+| Surface | Approach |
+| --- | --- |
+| Ticket service | GKE horizontal autoscale, 100+ pods at on-sale peak |
+| Event pages | Cloudflare Workers, edge-rendered, sub-100ms TTFB target |
+| Analytics | 3 PostgreSQL read replicas — zero load on the transactional primary |
+| Media | R2 + CDN |
+
+**On-sale is the only load pattern that matters.** Traffic is not diurnal — it is a
+step function at a published minute, often 100× baseline for 90 seconds. Autoscaling
+reacts in tens of seconds, which is too slow for a spike that is over in ninety.
+
+The mitigation is **pre-warming against a known on-sale time**, which the platform
+already knows from `ticket_types.sale_starts_at` (`08` §8.8). Capacity is provisioned
+ahead of the minute rather than discovered during it.
+
+### The availability target contradicts the recovery target
+
+| Stated | Value | Implication |
+| --- | --- | --- |
+| SLA | 99.99% | **52.6 minutes** of downtime per year, total |
+| RPO | 15 minutes | Up to 15 minutes of writes lost on failover |
+| RTO | 1 hour | **60 minutes** to restore service |
+
+**A single regional failover consumes the entire annual error budget and overruns it.**
+One failover event at a 1-hour RTO puts the year at 98.86% for that incident alone —
+before any deploy, any dependency outage, any bad release.
+
+These cannot both be targets. Three coherent options:
+
+| Option | SLA | RTO | Cost |
+| --- | --- | --- | --- |
+| **A** Active-passive, honest SLA | 99.9% (8.8h/yr) | 1 hour | Lowest |
+| **B** Active-passive, fast failover | 99.95% (4.4h/yr) | 10 minutes | Moderate — rehearsed, automated |
+| **C** Active-active multi-region | 99.99% | < 1 minute | Highest — multi-region writes, conflict resolution |
+
+**Recommendation: B for Phase 3, C only if enterprise contracts require 99.99% in
+writing.** Option C's cost is not the infrastructure, it is multi-region write
+consistency — and taking that on before the volume justifies it buys an availability
+figure nobody has asked for with a correctness risk everyone will feel.
+
+Publishing 99.99% while operating a 1-hour RTO is worse than publishing 99.9% and
+meeting it. The first is a number that will be quoted back during an incident.
+
+### Observability
+
+| Layer | Tool |
+| --- | --- |
+| APM and distributed tracing | Datadog |
+| Structured logging | JSON, correlation id propagated across every service |
+| Error tracking | Sentry |
+| Alerting and on-call | PagerDuty |
+| Agent traces | `agent_runs` (`08` §8.15), joined to Datadog by run id |
+
+**Every log line carries the correlation id, and agent runs carry it too.** A trace that
+stops at the boundary of the agent plane makes the most complex part of the system the
+least debuggable — the point where "the platform did something odd" needs an answer.

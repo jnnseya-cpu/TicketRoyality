@@ -332,3 +332,66 @@ stopping it maximises the damage.
 × every collection × positive and negative cases. A rules change without a test is an
 untested authorisation change, and the whole zero-trust model rests on them being
 correct.
+
+---
+
+## 11.12 Security control register
+
+The concrete controls, with the ones that carry a caveat marked.
+
+| Control | Specification |
+| --- | --- |
+| Service-to-service | **mTLS** between all microservices; identity verified per request, never by network position |
+| Authentication | JWT, **15-minute expiry**, refresh-token rotation on a 7-day window |
+| Session revocation | Refresh-token family invalidation on reuse detection |
+| MFA | TOTP mandatory for organisers, admins and merchants — see below |
+| RBAC | Enforced twice: at the API gateway, and as **RLS in PostgreSQL** (`08` §8.16) |
+| QR security | HMAC-SHA256, **per-event salt**, expiry timestamp, one-time Redis invalidation |
+| Encryption at rest | AES-256 (Cloud SQL managed), plus **field-level encryption for PII** |
+| Encryption in transit | TLS 1.3 minimum, HSTS preload |
+| Edge | Cloudflare Enterprise — Magic Transit, rate limiting, bot management |
+| WAF | OWASP Top 10 at the edge — XSS, SQLi, CSRF |
+| Secrets | Google Secret Manager only. Never in the database, never in config, never in a repo |
+| Dependency scanning | Snyk, continuous, blocking on high severity |
+| Penetration testing | Quarterly external, plus a re-test of every finding |
+
+### SMS OTP is a fallback, never the primary factor
+
+The source specification lists SMS OTP alongside TOTP as mandatory MFA. **SMS is the
+weakest factor available** and the attack is neither theoretical nor difficult: SIM swap
+against a mobile network's support desk, then a password reset.
+
+For this platform the exposure is concrete. An organiser account controls payout
+destinations. A platform admin account can suspend organisers and set commission. The
+most valuable accounts must not be recoverable by someone who convinced a call centre
+to move a number.
+
+| Account type | Required | Permitted fallback |
+| --- | --- | --- |
+| Super admin | **Passkey or hardware key** | None |
+| Platform admin | Passkey or TOTP | None |
+| Organiser (payout-enabled) | TOTP or passkey | None |
+| Organiser (pre-payout) | TOTP | SMS |
+| Merchant | TOTP or passkey | None |
+| Gate staff | Device-bound session | SMS |
+| Fan | Optional | SMS |
+
+SMS remains available where it materially helps adoption and the blast radius is one
+person's tickets. It is removed everywhere it would gate money.
+
+### QR expiry needs a floor, not just a timestamp
+
+An expiry timestamp on the signed QR is correct, and the value matters more than the
+mechanism. Too short and a fan whose phone was in a pocket during a queue gets refused
+at the barrier; too long and a screenshot circulates usefully.
+
+| Delivery | Signed validity |
+| --- | --- |
+| Wallet pass, in-app | Rotating, 60-second window — the pass regenerates |
+| Static PDF or printed | Valid from T-24h to event end + 6h |
+| NFC wristband | Bound to the tag, no time expiry |
+
+**Static tickets cannot rotate**, so their signature validity is necessarily wide and
+one-time redemption does the real work. The rotating window is a bonus available to
+digital holders, not the control the system depends on. `20` §20.7 makes the same
+argument about not depending on a heuristic when an authoritative signal exists.
