@@ -198,6 +198,31 @@ matches the tuple `(agent_id, scope, principal, autonomy_level, budget_remaining
 | **Budget** | 10 ACU |
 | **Value** | Queue length is the single strongest driver of event NPS |
 
+### `onboarding.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Take an organiser, venue or promoter from sign-up to able-to-sell with no human review on the standard path |
+| **Inputs** | `{ registration, uploadedDocuments[], kybData, taxRegistration, bankDetails, country }` |
+| **Outputs** | `{ verificationResult, roleAssignment, accountStatus, merchantAccountRef?, welcomeWorkflow }` |
+| **Scopes** | `read:own_application`, `propose:account_status` — **never `write:account_status`** |
+| **Autonomy** | **L1.** Approval is a money-and-identity decision, so a human confirms |
+| **Triggers** | New sign-up · document uploaded · KYC/KYB provider callback |
+| **Workflow** | Validate the form → submit documents to Sumsub → screen against ComplyAdvantage → on a clean pass, assemble the approval with evidence attached → on any flag, route to the admin queue with the flag named |
+| **Escalation** | Sanctions match · document authenticity failure · PEP hit → **freeze, human review, no agent discretion** (`06` §6.4) |
+| **APIs** | Sumsub, Stripe Identity, BitriPay Merchant API, SendGrid |
+| **Budget** | 25 ACU/application |
+| **Value** | Activation time from days to minutes on the standard path |
+
+**It proposes; it does not approve.** The organiser approval gate in `16` §16.1 is the
+platform's single control on who may take money from the public. An agent that can
+open that gate unattended is an agent that can be prompt-injected into onboarding a
+fraudster.
+
+What it removes is the *labour* of review — assembling documents, running screens,
+checking the company register — not the decision. The admin sees a complete case with a
+recommendation, and clicks once.
+
 ### `support.v2`
 
 | Field | Value |
@@ -213,6 +238,86 @@ matches the tuple `(agent_id, scope, principal, autonomy_level, budget_remaining
 | **APIs** | Internal, Zendesk, SendGrid, Twilio |
 | **Budget** | 6 ACU/turn |
 | **Value** | Deflects 60–70% of L1 volume. Measured on resolution rate, **not** deflection rate — deflecting an unresolved issue is a cost, not a saving |
+
+**On "handles 90%+ autonomously, including refund initiation".** The first half is a
+target worth having; the second conflicts with a permanent constraint. Refunds and
+transfer approvals move money and change entitlement, so they stay **L1** — the agent
+drafts the refund and a human releases it.
+
+`01` §1.7 states this as a non-goal, not a phase-one limitation: *no agent moves money
+without a human approval.* An agent that can issue refunds unattended is one
+prompt-injection away from being a withdrawal mechanism, and the attack surface is an
+inbound support message from anyone on the internet.
+
+The `refund:up_to_5000_minor` scope is a **ceiling on what it may draft**, not a
+licence to execute.
+
+## 3.5b Venue & door agents
+
+### `gate_intelligence.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Predict arrival curves and staff the doors to match |
+| **Inputs** | `{ ticketsSold, historicalArrivalCurves[], weather, transportStatus, gateCapacities[], liveScanRate }` |
+| **Outputs** | `{ predictedCurve[], staffingByGate[], congestionAlerts[], recommendedOpenTime }` |
+| **Scopes** | `read:tickets`, `read:scan_logs`, `write:gate_config` |
+| **Autonomy** | **L1 before doors open · L2 once live** — a reallocation mid-queue must be fast |
+| **Triggers** | T-7 days · T-24h · T-2h · live scan rate deviating > 30% from prediction |
+| **Workflow** | Fit the curve from comparable events → adjust for weather and transport → allocate staff per gate → alert on predicted congestion → re-forecast live from actual scan rate |
+| **Escalation** | Predicted queue > 20 minutes at any gate → notify the venue manager and the organiser immediately |
+| **APIs** | Transport APIs, weather, internal `scan_logs` |
+| **Budget** | 15 ACU/event |
+| **Value** | Queue length is the single most-complained-about part of live events, and it is a forecasting problem, not a staffing-generosity problem |
+
+**It runs on `scan_logs` (`08` §8.12), which is why that table records refusals.** A
+live scan rate that counts only successful admissions under-reports actual arrival
+pressure, and under-reports it worst exactly when duplicates are spiking.
+
+### `capacity.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Maximise usable capacity without breaching licence or accessibility duty |
+| **Inputs** | `{ seatMap, sold[], holds[], zoneUtilisation[], licensedCapacity, accessibleSeatRequirement }` |
+| **Outputs** | `{ allocationChanges[], zoneRebalance[], complianceWarnings[] }` |
+| **Scopes** | `read:seat_maps`, `read:tickets`, `propose:allocation` — **never `write:allocation` directly** |
+| **Autonomy** | **L0 for anything touching accessible seating · L1 otherwise** |
+| **Triggers** | Seat map published · 80% sold in any zone · licensed capacity changed |
+| **Workflow** | Compute utilisation per zone → find releasable holds → check accessible provision against the requirement → propose reallocation with the compliance position stated |
+| **Escalation** | Any proposal that would reduce accessible seating → **refuse and log**, never propose |
+| **APIs** | Internal only |
+| **Budget** | 10 ACU/event |
+| **Value** | Unsold held inventory is the most recoverable revenue on the platform |
+
+**Accessible seating is hard-coded as L0 and un-proposable.** An optimiser that can
+trade away accessible provision for yield will eventually do it, and the cost is a
+person who cannot attend plus a legal exposure the yield never covered.
+
+### `payments.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Keep money moving: route it, recover it when it fails, schedule it out, reconcile it |
+| **Inputs** | `{ order, market, method, providerHealth[], failureCode?, payoutSchedule, settlementFeeds[] }` |
+| **Outputs** | `{ route, retryPlan?, payoutBatch?, reconciliationExceptions[] }` |
+| **Scopes** | `read:payments`, `write:payment_routing`, `propose:payout_batch` — **never `execute:payout`** |
+| **Autonomy** | **L2 for routing and retries · L1 for payout batches** |
+| **Triggers** | Checkout initiated · payment failed · payout window · settlement file received |
+| **Workflow** | Select the rail from the deterministic table in `06` §6.2 → on failure classify the code and retry only where retry can succeed → assemble payout batches → three-way reconcile gateway against ledger against bank, and raise exceptions |
+| **Escalation** | Reconciliation exception over £100 · any settlement mismatch · a rail down beyond its breaker window |
+| **APIs** | Stripe, Adyen, BitriPay, KODA (`06` §6.20), banking rails |
+| **Budget** | 12 ACU/invocation |
+| **Value** | Failed-payment recovery is the highest-conversion intervention on the platform: the buyer already decided |
+
+**Routing is deterministic, not model-driven.** The agent executes the rule table in
+`06` §6.2 and monitors it; it does not improvise which rail takes a payment. A model
+choosing payment routes is a model that can be nudged into choosing the expensive one,
+or the one that is currently down.
+
+**Retry only where retry can work.** `insufficient_funds` is worth retrying on a
+schedule; `stolen_card` and `do_not_honour` are not, and retrying them manufactures
+chargebacks. The failure-code classification is a lookup table, reviewed quarterly.
 
 ## 3.6 Security & compliance agents
 
@@ -436,6 +541,47 @@ layer with nothing watching *it* is just an unsupervised layer.
 | **Value** | "Three comparable events that weekend within 5 miles" changes an on-sale date |
 | **Guardrail** | **Every claim carries a source URL and retrieval timestamp, or it is discarded.** No uncited assertions reach a user |
 
+### `concierge.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | The fan's own agent — discovery, upgrades, and what to do on the day |
+| **Inputs** | `{ ownedTickets[], attendanceHistory, statedPreferences, loyaltyTier, location, upcomingCatalogue }` |
+| **Outputs** | `{ recommendations[], upgradeOffers[], dayOfGuidance[] }` |
+| **Scopes** | `read:own_tickets`, `read:published_events` — **the fan's own scope, never wider** |
+| **Autonomy** | **L0.** It suggests; the fan decides. It never buys |
+| **Triggers** | Fan opens their Command Centre · T-48h before an owned event · new event matching stated preferences |
+| **Workflow** | Read owned tickets and history → match against published inventory → rank by fit not by margin → surface upgrades the fan's tier actually unlocks |
+| **Escalation** | None — it holds no authority to escalate |
+| **APIs** | Internal, plus maps and transport for day-of guidance |
+| **Budget** | Metered to the fan's ACU balance (`15` §15.6 F5) |
+| **Value** | Repeat attendance is the cheapest revenue on the platform |
+
+**Ranked by fit, not by margin.** A concierge that steers fans toward whatever pays the
+platform most is a recommendation engine wearing a friendlier name, and fans work it
+out fast. This is the `agent(X) ⊂ X` rule at its sharpest: the fan's agent holds the
+fan's scope and serves the fan's interest.
+
+### `dispute.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Turn chargebacks into evidence packs before the deadline passes |
+| **Inputs** | `{ chargeback, order, payment, scanLogs[], deliveryEvidence, communicationHistory, organiserPolicy }` |
+| **Outputs** | `{ riskScore, recommendation: 'contest'\|'accept', evidencePack, deadline }` |
+| **Scopes** | `read:orders`, `read:payments`, `read:scan_logs`, `draft:evidence` — **never `submit`** |
+| **Autonomy** | **L1 permanently.** A human submits every response |
+| **Triggers** | Chargeback webhook · dispute opened · 48h before a representment deadline |
+| **Workflow** | Assemble the order, the payment, the delivery proof and the scan record → assess contestability against the reason code → draft the evidence pack → recommend contest or accept with the expected value of each |
+| **Escalation** | Chargeback rate for any organiser above threshold → `fraud.v3` and the platform admin |
+| **APIs** | Stripe, Adyen, BitriPay dispute APIs |
+| **Budget** | 20 ACU/dispute |
+| **Value** | Most chargebacks are lost by default, unanswered, because assembling evidence is tedious and the window is short |
+
+**A scanned ticket is the strongest evidence a ticketing platform can produce**: it
+shows the buyer received the goods and used them. That evidence only exists because
+`scan_logs` retains the record — another return on `08` §8.12.
+
 ## 3.9 Multi-agent orchestration
 
 Three patterns. Everything else is a composition of these.
@@ -467,7 +613,45 @@ When agents disagree, resolve deterministically — never by asking a model to a
 - Total budget per chain: 200 ACU.
 - Any breach → halt, escalate, and log the full chain for the Governance Agent.
 
-## 3.10 Prompt & model governance
+## 3.10 Benchmark claims and their provenance
+
+Agent specifications attract quantified value claims — "15–30% revenue uplift", "70–80%
+lower support cost", "40% faster entry", "10–15% of industry revenue lost to fraud".
+They are useful for prioritisation and dangerous in a deck.
+
+**The rule, applied to every number in this document set:**
+
+| Claim type | Requirement |
+| --- | --- |
+| Industry benchmark | A source URL, the publication date, and the population it was measured over |
+| Competitor figure | A source URL per claim, and a note where FX conversion is approximate |
+| Our own projection | Labelled as a projection, with the assumption that drives it |
+| Measured result | The metric definition and the window |
+
+An unfootnoted benchmark is the fastest way to lose a room that would otherwise have
+agreed with you — and the first person to check one number and find it unsourced stops
+believing the other nineteen.
+
+### Claims currently carried without a source
+
+| Claim | Where | Status |
+| --- | --- | --- |
+| Dynamic pricing lifts revenue 15–30% | `pricing.v1` | **`OPEN` — needs a citation or removal** |
+| Fraud costs the industry 10–15% of revenue | `fraud.v3` | **`OPEN`** |
+| Automated campaigns drive 20–40% more sales | `growth.v4` | **`OPEN`** |
+| Support automation cuts cost 70–80% | `support.v2` | **`OPEN`** |
+| Gate intelligence cuts entry time 40% | `gate_intelligence.v1` | **`OPEN`** |
+
+Each is plausible and none is currently sourced. They stay in the document as targets
+because they are the right things to measure, and they are marked `OPEN` so nobody
+quotes them externally as findings.
+
+**Our own numbers do not have this problem** and should be preferred wherever they
+exist: sell-through against the modelled curve, resolution rate, duplicate-scan rate,
+ACU spend per organiser. Those are measured on our data and can be defended line by
+line.
+
+## 3.11 Prompt & model governance
 
 | Control | Implementation |
 | --- | --- |
@@ -479,7 +663,7 @@ When agents disagree, resolve deterministically — never by asking a model to a
 | **PII minimisation** | Prompts receive ids and aggregates. Names and emails are injected only where the task provably needs them, and never for training |
 | **Cost attribution** | Every call tagged `agent_id`, `principal_id`, `trigger_id`. Anomalies alert the Governance Agent |
 
-## 3.11 Agent registry
+## 3.12 Agent registry
 
 | Agent | Plane | Autonomy ceiling | Budget/call | SLO p95 |
 | --- | --- | --- | --- | --- |
@@ -490,12 +674,39 @@ When agents disagree, resolve deterministically — never by asking a model to a
 | `pricing.v1` | Revenue | L1 | 12 | 4s |
 | `retention.v1` | Revenue | L2 | 10 | 4s |
 | `operations.v1` | Ops | L2 | 10 | 3s |
+| `onboarding.v1` | Ops | L1 | 25 | 30s |
 | `support.v2` | Ops | L2 | 6 | 2s |
+| `gate_intelligence.v1` | Venue | L2 (live) | 15/event | 2s |
+| `capacity.v1` | Venue | L1 (L0 accessible) | 10/event | 5s |
+| `payments.v1` | Money | L2 route · L1 payout | 12 | 3s |
 | `fraud.v3` | Security | L1 (block) | 3 | 120ms |
 | `security.v1` | Security | L2 | 5 | 1s |
 | `compliance.v1` | Security | L1 | 12 | 5s |
 | `reliability.v1` | Platform | L2 | 25 | 2s |
 | `auto_repair.v1` | Platform | L1 | 60 | 120s |
 | `governance.v1` | Platform | L2 (demote) | 40/wk | 30s |
+| `dispute.v1` | Money | L1 | 20 | 10s |
+| `concierge.v1` | Fan | L0 | metered | 3s |
+| `bug_detection.v1` | Platform | L2 | 25/day | 60s |
+| `infra_optimisation.v1` | Platform | L2 non-prod · L1 prod | 20/wk | 60s |
+| `release_management.v1` | Platform | **L3 rollback** · L1 promote | 15/deploy | 30s |
 | `analyst.v2` | Data | L3 | 8 | 4s |
 | `research.v1` | Data | L3 | 35 | 20s |
+
+**25 agents.** Where an outline names an agent this table does not, it is because the
+function already has an owner rather than because it was missed:
+
+| Named elsewhere | Owned by | Why not separate |
+| --- | --- | --- |
+| Risk Agent | `fraud.v3` | Same signals, same model, same decision point |
+| Admin Control Agent | `governance.v1` | RBAC enforcement and admin audit are one policy surface |
+| Predictive Growth Agent | `analyst.v2` + `cro.v1` | Forecasting and budget allocation already split this way |
+| API Integration Agent | `reliability.v1` | Consumes the connector health contract in `06` §6.23 |
+| Churn Prevention Agent | `retention.v1` | Same agent, different name |
+| Data Intelligence Agent | `analyst.v2` | Same agent, different name |
+| System Health Agent | `reliability.v1` | Same agent, different name |
+| AI Wallet · AI Notification | *not agents* | Deterministic services — `02` §2.2 |
+
+Splitting an agent because a slide lists it twice produces two contracts, two budgets
+and two sets of drift to govern. The registry is the authority; Command Centres are
+views over it.

@@ -22,6 +22,41 @@ nine are additive.
 | 12 | **Support agent (human)** | New | Act on behalf of a user, time-boxed and consented | Impersonation session, fully logged |
 | 13 | **Regulator / auditor** | New | Read-only, immutable, exportable | Audit log, KYC/AML records, transaction trail |
 
+The platform owner is **Groupe Nseya**, operating the super admin role. Naming it
+matters: the compliance override and the agent kill switch belong to an identified
+operator, not to an abstract "platform".
+
+### Capability register
+
+Authority says what an actor *may* do; this says what they are *given*. Every
+capability names where it is specified, and the ones with no home yet are marked —
+because an actor with capabilities nobody has specified is a role that will ship half
+built.
+
+| Actor | Capabilities | Specified in |
+| --- | --- | --- |
+| **Super admin** | Full system access, revenue controls, agent governance, compliance override | `12` · `03` §3.10 |
+| **Platform admin** | User management, dispute resolution, analytics, agent monitoring | `12` §12.4–12.9 |
+| **Organiser** | Event builder, ticket types, seat maps, marketing, payout dashboard | `04` M2 · M5 · M7 |
+| **Venue manager** | Seat map builder, gate configuration, security zones, vendor management | `04` **M17** |
+| **Promoter / partner** | Commission links, affiliate tracking, promo codes, sub-promoter management | `04` **M18** |
+| **VIP hospitality host** | Package builder, concierge tools, hospitality CRM, upsell automation | `04` **M21** · `08` §8.13 |
+| **Sponsor / corporate** | Sponsor pass management, logo placement, attendee data reports | `04` **M19** |
+| **Fan / attendee** | Discovery, checkout, digital wallet, QR ticket, loyalty programme | `15` · `04` **M20** |
+| **Gate staff / security** | Mobile scanner, gate assignment, blocklist check, incident reporting | `04` M16 |
+| **Developer / API partner** | API key management, sandbox, webhook configuration, SDK access | `04` M13 · `09` §9.9–9.10 |
+| **BitriPay merchant** | QR payments, settlement, refunds, transaction monitoring, revenue split | `05` §5.5–5.9 |
+| **Regulator / compliance** | Read-only audit trail, KYC/KYB reports, AML logs, GDPR data export | `11` §11.8 · `12` §12.10 |
+| **Support agent** | Consented, time-boxed impersonation; full session logging | `02` §2.11 |
+
+**Five modules were created by this table** — M17 through M21. They existed as
+capabilities attached to actors and as nothing else, which is the most common way a
+platform ships a role that cannot actually do its job.
+
+Support agent is the thirteenth actor and appears in no outline of this ecosystem. It
+is here because impersonation is the single most dangerous capability on the platform
+and needs a specified boundary rather than an admin quietly using someone's account.
+
 ### Why super admin and platform admin are two actors, not one
 
 Doc `17` §17.8 records this as debt **D5**: today `superuser` is a single self-propagating
@@ -86,6 +121,54 @@ anatomy, populated differently per role.
    transcript exposes a one-click undo where physics allows it.
 4. **The Command Centre never blocks the classic UI.** Users who ignore it entirely
    keep the platform they already have. Adoption is earned, not forced.
+
+### Cluster composition
+
+Every Command Centre is fronted by a **Personal AI Chief of Staff** (`chief_of_staff.v1`)
+and backed by a cluster drawn from the agent registry in `03`.
+
+**A Command Centre is a view over the registry, not a private set of agents.** The same
+`pricing.v1` serves the organiser and reports to the super admin's revenue view; it is
+one agent with one contract, one budget and one autonomy level, surfaced twice. Cloning
+it per audience would produce two agents that drift apart and disagree in front of the
+two people least able to reconcile them.
+
+| Command Centre | Surfaced as | Registry agent |
+| --- | --- | --- |
+| **Super admin** | AI Platform Governor | `chief_of_staff.v1` |
+| | Revenue Intelligence | `cfo.v1` |
+| | AI Threat Command | `security.v1` + `fraud.v3` |
+| | AI Governance | `governance.v1` |
+| | Regulatory Compliance | `compliance.v1` |
+| **Organiser** | AI Event Strategist | `analyst.v2` |
+| | AI Marketing | `growth.v4` |
+| | AI Pricing | `pricing.v1` |
+| | AI Revenue | `cro.v1` |
+| | AI Support | `support.v2` |
+| | AI Gate Intelligence | **`gate_intelligence.v1`** — new |
+| **Venue manager** | AI Capacity Optimiser | **`capacity.v1`** — new |
+| | AI Security Command | `security.v1` |
+| | AI Operations | `operations.v1` |
+| **Fan / attendee** | AI Concierge | **`concierge.v1`** — new |
+| | AI Wallet | *not an agent* — see below |
+| | AI Notification | *not an agent* — see below |
+| **Platform admin** | AI Dispute Resolution | **`dispute.v1`** — new |
+| | AI User Intelligence | `fraud.v3` + `compliance.v1` |
+| | AI System Health | `reliability.v1` → `auto_repair.v1` |
+
+### Two things on that list are not agents, and saying so matters
+
+**AI Wallet** manages digital tickets, transfers and resale eligibility. **AI
+Notification** sends countdown reminders, travel alerts and review requests. Both are
+deterministic platform services with no model in the loop.
+
+Calling them agents would inflate the registry with things that have no prompt, no
+autonomy level, no ACU budget and no escalation path — and an agent registry that
+includes a cron job is a registry nobody can reason about. They appear in the fan's
+Command Centre because that is where the fan expects to find them; they are specified
+in `04` M3 and M10.
+
+The honest count is **25 agents** (`03`), surfaced across **10 Command Centres**.
 
 ## 2.3 Attendee Command Centre
 

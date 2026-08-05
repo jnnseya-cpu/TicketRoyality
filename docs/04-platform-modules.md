@@ -473,3 +473,147 @@ case where someone must not get in *now*.
 **Door sales use the same inventory model as online.** A ticket sold at the gate is the
 same object, in the same tier, decrementing the same count. Anything else produces two
 sources of truth about capacity on the night it matters most.
+
+---
+
+## M17 — Venue Operations
+
+**Status:** `NEW`. The venue manager (`02` §2.1, actor 6) currently has authority and no
+tooling.
+
+| Capability | Specification |
+| --- | --- |
+| Seat map builder | Sections, rows, seats, pricing bands; versioned (`08` §8.6) |
+| Gate configuration | Named gates, capacity per gate, open/close windows, staff assignment |
+| Security zones | Zones with access rules; a ticket grants entry to zones, not to a building |
+| Vendor management | Traders, contracts, pitch allocation, revenue share |
+| Blackout dates | Dates the venue cannot host, enforced against event creation |
+| Licensing constraints | Capacity limits, curfew, age restrictions — checked at publish |
+
+### Zones are the reason this is not just "gates plus a spreadsheet"
+
+A stadium ticket admits its holder to a turnstile, a concourse, a stand and possibly a
+lounge — and *not* to the pitch, the hospitality suite or the backstage area. Modelling
+entry as one boolean per venue makes VIP hospitality unenforceable at the door, which
+is the point at which a £400 package becomes a £40 one.
+
+A zone is checked at scan: the ticket's tier grants a zone set, the gate belongs to a
+zone, and admission is set membership.
+
+**Licensing constraints are checked at publish, not at sale.** An event published above
+its venue's licensed capacity is a legal problem for the venue and a refund problem for
+the organiser. Catching it when the tier quantities are set costs nothing; catching it
+when tickets are sold costs a cancellation.
+
+---
+
+## M18 — Promoter & Affiliate Network
+
+**Status:** `NEW`. Distribution that the organiser does not have to run themselves.
+
+| Capability | Specification |
+| --- | --- |
+| Commission links | Trackable per-promoter URL; attribution on the order (`08` §8.9) |
+| Allocation | A promoter sells against a reserved quantity, not the open pool |
+| Affiliate tracking | First-touch and last-touch, with the window stated per campaign |
+| Promotional codes | Existing `coupons`, scoped to a promoter |
+| Sub-promoters | A promoter may allocate to their own network, with their own split |
+| Settlement | Commission accrues per ticket, settles with the organiser payout |
+
+### Attribution has to be decided, not discovered
+
+Two promoters both touch a sale. Who is paid? The platform picks **last-touch within a
+7-day window** as the default and makes it configurable per campaign, because the
+alternative — leaving it implicit — means the answer is whatever the query happens to
+return, and promoters will find that out before the finance team does.
+
+Sub-promoter splits are bounded: a sub-promoter's commission comes out of their
+parent's share, never out of the organiser's. A network that can dilute the organiser's
+net without the organiser agreeing is a network the organiser will disable.
+
+---
+
+## M19 — Sponsor Activation
+
+**Status:** `NEW`.
+
+| Capability | Specification |
+| --- | --- |
+| Sponsor passes | Issued as tickets with a sponsor tier; scannable, countable |
+| Logo placement | Event page, ticket, confirmation email, wallet pass |
+| Exposure reporting | Impressions, scans, click-through on sponsored placements |
+| Attendee reports | **Aggregate only.** See below |
+| Activation contracts | E-signature via `06` §6.15 |
+
+### Attendee data reporting — the constraint that defines this module
+
+A sponsor wants to know who attended. **They do not get to.**
+
+| Sponsor receives | Sponsor never receives |
+| --- | --- |
+| Counts, segments, aggregate demographics | Names, emails, phone numbers |
+| Impression and scan totals | Individual attendance records |
+| Opt-in leads, where the fan explicitly consented | Any record a fan did not consent to share |
+
+The organiser owns the fan relationship (`01` §1.3, Fever) and the fan owns their
+personal data. A sponsorship product that quietly sells attendee lists breaks both, and
+under GDPR it breaks the law — the lawful basis for processing a ticket purchase does
+not extend to handing that person to a third party.
+
+Aggregates are **k-anonymised**: no segment is reported below 25 attendees, or a
+sponsor at a small event reconstructs individuals by intersecting reports.
+
+---
+
+## M20 — Loyalty & Fan Rewards
+
+**Status:** `NEW`.
+
+| Capability | Specification |
+| --- | --- |
+| Tiers | `users.loyalty_tier` (`08` §8.4) — standard, silver, gold, royal |
+| Earning | Attendance, spend, referral, early purchase |
+| Benefits | Presale access, fee reduction, seat upgrades, hospitality upsell offers |
+| Presale windows | Tier-gated `sale_starts_at` on a `ticket_type` |
+| Referral | Attributed via M18's tracking, credited on the referred order |
+
+**Loyalty is platform-wide, benefits are organiser-funded.** The tier travels with the
+fan across every organiser; what a tier unlocks is set per event by the organiser who
+pays for it. The alternative — platform-funded benefits — means the platform subsidises
+attendance at events it takes 5% of, which does not survive contact with a spreadsheet.
+
+Earning is capped per event so a single high-value purchase cannot vault a fan to the
+top tier, and tiers decay after 12 months of inactivity. Both exist because a loyalty
+programme with no decay is a permanent liability accruing against future revenue.
+
+---
+
+## M21 — Hospitality Operations
+
+**Status:** `NEW`. The data model exists (`08` §8.13); the operational surface does not.
+
+| Capability | Specification |
+| --- | --- |
+| Package builder | Inclusions, capacity, price, deposit terms |
+| Guest list | Named guests per package, editable up to a cut-off |
+| Concierge workflow | Requests, dietary needs, accessibility, arrival times |
+| Hospitality CRM | Account history, repeat bookings, spend, preferences |
+| Upsell automation | Offer upgrades to existing ticket holders (`10` §10.10) |
+| Deposit and balance | Deposit at booking, balance due before a stated date |
+
+### Why hospitality gets its own module rather than a flag on ticketing
+
+Three differences make it a distinct operation:
+
+1. **Named guests, not anonymous holders.** A hospitality booking carries individuals
+   with dietary requirements and accessibility needs. That is personal data of a
+   category ordinary ticketing never touches, and it needs its own retention rule.
+2. **Deposits and balances.** A £4,000 table is booked with a deposit and settled later.
+   The single-payment model in `08` §8.11 handles one payment per order; hospitality
+   needs two against the same booking.
+3. **The relationship is the product.** Repeat hospitality buyers are a small,
+   high-value cohort who expect to be recognised. A CRM is not a nice-to-have here; it
+   is the reason the margin exists.
+
+**The cut-off is a hard date.** Guest names lock before the caterer's headcount
+deadline, because a name added after that point is a person with no seat and no meal.
