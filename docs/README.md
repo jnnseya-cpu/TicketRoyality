@@ -57,7 +57,7 @@ claim quotes the rule that enforces it.
 | 19 | [Firestore → PostgreSQL](./19-firestore-to-postgres.md) | The datastore cutover: phases, gates, rollback, what it closes |
 | 20 | [KODA gateway API door](./20-koda-gateway.md) | The verification layer: API, webhooks, matching, consent, acceptance |
 | 21 | [Provider register](./21-provider-register.md) | Every external dependency: cost, status, alternative, what breaks without it |
-| 22 | [Production architecture](./22-production-architecture.md) | Frontend / backend / shared recommendation, deployment, and what blocks launch |
+| 22 | [Production architecture](./22-production-architecture.md) | The five-vendor stack, the two runtimes, deployment runbook, what blocks launch |
 
 Read 14 before 15–17: the role documents refer to the layer boundaries constantly, and
 the reason a given operation lives in `backend` rather than `frontend` is usually the
@@ -126,8 +126,8 @@ rather than the system being specified, which is why they are numbered after it.
 ### Datastore decision — superseded
 
 The blueprint specified PostgreSQL and `08` was written to that target. **The launch
-decision is now Firestore with sharded counters** (`21` §21.12), under the six-vendor
-constraint: Hostinger, Vercel, Firebase, Stripe, BitriPay and three AI providers.
+decision is now Firestore with sharded counters** (`21` §21.12), under the five-vendor
+constraint: Hostinger, Firebase, Stripe, BitriPay and three AI providers.
 
 What changed the answer: Firebase Cloud Functions supply the trusted Admin SDK runtime
 that ticket issuance and atomic ledger writes needed, closing debts D1 and D2 without a

@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    /* Event and organiser media is public to read — it is rendered on public pages —
+       and writable only by the owner, size- and type-bounded. An unbounded upload path
+       is a free file host attached to your credit card. */
+    match /events/{organiserId}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn()
+                   && request.auth.uid == organiserId
+                   && isImage()
+                   && request.resource.size < 8 * 1024 * 1024;
+    }
+
+    match /organisers/{organiserId}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn()
+                   && request.auth.uid == organiserId
+                   && isImage()
+                   && request.resource.size < 4 * 1024 * 1024;
+    }
+
+    /* KYB documents are never public and are never served from here — they go to the
+       verification provider and only the result comes back (docs/06 §6.4). */
+    match /kyb/{document=**} {
+      allow read, write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -3,11 +3,23 @@
 # never inline a secret value here.
 
 runConfig:
-  cpu: 1
-  memoryMiB: 1024
-  minInstances: 0
-  maxInstances: 10
+  cpu: 2
+  memoryMiB: 2048
+
+  # minInstances: 1 is the single most important line in this file.
+  #
+  # A scale-to-zero backend pays a cold start on the first request after every idle
+  # period — several seconds of Node boot plus Next.js server init, on the request a
+  # real buyer is waiting for. One warm instance removes that entirely for roughly the
+  # price of a coffee a month, and it is the fix for "the backend feels slow".
+  minInstances: 1
+  maxInstances: 20
   concurrency: 80
+
+  # Cloud Run allows up to 3600s. AI work needs far more than a typical serverless
+  # ceiling: a full event build (docs/04 M22) is 35-45 ACU of model calls and can run
+  # past 60 seconds. Anything that would time out on a short-limit platform runs here.
+  timeoutSeconds: 300
 
 env:
   # Public values — safe to expose to the browser.
@@ -60,6 +72,22 @@ env:
   # Server-only secrets. RUNTIME only — these must never reach the client bundle.
   - variable: GEMINI_API_KEY
     secret: GEMINI_API_KEY
+    availability:
+      - RUNTIME
+  - variable: ANTHROPIC_API_KEY
+    secret: ANTHROPIC_API_KEY
+    availability:
+      - RUNTIME
+  - variable: OPENAI_API_KEY
+    secret: OPENAI_API_KEY
+    availability:
+      - RUNTIME
+  - variable: CRON_SECRET
+    secret: CRON_SECRET
+    availability:
+      - RUNTIME
+  - variable: QR_SIGNING_KEY
+    secret: QR_SIGNING_KEY
     availability:
       - RUNTIME
   - variable: STRIPE_SECRET_KEY

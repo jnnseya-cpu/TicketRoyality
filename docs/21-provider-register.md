@@ -248,37 +248,39 @@ most common way a launch date slips by a fortnight for no engineering reason at 
 
 ---
 
-## 21.12 The constrained stack — Hostinger + Vercel + Firebase
+## 21.12 The adopted stack — Hostinger + Firebase
 
-**Adopted.** No new vendors. Six accounts, all already in play, and every one of them
-serves more than one purpose.
+**Five vendors.** Vercel is not among them: cold starts and function timeouts made the
+web tier feel slow, and the work that needs a long request — a full event build is 45
+seconds of model calls — does not fit a short serverless ceiling. Full reasoning in
+`22` §22.3.
 
-| # | Vendor | Provides | Replaces from §21.1 |
-| --- | --- | --- | --- |
-| 1 | **Hostinger** | Domain, DNS, mailboxes, SMTP | Cloudflare DNS · Resend |
-| 2 | **Vercel** | Next.js hosting, edge, KV, Cron, firewall, image optimisation | Cloudflare WAF · Upstash · R2 CDN |
-| 3 | **Firebase** | Auth, Firestore, Storage, Cloud Functions, FCM | Neon · Cloud SQL · Clerk |
-| 4 | **Stripe** | Cards, wallets, payouts, Terminal | — |
-| 5 | **BitriPay** | Mobile money, CDF | — |
-| 6 | **Anthropic · Google · OpenAI** | AI behind the gateway — reasoning, volume, embeddings | — |
+| # | Vendor | Provides |
+| --- | --- | --- |
+| 1 | **Hostinger** | Domain, DNS, mailboxes, SMTP |
+| 2 | **Firebase** | App Hosting (Next.js on Cloud Run), Auth, Firestore, Storage, Cloud Functions, Cloud Scheduler, FCM |
+| 3 | **Stripe** | Cards, wallets, payouts, Terminal |
+| 4 | **BitriPay** | Mobile money, CDF |
+| 5 | **Claude · Gemini · OpenAI** | AI behind the gateway — reasoning, volume, embeddings |
 
-**Indicative cost: £40–120/month before volume**, against £150–250 for the twelve-vendor
-set. Fewer contracts, fewer secrets, fewer status pages to watch on a bad night.
+**Indicative cost: £30–90/month before volume**, against £150–250 for the twelve-vendor
+set. One cloud project, one region, no cross-provider hop on any request path.
 
 ### What each one actually covers
 
 | Need | Served by | Notes |
 | --- | --- | --- |
-| Domain and DNS | Hostinger | `ticketroyality.com`, records in §22.10 |
+| Domain, DNS | Hostinger | Records in `22` §22.9 |
 | Transactional email | Hostinger SMTP | Caveat below |
-| Hosting, SSR, edge | Vercel | `lhr1`, London |
-| Cache, rate limits, QR set | **Vercel KV** | Redis-compatible, a Vercel product |
-| Scheduled jobs | **Vercel Cron** | Hold release, placement expiry |
-| WAF, DDoS, bot challenge | **Vercel Firewall** | Attack Challenge Mode |
+| Hosting, SSR, API | **Firebase App Hosting** | Cloud Run; `minInstances: 1`, `timeoutSeconds: 300` |
+| **Privileged writes** | **Cloud Functions v2** | **Closes D1 and D2** |
+| Scheduled jobs | **Cloud Scheduler** | Hold release, placement expiry |
+| Cache, rate limits | Firestore counters | No Redis — see `22` §22.7 |
+| QR one-time use | **Firestore transaction** | The transaction *is* the guarantee |
+| Realtime | Firestore listeners | No websocket service |
 | Auth, MFA | Firebase Auth | Already live |
-| Database | Firestore | Already live |
-| Media, CDN | Firebase Storage + Vercel image optimisation | |
-| **Privileged writes** | **Firebase Cloud Functions** | **This closes D1 and D2** |
+| Database | Firestore + sharded counters | Already live |
+| Media | Firebase Storage + `next/image` | |
 | Push | Firebase FCM | Phase 2 |
 
 ---
@@ -357,15 +359,15 @@ roughly 5,000 emails a month, whichever comes first. Resend at $20 is the smalle
 possible upgrade and can be deferred until then. **A ticket that does not arrive is
 indistinguishable from fraud to the buyer**, so this is the caveat to watch hardest.
 
-**Vercel Firewall is not Cloudflare.** Attack Challenge Mode, rate limiting and IP
-rules cover the common cases. Sophisticated bot management for scalping defence
-(`06` §6.5) is genuinely weaker. Mitigate in the application: server-side per-person
-ticket limits, velocity checks across device and payment instrument, and the layered
-controls in `11` §11.13 — most of which do not depend on the edge at all.
+**There is no edge WAF or bot management.** Google Cloud Armor is available and is the
+in-project option if it becomes necessary; until then, scalping defence lives in the
+application — server-side per-person ticket limits, velocity checks across device and
+payment instrument, and the layered controls in `11` §11.13, most of which never
+depended on the edge anyway.
 
 **Firebase Storage is not a CDN.** It serves files with egress billed per GB and no
-edge caching by default. Route images through Vercel's image optimisation, which caches
-at the edge, and the exposure stays small. Watch it: bandwidth is the line that
+edge caching by default. `next/image` caches optimised variants at the App Hosting
+layer, which keeps the exposure small. Watch it: bandwidth is the line that
 surprises people on a viral event.
 
 ---
@@ -374,10 +376,10 @@ surprises people on a viral event.
 
 | Provider | Deferred until |
 | --- | --- |
-| Cloudflare | Bot attacks that Vercel Firewall cannot hold |
+| Cloudflare / Cloud Armor | Bot attacks the application layer cannot hold |
 | Resend / SendGrid | First delivery complaint, or ~5,000 emails/month |
 | Neon / Cloud SQL | Measured Firestore contention at on-sale peak |
-| Upstash | Vercel KV limits become binding |
+| Memorystore | Firestore counter limits become binding |
 | R2 | Firebase Storage egress becomes material |
 | Sumsub, ComplyAdvantage | **Before the first organiser payout — not deferrable** |
 

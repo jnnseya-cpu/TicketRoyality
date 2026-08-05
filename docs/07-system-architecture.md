@@ -52,24 +52,24 @@ shown — the same discipline `08` §8.1 applies to the datastore.
 
 | Layer | Target | Shipped today | Responsibility |
 | --- | --- | --- | --- |
-| Edge | Cloudflare | — | WAF, DDoS, bot management, CDN, rate limiting |
-| Web | Next.js App Router on Vercel | Next.js 15, Firebase App Hosting | SSR, RSC, route handlers |
+| Edge | Google Cloud CDN | — | Cloud Armor if bot pressure requires it (`21` §21.12) |
+| Web | Next.js on **Firebase App Hosting** | Same | SSR, RSC, route handlers — `22` §22.3 |
 | Client state | Zustand + TanStack Query | React state | Client store, server cache |
 | Mobile | React Native (Expo) — organiser, gate, fan | — | `04` M16 |
 | i18n | `next-intl` — English (UK), French (DRC), Lingala planned | — | Market coverage |
-| API | NestJS services behind Kong | Route handlers in `app/api` | Public REST, webhooks, partners |
+| API | Route handlers in `app/api` | Same | Public REST, webhooks, partners |
 | Agents | Agent Orchestrator service | Genkit flows | Agent runtime, orchestration, memory |
 | **AI** | **AI Gateway** (§7.5a) | Direct Genkit → Gemini | One door to every model provider |
-| Jobs | BullMQ on Redis | Cloud Functions v2 | Scheduled agent runs, campaigns, payouts |
-| Realtime | Socket.io on Cloud Run | Firestore listeners | Scan broadcast, live dashboards |
+| Jobs | **Cloud Scheduler → Functions** | Cloud Functions v2 | Scheduled agent runs, campaigns, payouts |
+| Realtime | **Firestore listeners** | Same | Scan broadcast, live dashboards — no second channel |
 | Bus | Pub/Sub | — | The platform event taxonomy from M9 |
-| Containers | Docker on GKE | — | Agent plane only (`06` §6.19) |
-| OLTP | **PostgreSQL** (Cloud SQL) | Firestore | Authoritative state — `08`, `19` |
-| Cache | Redis (Memorystore) | — | QR hash set, sessions, rate limits |
+| Containers | Cloud Run (App Hosting) | — | One runtime; agent plane splits at Phase 3 |
+| OLTP | **Firestore + sharded counters** | Firestore | Authoritative state. `19` unscheduled |
+| Cache | **Firestore counters** | — | Rate limits. QR one-time use is a transaction (`22` §22.7) |
 | OLAP | BigQuery | — | Analytics, forecasting, ML features |
 | Search | PostgreSQL FTS, Elasticsearch above ~1M events | Client-side filter | `08` §8.7 |
 | Vector | pgvector, Pinecone at scale | — | `06` §6.13 |
-| Media | Cloudflare R2 + CDN | Firebase Storage | Images, PDFs, recordings |
+| Media | **Firebase Storage** + `next/image` | Same | Images, PDFs, recordings |
 
 ### Two deliberate departures from the source specification
 
