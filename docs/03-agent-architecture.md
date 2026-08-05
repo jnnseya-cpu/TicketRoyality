@@ -301,6 +301,31 @@ licence to execute.
 live scan rate that counts only successful admissions under-reports actual arrival
 pressure, and under-reports it worst exactly when duplicates are spiking.
 
+### `seatmap_architect.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Build a complete, priced, colour-coded seat map from a description, a plan or a photograph |
+| **Inputs** | `{ source: 'text'\|'floorplan'\|'photo'\|'clone'\|'venue_library', payload, licensedCapacity, accessibleRequirement, priceBands[], venueId? }` |
+| **Outputs** | `{ sections[], rows[], seats[], priceBands[], accessibleAllocation, suggestedHolds[], reconciliation: { seatCount, overCapacity, accessibleShortfall, unverifiedObstruction, unassigned } }` |
+| **Scopes** | `read:venues`, `write:draft_seat_maps` — **never `publish:seat_maps`**, never `write:seat_maps` where tickets exist |
+| **Autonomy** | **L1.** A venue manager confirms before anything sells against it |
+| **Triggers** | Venue manager requests generation · clone for a recurring event · new venue onboarded |
+| **Workflow** | Extract structure from the source → lay out sections and rows → number seats per scheme → assign price bands and accessible colours → allocate accessible and companion seats → reconcile against licensed capacity → emit warnings |
+| **Escalation** | Over licensed capacity → **refuse to emit**, report the overage · accessible shortfall → refuse · low extraction confidence → emit with counts flagged rather than guessed |
+| **APIs** | AI Gateway (`07` §7.5a) — vision for plans and photos |
+| **Budget** | 40 ACU hard ceiling per generation |
+| **Value** | Seat map creation from a day of drafting to a reviewed draft in minutes; the largest single barrier to onboarding a seated venue |
+
+**It cannot touch a map with tickets sold against it.** The scope is
+`write:draft_seat_maps`, and `04` M23 freezes geometry at first sale. Renumbering a
+seat somebody holds is not an edit, it is invalidating their ticket.
+
+**It refuses rather than trims.** Over licensed capacity and accessible shortfall both
+produce a refusal with the number attached, not a quietly adjusted map. An agent that
+silently removes four seats to fit a licence has made a safety decision it has no
+authority to make, and nobody will know it happened.
+
 ### `capacity.v1`
 
 | Field | Value |
@@ -706,6 +731,7 @@ line.
 | `support.v2` | Ops | L2 | 6 | 2s |
 | `gate_intelligence.v1` | Venue | L2 (live) | 15/event | 2s |
 | `capacity.v1` | Venue | L1 (L0 accessible) | 10/event | 5s |
+| `seatmap_architect.v1` | Venue | L1 (no publish scope) | 40/generation | 60s |
 | `payments.v1` | Money | L2 route · L1 payout | 12 | 3s |
 | `fraud.v3` | Security | L1 (block) | 3 | 120ms |
 | `security.v1` | Security | L2 | 5 | 1s |
@@ -721,7 +747,7 @@ line.
 | `analyst.v2` | Data | L3 | 8 | 4s |
 | `research.v1` | Data | L3 | 35 | 20s |
 
-**26 agents.** Where an outline names an agent this table does not, it is because the
+**27 agents.** Where an outline names an agent this table does not, it is because the
 function already has an owner rather than because it was missed:
 
 | Named elsewhere | Owned by | Why not separate |

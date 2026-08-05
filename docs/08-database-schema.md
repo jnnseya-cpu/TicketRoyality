@@ -84,13 +84,15 @@ system. That divergence is deliberate, dated and tracked — not drift.
    waitlist_entries ──▶ ticket_types · seat_holds ──▶ events
    revenue_splits ──▶ events                      (organiser · venue · promoter · platform)
    invoices ──▶ orders · payouts
+   hospitality_bookings ──▶ hospitality_guests · orders
+   disputes ──▶ payments                          (deadline-indexed)
    follows ──▶ organisations · venues             (consent for notification)
    campaign_attribution ──▶ orders · tickets      (every touch, not just the winner)
    offline_payments ──▶ orders                    (KODA-verified, 06 §6.20)
    agent_runs · agent_memory · audit_log          (cross-cutting, append-only)
 ```
 
-Thirty-one tables. The count is higher than the blueprint's fourteen because things
+Thirty-four tables. The count is higher than the blueprint's fourteen because things
 with their own lifecycle get their own table rather than being folded into a parent —
 `orders` and `order_items`, `refunds`, `organisation_members`, `seat_holds`,
 `ticket_addons`, `waitlist_entries`, `revenue_splits` and `invoices`.
@@ -298,6 +300,7 @@ CREATE TABLE events (
 
   currency        char(3) NOT NULL,
   capacity        integer CHECK (capacity > 0),
+  is_seated       boolean NOT NULL DEFAULT false,
 
   speakers        jsonb NOT NULL DEFAULT '[]'::jsonb,
   recurrence      jsonb,
@@ -957,6 +960,91 @@ issue is not a tax document.
 **`tax_jurisdiction` is stored per invoice, not derived per query.** VAT treatment
 follows the rules in force where and when the sale happened. Recomputing an old
 invoice under today's rates produces a number that was never charged.
+
+---
+
+## 8.13c `hospitality_bookings` and `disputes`
+
+```sql
+CREATE TABLE hospitality_bookings (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  package_id     uuid NOT NULL REFERENCES hospitality_packages(id) ON DELETE RESTRICT,
+  order_id       uuid REFERENCES orders(id) ON DELETE RESTRICT,
+  host_id        uuid REFERENCES users(id) ON DELETE SET NULL,
+  lead_booker_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  company_name   text,
+  covers         integer NOT NULL CHECK (covers > 0),
+  deposit_paid   numeric(14,2) NOT NULL DEFAULT 0 CHECK (deposit_paid >= 0),
+  balance_due    numeric(14,2) NOT NULL CHECK (balance_due >= 0),
+  balance_due_by timestamptz,
+  guest_names_locked_at timestamptz,
+  status         text NOT NULL DEFAULT 'provisional'
+                   CHECK (status IN ('provisional','confirmed','cancelled','completed')),
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  updated_at     timestamptz NOT NULL DEFAULT now(),
+  CHECK (status <> 'confirmed' OR deposit_paid > 0)
+);
+
+CREATE TABLE hospitality_guests (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id   uuid NOT NULL REFERENCES hospitality_bookings(id) ON DELETE CASCADE,
+  full_name    text NOT NULL,
+  ticket_id    uuid REFERENCES tickets(id) ON DELETE SET NULL,
+  dietary      text,
+  accessibility text,
+  arrival_time timestamptz,
+  notes        text,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE disputes (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_id     uuid NOT NULL REFERENCES payments(id) ON DELETE RESTRICT,
+  provider_ref   text NOT NULL,
+  reason_code    text NOT NULL,
+  amount         numeric(14,2) NOT NULL CHECK (amount > 0),
+  currency       char(3) NOT NULL,
+  status         text NOT NULL DEFAULT 'open'
+                   CHECK (status IN ('open','evidence_submitted','won','lost','accepted')),
+  respond_by     timestamptz NOT NULL,
+  evidence_pack  jsonb,
+  recommendation text,
+  decided_by     uuid REFERENCES users(id) ON DELETE SET NULL,
+  submitted_at   timestamptz,
+  resolved_at    timestamptz,
+  created_at     timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX disputes_deadline_idx ON disputes (respond_by) WHERE status = 'open';
+CREATE UNIQUE INDEX disputes_provider_ref_idx ON disputes (provider_ref);
+```
+
+**`hospitality_guests` holds a data class ordinary ticketing never touches.** Dietary
+requirements and accessibility needs are special-category personal data under GDPR
+Article 9. They get a shorter retention window than the booking — **purged 90 days
+after the event** — and they are never included in any sponsor or aggregate report
+(`04` M19).
+
+`guest_names_locked_at` is the caterer's headcount deadline from `04` M21. After it,
+names are read-only: a name added later is a person with no seat and no meal.
+
+**`disputes_deadline_idx` exists because the deadline is the whole game.** Most
+chargebacks are lost by default, unanswered — a partial index on open disputes makes
+"what expires in the next 48 hours" a single fast query for `dispute.v1` (`03` §3.6).
+
+`disputes_provider_ref_idx` is unique because providers redeliver dispute webhooks and
+two rows for one chargeback means two evidence packs and a contradiction in front of
+the acquirer.
+
+### Two deliberate omissions from the source schema
+
+**No `seat_allocations` table.** A seat's occupancy is `tickets.seat_label` plus the
+partial unique index in `08` §8.10. A separate allocation table would be a second
+source of truth about who is in seat F12, and the two would eventually disagree —
+at the door, on the night.
+
+**No `ai_agent_logs` table.** That is `agent_runs` (`08` §8.15) under a different name.
+One table, one schema, one retention policy.
 
 ---
 

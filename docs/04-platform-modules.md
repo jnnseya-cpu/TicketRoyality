@@ -963,3 +963,131 @@ tax.
 Regenerating one tier's price costs the pricing stage, not the whole build. Field-level
 regeneration is what makes the feature usable — an organiser who likes everything
 except the title should not pay 40 ACU to change six words.
+
+---
+
+## M23 — Venue Map Studio
+
+**Status:** `NEW`. Extends M17. Two ways to build the same object: draw it, or describe
+it and have it drawn.
+
+### Manual editor
+
+| Capability | Detail |
+| --- | --- |
+| Primitives | Section → block → row → seat, nested |
+| Shapes | Rectangle, arc, curve, polygon, freeform; rotation and skew |
+| Layout tools | Snap-to-grid, mirror, radial array, bulk duplicate |
+| Numbering | Per-row schemes — numeric, alpha, odd/even, left-to-right or centre-out |
+| Colour | Per section, or driven by price band |
+| Seat attributes | Accessible, companion, obstructed view, restricted legroom, removable |
+| Zones | Assign sections to security zones and gates (M17, `08` §8.12a) |
+| Non-seating | Stage, bar, entrance, toilets, camera position, exclusion zones |
+| Overlay | Live status: available · sold · held · blocked |
+| Export | PDF for venue operations, SVG for print, CSV manifest |
+| Reuse | Duplicate across recurring events and across dates |
+
+### AI generation
+
+`seatmap_architect.v1` builds the same structure from whatever exists:
+
+| Input | Extraction |
+| --- | --- |
+| Text description | *"1,200-seat theatre: stalls, dress circle, balcony"* → three sections with typical proportions |
+| Floor plan (PDF or image) | Vision extraction of section boundaries, rows and counts |
+| Photograph of the auditorium | Section shapes and approximate rows; counts flagged low-confidence |
+| A previous map | Clone and adapt to a new capacity or configuration |
+| Venue name | Match against the venue library, if the venue is known |
+| Capacity + category only | Generate a category-typical layout, explicitly labelled as a starting point |
+
+Output is a full draft: geometry, rows, seat labels, price bands with colours,
+accessible allocation, suggested holds, and a **reconciliation report**.
+
+### The reconciliation report is the point
+
+A generated map is worthless unless its numbers agree with reality:
+
+```
+Generated:        1,204 seats across 3 sections
+Licensed capacity:  1,200          ⚠ OVER BY 4
+Accessible seats:      12 (1.0%)   ⚠ BELOW the 1.5% guideline for this size
+Companion seats:       12          ✓ paired
+Obstructed flagged:     0          ⚠ UNVERIFIED — cannot be inferred from a plan
+Price bands:            4          ✓ every seat assigned
+Unassigned seats:       0          ✓
+```
+
+**Every warning blocks publication until resolved or explicitly overridden**, and an
+override is recorded against the user who made it.
+
+### Three things the agent must not do
+
+**It must not exceed licensed capacity.** A map that sells 1,204 seats in a
+1,200-capacity room is a licensing breach, a fire-safety problem, and four people with
+valid tickets and nowhere to sit. Capacity is a hard ceiling checked at generation and
+again at publish.
+
+**It must not reduce accessible provision.** Same rule as `capacity.v1` (`03` §3.5b) —
+hard-coded, un-proposable. Generated maps must meet the accessible allocation for the
+venue size, with companion seats paired adjacent, and cannot silently drop below it to
+recover sellable inventory.
+
+**It must not claim to know sightlines.** Obstructed view cannot be inferred from a
+floor plan — it depends on pillars, rigging, the set and the production. Every
+generated map reports obstruction as `UNVERIFIED` and requires a venue manager to mark
+it. An unmarked obstructed seat sold at full price is a refund and a complaint, and the
+platform having "generated" the map is not a defence.
+
+### Colour coding, done accessibly
+
+Colour communicates price band at a glance and **must never be the only thing that
+does**:
+
+| Requirement | Rule |
+| --- | --- |
+| Contrast | Every band against the background meets WCAG AA (4.5:1) |
+| Adjacent bands | Distinguishable in both protanopia and deuteranopia simulation |
+| Never colour alone | Each band also carries a label and a distinct fill pattern |
+| Sold and held states | Pattern plus opacity, not a hue shift |
+| Print | Legible in monochrome — a printed map is often photocopied |
+
+Roughly 1 in 12 men has a colour-vision deficiency. A seat map that only encodes price
+in hue is unusable for them at exactly the moment they are spending money.
+
+### Freezing: a map with tickets sold against it cannot be renumbered
+
+```
+draft ──▶ published ──▶ first ticket sold
+                              │
+                         GEOMETRY FROZEN
+                              │
+        ┌─────────────────────┴──────────────────────┐
+   allowed:                                     forbidden:
+   · price band changes on unsold seats         · renumbering seats
+   · adding holds on unsold seats               · moving or deleting sold seats
+   · marking obstruction                        · changing section names
+   · adding a new section                       · reshaping occupied sections
+```
+
+`seat_maps.version` (`08` §8.6) increments on any structural change, and **tickets
+reference the version they were sold under**. A ticket that says "Row F, Seat 12" must
+still mean the same physical seat on the night, whatever the map has become since.
+
+A venue that genuinely must re-plan after selling — a stage moves, a section closes —
+issues a new version and **re-seats affected holders explicitly**, with notification.
+That is a deliberate, visible operation, not a side effect of an edit.
+
+### ACU cost
+
+| Stage | Typical |
+| --- | --- |
+| Text description → layout | 10 ACU |
+| Floor plan extraction (vision) | 20 ACU |
+| Photograph extraction | 25 ACU |
+| Clone and adapt | 4 ACU |
+| Price band assignment | 6 ACU |
+| **Typical full generation** | **~25–40 ACU** |
+
+Quoted before it runs. Manual editing is **free** and always available — an organiser
+who prefers to draw it themselves is never metered, and every generated map is fully
+editable afterwards. The agent produces a starting point, not a locked artefact.
