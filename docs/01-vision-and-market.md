@@ -329,6 +329,37 @@ explicit about that. Owning the *critical path* means owning inventory, entitlem
 entry and the ledger. Everything else is a supplier, and suppliers are replaceable
 precisely because we designed them to be.
 
+### The dimension table
+
+| Dimension | Incumbents | TicketRoyality | Verified by |
+| --- | --- | --- | --- |
+| AI integration | None, or bolted on | Native multi-agent OS with ACU billing | `03` — 28 agents, contracts and autonomy ladder |
+| African markets | Absent | BitriPay-native, CDF, mobile money first, French and Lingala | `05` · `06` §6.20 · `07` §7.2 |
+| VIP + self-service | Two separate products | One platform, one inventory model | `08` §8.13 · `04` M21 |
+| Fraud control | Basic code checking | HMAC per-event salt, device intelligence, screenshot heuristic, one-time invalidation | `11` §11.12 · `08` §8.10 |
+| Revenue intelligence | Reports | Pricing and revenue agents acting, not charting | `03` §3.4 |
+| Scalability | Monolithic or capped | Autoscaled agent plane, edge rendering, read replicas | `07` §7.12 |
+| **Data ownership** | Platform retains | **The organiser owns their fan data** | `04` M9 · M19 |
+
+**Row 7 is the one incumbents cannot copy.** Every other row is an engineering
+programme somebody with capital could fund. Handing the fan relationship back is a
+business-model change: Fever's economics depend on owning the audience, and
+Ticketmaster's leverage over promoters depends on owning the buyer. They can match our
+technology far more easily than they can give that up.
+
+### One claim needs a load test before it is quoted
+
+"Scales to 1M tickets/hour" is 278 tickets per second sustained. That is achievable on
+the specified architecture and it is **not currently measured.**
+
+It belongs in the same category as the benchmarks in `03` §3.10: plausible, useful as a
+target, and not yet a finding. `13` §13.4 requires a load test at 3× projected peak
+before commercial launch — until that runs, the figure is a design goal and should be
+stated as one.
+
+Quoting an untested throughput number to a stadium is the kind of claim that gets
+checked during procurement, by people who will ask for the test report.
+
 ## 1.6 What success looks like
 
 | Horizon | Commercial | Technical |
