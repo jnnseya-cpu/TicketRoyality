@@ -251,7 +251,7 @@ Three preconditions are now met that were not eighteen months ago:
 2. **Unit cost is below the value of the decision.** A Gemini Flash call costs
    fractions of a cent. A decision that reallocates £180 of ad spend is worth orders
    of magnitude more. The `ACU` system in this repo already meters this at
-   provider cost × 3.
+   provider cost × 4.
 3. **The permission model exists.** `firestore.rules` in this repository already
    enforces that a principal cannot escalate its own role, cannot reset a redeemed
    ticket, and cannot mint credit. Agents inherit that model — which is precisely why

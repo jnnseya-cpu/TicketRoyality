@@ -203,7 +203,7 @@ primary model changes.
 The two-provider minimum (`01` §1.5.1) holds either way — whichever is primary, the
 other is a live secondary, and both fail open to the deterministic path.
 
-**Cost control:** every call is metered in ACU at provider cost × 3
+**Cost control:** every call is metered in ACU at provider cost × 4
 (`src/shared/constants/billing.ts`). Per-agent, per-principal and per-chain budgets are
 hard ceilings, not warnings.
 

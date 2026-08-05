@@ -124,6 +124,45 @@ buyer pool to organisers who could never justify £249.
 
 ---
 
+### `OPEN` — two incompatible pricing models
+
+A second specification proposes different tiers and a materially lower take rate. Both
+are recorded because the difference is large enough to change the business, and the
+choice belongs to whoever owns pricing.
+
+| | This document | The alternative |
+| --- | --- | --- |
+| Free tier | £0, 100 ACU | £0, 100 ACU, **3 events** |
+| Paid entry | £29 Starter | **£49 Professional** |
+| Mid | £99 Professional | **£149 Business** |
+| Upper | £299 Business | Enterprise, custom |
+| Commission range | 5% → 2.5% | **2% → 0.5%** |
+| ACU allocation | 500 → 10,000 | **5,000 → 20,000** |
+
+**The alternative only works if payment processing is passed through separately**, and
+this is arithmetic rather than opinion:
+
+```
+£50 ticket, 1% platform fee                        £0.50
+  Stripe processing 1.4% + 20p                    −£0.90
+─────────────────────────────────────────────────────────
+Net                                               −£0.40   per ticket
+```
+
+At a 1% fee the platform loses forty pence on every £50 ticket sold if processing comes
+out of it. The alternative model does list "payment processing fee" as its own line,
+which implies pass-through — but that has to be **stated explicitly and shown at
+checkout**, because it changes what the organiser actually pays from 1% to roughly 2.4%
+all-in.
+
+A published take rate that quietly excludes processing is the fee-stacking practice
+`01` §1.3 criticises Ticketmaster for. Whichever model is chosen, **the all-in number
+must be the one advertised.**
+
+Blocking before the pricing page ships. Owner: whoever owns commercial.
+
+---
+
 ## 10.5 Line 4 — BitriPay gateway spread (`NEW`)
 
 Full specification in [05](./05-bitripay-gateway.md).
@@ -157,11 +196,52 @@ Already implemented: `ACU_USD_RATE`, `MARKUP_MULTIPLIER`, `TOPUP_PACKAGES_USD`,
 | Included allowance | Per subscription plan (see §10.3) |
 | Behaviour at zero | Hard stop. Balance can never go negative |
 
-**Why 3×, specifically:** it covers the provider cost, the orchestration and retry
+**Why 4×, specifically:** it covers the provider cost, the orchestration and retry
 overhead (typically 1.4× raw provider cost once retries and multi-step chains are
-counted), the memory and vector infrastructure, and leaves a real margin. It is also
+counted), the memory and vector infrastructure, and leaves a real margin. It is still
 low enough that the value of a single decision vastly exceeds its price, which is what
 keeps usage growing.
+
+### ACU is a currency unit, not a token count
+
+A specification circulating alongside this one defines 1 ACU as 1,000 LLM tokens.
+**Those two definitions cannot both hold**, and the conflict is arithmetic rather than
+editorial:
+
+| | Fixed tokens per ACU | Fixed multiple of cost |
+| --- | --- | --- |
+| Margin on a cheap model | Very high | Constant |
+| Margin on a frontier model | **Negative** | Constant |
+| Input vs output tokens | Priced identically, though they are not | Priced correctly |
+| Model price change | Silently changes margin | No effect |
+
+Frontier and small models differ in price per token by more than an order of magnitude,
+and output tokens cost several times input tokens. A fixed 1,000-tokens-per-ACU rate
+therefore loses money on exactly the calls that matter most — the long-context reasoning
+the agent layer depends on.
+
+**Resolution: ACU stays a currency unit at 1 ACU = $0.01, priced at 4× provider cost.**
+Token counts are reported separately in the usage dashboard, per agent and per call,
+which is what the token-based definition was actually trying to deliver — visibility,
+not a pricing basis.
+
+### Per-agent indicative cost
+
+What an organiser sees, rounded from real provider pricing at 4×:
+
+| Agent action | Typical ACU |
+| --- | --- |
+| Support reply | 2 |
+| Pricing run | 5 |
+| Marketing campaign | 10 |
+| Ad copy generation | 8 |
+| Seat map generation | 25–40 |
+| Full event build (`04` M22) | 35–45 |
+
+These are **indicative and recomputed from live provider pricing**, never hard-coded.
+Publishing a fixed ACU price per action would reintroduce the same defect as a fixed
+token rate: the moment a provider changes price, the number is wrong in one direction
+or the other.
 
 **Why a hard stop rather than an overdraft:** an AI feature that silently keeps
 spending is the fastest route to a shock invoice and a churned customer. A hard stop

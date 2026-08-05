@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  * provider directly — this route is where cost is measured and ACU is billed.
  *
  * Billing contract (see src/shared/constants/billing.ts):
- *   userCharge = providerCost x 3, converted to ACU at 1 ACU = $0.01, rounded up.
+ *   userCharge = providerCost x 4, converted to ACU at 1 ACU = $0.01, rounded up.
  */
 export async function POST(request: Request) {
   if (!isAiConfigured) {

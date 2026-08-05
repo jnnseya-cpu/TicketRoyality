@@ -24,7 +24,7 @@ Every phase has an explicit **exit gate**. The gate is binary. No partial passes
 | Payments | Stripe (form POST + 303), Bitripay, Congolese mobile money with 2% fee |
 | Dashboards | Customer, organiser, platform admin |
 | AI | Ad copy, recommendations, similar events — each with a deterministic fallback |
-| ACU | 1 ACU = $0.01, provider cost × 3, 100 ACU welcome bonus, hard stop at zero |
+| ACU | 1 ACU = $0.01, provider cost × 4, 100 ACU welcome bonus, hard stop at zero |
 | Security | Role-based Firestore rules blocking privilege escalation and ticket reuse |
 | Demo mode | Runs with zero credentials against a seeded UK dataset |
 

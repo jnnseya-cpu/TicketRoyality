@@ -395,3 +395,100 @@ at the barrier; too long and a screenshot circulates usefully.
 one-time redemption does the real work. The rotating window is a bonus available to
 digital holders, not the control the system depends on. `20` §20.7 makes the same
 argument about not depending on a heuristic when an authoritative signal exists.
+
+---
+
+## 11.13 Keeping non-humans out of signup and login
+
+### The honest framing first
+
+**"Impossible" is not achievable, and any vendor who promises it is selling something.**
+A sufficiently motivated attacker can pay a human to solve a challenge for a fraction of
+a penny. The achievable goal is precise: make automated account creation and login
+**cost more than it is worth**, and make the accounts that do get through useless before
+they can do damage.
+
+That reframing matters because it changes what to build. Chasing a perfect gate produces
+a login that frustrates real customers; raising cost and limiting blast radius does not.
+
+### Layered controls
+
+| Layer | Control | Blocks |
+| --- | --- | --- |
+| 1 | Cloudflare Bot Management + Turnstile | Commodity bots, headless browsers, datacentre IPs |
+| 2 | Rate limiting per IP, ASN, device and email domain | Volume attempts |
+| 3 | Device fingerprinting (Seon, `06` §6.16) | Farms reusing one device across many accounts |
+| 4 | Disposable and role-address blocking | Throwaway inbox signups |
+| 5 | **Mandatory email verification before any privileged action** | Unverified accounts doing anything that matters |
+| 6 | Behavioural signals — timing, entry cadence, focus events | Scripted form fill |
+| 7 | Velocity across the graph — shared device, payment instrument, address | Coordinated registration |
+| 8 | Progressive friction on suspicion, never blanket | Attackers, without punishing everyone |
+| 9 | Passkeys offered on every account | Credential stuffing, at the login side |
+| 10 | Breached-password check at set and at login | Reused credentials |
+
+### Progressive friction, not a wall
+
+A CAPTCHA on every login is a conversion tax paid by real customers to inconvenience
+bots that mostly solve it anyway.
+
+```
+risk score
+  low      → nothing. Sign in, no challenge
+  medium   → Turnstile, invisible in most cases
+  high     → challenge + email verification
+  severe   → refuse, log, no account created
+```
+
+Signals: new device, new ASN, impossible travel, datacentre IP, disposable domain,
+signup velocity from the network, and mismatch between claimed locale and observed one.
+
+### Limiting the blast radius of accounts that do get through
+
+This is the half that usually gets skipped, and it is the half that holds.
+
+| Restriction until verified | Reason |
+| --- | --- |
+| Cannot buy | No payment path, so no carding |
+| Cannot join a waitlist or claim presale | No inventory hoarding |
+| Cannot use a referral code | No referral farming (`04` M26) |
+| Cannot follow, or trigger notifications | No spam vector |
+| Cannot register as an organiser | Organiser is the money role |
+| No API key | No programmatic access |
+
+An unverified account can browse. That is all, and browsing is what we want anyone to be
+able to do.
+
+### Login-side specifics
+
+| Control | Detail |
+| --- | --- |
+| Passkeys | Offered first; a phishing-resistant factor that is *easier* than a password |
+| Credential stuffing | Per-account and per-IP throttling with exponential lockout |
+| Enumeration | Identical response and timing for unknown email and wrong password |
+| Session | 15-minute JWT, refresh rotation, family invalidation on reuse detection |
+| Notification | Every new-device login emails the account holder with a one-click "not me" |
+| MFA | Per `11` §11.12 — required on every money-holding role |
+
+**Enumeration deserves the attention it rarely gets.** A signup form that says "this
+email is already registered" hands an attacker a free membership oracle. Ours behaves
+identically either way and sends the outcome to the inbox, where only the real owner
+sees it.
+
+### Accessibility is not optional here
+
+Every challenge must have an accessible path. A visual-only CAPTCHA locks out blind
+users entirely, and a platform that sells accessible seating cannot have a front door
+that fails the same people.
+
+Turnstile is chosen partly because it is usually invisible and does not require solving
+a puzzle at all.
+
+### What we will not do
+
+| Not doing | Why |
+| --- | --- |
+| Requiring ID to buy a ticket | Wildly disproportionate; excludes the undocumented |
+| Requiring a phone number for every account | Excludes anyone without one, and SMS is a weak signal anyway |
+| Blocking VPNs outright | Privacy-conscious users are not attackers |
+| Permanent IP bans | Addresses are shared and reassigned; you ban a household, then a university |
+| Hidden shadow-banning | Unaccountable and unappealable — suspend visibly or not at all |

@@ -6,7 +6,7 @@ Terms used across this document set, defined once so they are used consistently.
 
 | Term | Definition |
 | --- | --- |
-| **ACU** | AI Credits Unit — the internal billing currency for LLM and agent compute. 1 ACU = $0.01, charged at provider cost × 3 (`10` §10.6, `src/shared/constants/billing.ts`) |
+| **ACU** | AI Credits Unit — the internal billing currency for LLM and agent compute. 1 ACU = $0.01, charged at provider cost × 4 (`10` §10.6, `src/shared/constants/billing.ts`) |
 | **GTV** | Gross Ticket Value — total face value of all tickets sold. The volume figure |
 | **GMV** | Gross Merchandise Value — GTV plus fees, add-ons and hospitality. The commercial figure |
 | **Take rate** | Platform revenue ÷ GMV. Blended across commission, subscription, placement and gateway spread |

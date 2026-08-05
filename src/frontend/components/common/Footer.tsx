@@ -10,24 +10,35 @@ const COLUMNS = [
     links: [
       { label: 'All Events', href: '/events' },
       { label: 'Verified Organisers', href: '/organisers' },
-      { label: 'OS Documentation', href: '/how-it-works' },
+      { label: 'Industries', href: '/industries' },
+      { label: 'Blog', href: '/blog' },
       { label: 'Dev Access Portal', href: '/dev-access' },
+    ],
+  },
+  {
+    title: 'Company',
+    links: [
+      { label: 'About', href: '/about-us' },
+      { label: 'How it works', href: '/how-it-works' },
+      { label: 'Developers', href: '/developers' },
+      { label: 'Contact', href: '/contact' },
+    ],
+  },
+  {
+    title: 'Organise & grow',
+    links: [
+      { label: 'Get started', href: '/get-started' },
+      { label: 'Growth & Influencers', href: '/growth' },
+      { label: 'Launch your event', href: '/register/organiser' },
+      { label: 'Organiser dashboard', href: '/dashboard/organiser' },
     ],
   },
   {
     title: 'Legal & Security',
     links: [
-      { label: 'Privacy Protocols', href: '/privacy-policy' },
-      { label: 'Usage Terms', href: '/terms-of-service' },
-      { label: 'Our Mission', href: '/about-us' },
-    ],
-  },
-  {
-    title: 'Organise',
-    links: [
-      { label: 'Launch your event', href: '/register/organiser' },
-      { label: 'Organiser dashboard', href: '/dashboard/organiser' },
-      { label: 'Pricing & commission', href: '/how-it-works#pricing' },
+      { label: 'Privacy Policy', href: '/privacy-policy' },
+      { label: 'Terms of Service', href: '/terms-of-service' },
+      { label: 'All policies', href: '/policies' },
     ],
   },
 ];
@@ -36,7 +47,7 @@ export function Footer() {
   return (
     <footer className="border-t border-border bg-card/40">
       <div className="container py-14">
-        <div className="grid gap-10 lg:grid-cols-[1.5fr_repeat(3,1fr)]">
+        <div className="grid gap-10 lg:grid-cols-[1.5fr_repeat(4,1fr)]">
           <div className="space-y-4">
             <Link href="/" className="flex items-center gap-2">
               <Logo />
@@ -46,6 +57,12 @@ export function Footer() {
               The premium infrastructure operating system for serious events. From stadiums to
               festivals, we orchestrate the future of ticketing.
             </p>
+            <a
+              href="mailto:info@ticketroyality.com"
+              className="block text-sm text-primary underline-offset-4 hover:underline"
+            >
+              info@ticketroyality.com
+            </a>
             <div className="flex gap-3 text-muted-foreground">
               <Link href="https://twitter.com" aria-label="Twitter / X" className="hover:text-primary">
                 <Twitter className="h-4 w-4" />

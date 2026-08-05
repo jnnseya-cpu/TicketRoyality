@@ -40,6 +40,8 @@ import { cn } from '@/shared/utils';
 const NAV_LINKS = [
   { label: 'All Events', href: '/events' },
   { label: 'Organisers', href: '/organisers' },
+  { label: 'Industries', href: '/industries' },
+  { label: 'Developers', href: '/developers' },
 ];
 
 export function Header() {

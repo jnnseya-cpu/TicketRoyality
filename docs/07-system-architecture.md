@@ -258,7 +258,7 @@ One door means switching provider is a routing-table change.
 | --- | --- |
 | **Routing** | Task class → provider → model. A table, not a model decision |
 | **Failover** | Primary unavailable or breaker open → secondary, same request, one retry |
-| **Metering** | Every call priced at provider cost × 3 into ACU. **The only place cost is measured** |
+| **Metering** | Every call priced at provider cost × 4 into ACU. **The only place cost is measured** |
 | **Budgets** | Per agent, per principal, per chain. Hard ceilings, enforced before dispatch |
 | **Redaction** | PII stripped from prompts before egress; identity documents never leave (`06` §6.4) |
 | **Caching** | Identical prompt + model + params inside a TTL returns the cached completion |
