@@ -58,6 +58,60 @@ Read 14 before 15–17: the role documents refer to the layer boundaries constan
 the reason a given operation lives in `backend` rather than `frontend` is usually the
 reason it is safe.
 
+## The blueprint, by the numbers
+
+Summaries of this document set circulate with section counts attached. The figures
+below are the ones the documents actually support — counted from the files in this
+directory, not from an outline. If a summary you are holding disagrees with this table,
+this table is correct.
+
+| Quantity | Actual | Where |
+| --- | --- | --- |
+| Documents | 17 | this directory |
+| Total lines | 5,789 | `wc -l docs/*.md` |
+| Actor types | **11** | `02` §2.1 |
+| AI Command Centres | **10** | `02` §2.3–2.12 |
+| AI agents | **16** | `03` §3.3–3.8 |
+| — of which self-managing | **3** | `03` §3.7 — `reliability` · `auto_repair` · `governance` |
+| Platform modules | **15** | `04` M1–M15 |
+| Connector categories | **11** | `06` §6.2–6.12 |
+| Firestore collections | **9** top-level + 2 subcollections | `08` §8.3–8.12 |
+| Revenue lines | **8** | `10` §10.2–10.9 |
+| Subscription tiers | **5** | `10` §10.3 — Free · Starter · Professional · Business · Enterprise |
+| Admin console modules | **9** | `12` §12.2–12.10 |
+| Roadmap phases | **5** | `13` — Phase 1 MVP (complete) → Phase 5 Global Scale |
+
+Competitors analysed in `01` §1.3: Eventbrite, Ticketmaster / Live Nation, DICE,
+Hopin / Zoom Events, and Stripe / Adyen as the payments layer beneath all of them.
+Seat Unique and Fever are **not** covered — they are plausible additions, not omissions
+being papered over.
+
+### Mapping from the 17-section outline
+
+An earlier outline numbered the material differently, splitting two documents in half
+and promoting two subsections to top level. It resolves to these files:
+
+| Outline § | Here |
+| --- | --- |
+| 01 Executive vision · 02 Market gap | `01-vision-and-market.md` |
+| 03 User ecosystem · 04 Command centres | `02-user-ecosystem-and-command-centres.md` |
+| 05 Core agent specs | `03-agent-architecture.md` |
+| 06 Platform modules | `04-platform-modules.md` |
+| 07 BitriPay door | `05-bitripay-gateway.md` |
+| 08 Third-party connectors | `06-connector-ecosystem.md` |
+| 09 Technical architecture | `07-system-architecture.md` |
+| 10 Database schema | `08-database-schema.md` |
+| 11 API specification | `09-api-specification.md` |
+| 12 Monetisation model | `10-monetisation.md` |
+| 13 Security & compliance | `11-security-compliance-risk.md` |
+| 14 Admin super control centre | `12-admin-control-centre.md` |
+| 15 Build roadmap | `13-roadmap-and-production-readiness.md` |
+| 16 Competitive advantage | `01` §1.5 — moats are argued where the market gap is established |
+| 17 Self-managing platform | `03` §3.7 — the maintenance agents live with every other agent contract |
+
+The outline has no counterpart for `14`–`17`. Those describe the code that exists now
+rather than the system being specified, which is why they are numbered after it.
+
 ## Conventions used throughout
 
 - **Agent contracts** are specified as `purpose / inputs / outputs / permissions /
