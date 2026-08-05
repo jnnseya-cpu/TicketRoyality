@@ -79,15 +79,24 @@ system. That divergence is deliberate, dated and tracked — not drift.
    └──▶ coupons          │ venues │──▶ seat_maps
                          └────────┘
 
+   gates ──▶ gate_staff · scan_logs               (allowed kinds · shifts · zones)
+   ticket_addons ──▶ order_item_addons            (parking · F&B · merch · backstage)
+   waitlist_entries ──▶ ticket_types · seat_holds ──▶ events
+   revenue_splits ──▶ events                      (organiser · venue · promoter · platform)
+   invoices ──▶ orders · payouts
+   follows ──▶ organisations · venues             (consent for notification)
+   campaign_attribution ──▶ orders · tickets      (every touch, not just the winner)
    offline_payments ──▶ orders                    (KODA-verified, 06 §6.20)
    agent_runs · agent_memory · audit_log          (cross-cutting, append-only)
 ```
 
-Twenty tables. The count is higher than the blueprint's fourteen because `orders`,
-`order_items`, `refunds`, `organisation_members`, `offline_payments` and
-`wallet_ledger` are separated rather than folded into their parents — each is a thing
-with its own lifecycle, and merging them is what makes partial refunds and team
-accounts unrepresentable.
+Thirty-one tables. The count is higher than the blueprint's fourteen because things
+with their own lifecycle get their own table rather than being folded into a parent —
+`orders` and `order_items`, `refunds`, `organisation_members`, `seat_holds`,
+`ticket_addons`, `waitlist_entries`, `revenue_splits` and `invoices`.
+
+Merging any of them is what makes partial refunds, team accounts, multi-party
+settlement and "which seats are held, for whom, and why" unrepresentable.
 
 ---
 
@@ -113,15 +122,23 @@ CREATE TYPE user_role       AS ENUM ('attendee','organiser','venue_manager','pro
                                      'support','platform_admin','super_admin','regulator',
                                      'gate_staff');
 CREATE TYPE account_status  AS ENUM ('pending','approved','suspended','closed');
-CREATE TYPE event_status    AS ENUM ('draft','published','cancelled','completed');
+CREATE TYPE event_status    AS ENUM ('draft','in_review','published','cancelled','completed');
 CREATE TYPE event_type      AS ENUM ('physical','online','livestream','hybrid');
 CREATE TYPE order_status    AS ENUM ('pending','paid','partially_refunded','refunded','cancelled');
 CREATE TYPE ticket_status   AS ENUM ('valid','redeemed','refunded','cancelled','transferred');
 CREATE TYPE payment_status  AS ENUM ('pending','authorised','captured','failed','refunded');
 CREATE TYPE payment_provider AS ENUM ('stripe','bitripay','mobile_money','offline','free','terminal');
 CREATE TYPE ledger_type     AS ENUM ('WELCOME_BONUS','TOPUP_STRIPE','ADMIN_GRANT','AI_SPEND','REVERSAL');
-CREATE TYPE scan_result     AS ENUM ('valid','duplicate','invalid','wrong_event','blocked');
+CREATE TYPE scan_result     AS ENUM ('valid','duplicate','invalid','wrong_event','blocked',
+                                     'wrong_gate','override','screenshot_suspected');
 CREATE TYPE verification_source AS ENUM ('manual','koda','gateway_webhook');
+CREATE TYPE ticket_kind     AS ENUM ('free','paid','donation','early_bird','general_admission',
+                                     'vip','vvip','student','child','family_bundle','group',
+                                     'corporate_table','sponsor','press','staff',
+                                     'season_pass','multi_day','reserved_seat');
+CREATE TYPE tier_visibility AS ENUM ('public','hidden','invite_only','tiered_reveal');
+CREATE TYPE addon_kind      AS ENUM ('parking','fnb_voucher','merchandise','backstage','other');
+CREATE TYPE refund_policy   AS ENUM ('none','partial','full_within_days');
 ```
 
 `user_role` carries all thirteen actors from `02` §2.1. Roles are a column, not a
@@ -288,10 +305,24 @@ CREATE TABLE events (
   featured_until  timestamptz,
   video_ad_url    text,
 
+  -- Published-event obligations. Every one of these is a legal or duty-of-care
+  -- requirement, not a nice-to-have — see the note below.
+  refund_policy       refund_policy NOT NULL DEFAULT 'none',
+  refund_window_days  integer CHECK (refund_window_days IS NULL OR refund_window_days >= 0),
+  age_restriction     integer CHECK (age_restriction IS NULL OR age_restriction BETWEEN 0 AND 21),
+  accessibility_info  text,
+  terms_url           text,
+  contact_email       citext,
+  cloned_from_id      uuid REFERENCES events(id) ON DELETE SET NULL,
+
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
 
   CHECK (ends_at IS NULL OR ends_at > starts_at),
+  CHECK (refund_policy <> 'full_within_days' OR refund_window_days IS NOT NULL),
+  -- A published event must be able to answer: can I get my money back, who do I
+  -- contact, and am I allowed in?
+  CHECK (status <> 'published' OR (contact_email IS NOT NULL AND terms_url IS NOT NULL)),
   CHECK (event_type <> 'physical' OR venue_id IS NOT NULL OR location IS NOT NULL)
 );
 
@@ -339,6 +370,16 @@ CREATE TABLE ticket_types (
   sale_starts_at timestamptz,
   sale_ends_at   timestamptz,
 
+  kind           ticket_kind NOT NULL DEFAULT 'paid',
+  visibility     tier_visibility NOT NULL DEFAULT 'public',
+  access_code    text,
+  reveal_at      timestamptz,
+  waitlist_enabled boolean NOT NULL DEFAULT false,
+
+  transferable    boolean NOT NULL DEFAULT true,
+  identity_linked boolean NOT NULL DEFAULT false,   -- name checked against ID at the gate
+  delivery_formats text[] NOT NULL DEFAULT '{qr}',  -- qr · pkpass · google_wallet · nfc
+
   is_hospitality boolean NOT NULL DEFAULT false,
   position       integer NOT NULL DEFAULT 0,
 
@@ -347,6 +388,9 @@ CREATE TABLE ticket_types (
 
   CONSTRAINT no_oversell CHECK (sold + held <= quantity),
   CHECK (max_per_order >= min_per_order),
+  CHECK (visibility <> 'invite_only' OR access_code IS NOT NULL),
+  CHECK (visibility <> 'tiered_reveal' OR reveal_at IS NOT NULL),
+  CHECK (kind <> 'free' OR price = 0),
   CHECK (sale_ends_at IS NULL OR sale_starts_at IS NULL OR sale_ends_at > sale_starts_at)
 );
 
@@ -465,6 +509,15 @@ CREATE TABLE tickets (
   redeemed_by     uuid REFERENCES users(id) ON DELETE SET NULL,
   gate_id         text,
   transferred_to  uuid REFERENCES users(id) ON DELETE SET NULL,
+  nfc_tag_id      text UNIQUE,
+  wallet_pass_url text,
+
+  -- Three events recommended on the ticket face. Frozen for print, refreshable
+  -- for wallet passes. See 04 M3a.
+  recommended_event_ids  uuid[] NOT NULL DEFAULT '{}',
+  recommendations_at     timestamptz,
+  recommendations_source text,            -- concierge.v1 run id, or 'fallback'
+  CHECK (cardinality(recommended_event_ids) <= 3),
 
   -- Frozen event details. Denormalised deliberately: a ticket is a legal record of
   -- what was sold, not a live view of what the event is now. See 8.18.
@@ -623,6 +676,50 @@ event and time.
 
 ---
 
+## 8.12a `gates`
+
+```sql
+CREATE TABLE gates (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id       uuid REFERENCES events(id) ON DELETE CASCADE,
+  venue_id       uuid REFERENCES venues(id) ON DELETE CASCADE,
+  name           text NOT NULL,
+  zone           text,
+  allowed_kinds  ticket_kind[] NOT NULL DEFAULT '{}',   -- empty = all
+  capacity_per_hour integer CHECK (capacity_per_hour IS NULL OR capacity_per_hour > 0),
+  opens_at       timestamptz,
+  closes_at      timestamptz,
+  identity_check boolean NOT NULL DEFAULT false,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  CHECK (event_id IS NOT NULL OR venue_id IS NOT NULL),
+  CHECK (closes_at IS NULL OR opens_at IS NULL OR closes_at > opens_at)
+);
+
+CREATE TABLE gate_staff (
+  gate_id     uuid NOT NULL REFERENCES gates(id) ON DELETE CASCADE,
+  user_id     uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  staff_role  text NOT NULL CHECK (staff_role IN ('scan_only','sell','manage')),
+  shift_start timestamptz,
+  shift_end   timestamptz,
+  PRIMARY KEY (gate_id, user_id)
+);
+```
+
+**`allowed_kinds` is what makes a VIP gate a VIP gate.** Without it, "gate" is a label
+on a scanner and a general-admission ticket admits its holder to the hospitality
+entrance. With it, admission is set membership: the ticket's `kind` must appear in the
+gate's `allowed_kinds`, or the scan returns `wrong_gate` — a distinct result, because
+"you are at the wrong door" and "this ticket is invalid" need different responses from
+a steward.
+
+**`gate_staff` binds the role to the assignment, not the person** (`04` M16). A steward
+on the east gate at 19:00 is a different principal from the same person on the VIP
+entrance at 21:00, and `shift_start`/`shift_end` bound it in time.
+
+`identity_check` drives the ID verification prompt for `identity_linked` tiers.
+
+---
+
 ## 8.13 `coupons`, `offline_payments`, `hospitality_packages`
 
 ```sql
@@ -694,6 +791,166 @@ procedural.
 `hospitality_packages` gives the VIP host (`02` §2.1, actor 8) a table of their own,
 which is what makes hospitality a first-class inventory type rather than a naming
 convention on a tier.
+
+---
+
+## 8.13a `ticket_addons`, `waitlist_entries`, `seat_holds`
+
+```sql
+CREATE TABLE ticket_addons (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id       uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  ticket_type_id uuid REFERENCES ticket_types(id) ON DELETE CASCADE,  -- NULL = any tier
+  kind           addon_kind NOT NULL,
+  name           text NOT NULL,
+  price          numeric(14,2) NOT NULL CHECK (price >= 0),
+  currency       char(3) NOT NULL,
+  quantity       integer CHECK (quantity IS NULL OR quantity >= 0),   -- NULL = unlimited
+  sold           integer NOT NULL DEFAULT 0 CHECK (sold >= 0),
+  redeemable_at  text,                        -- gate, bar, car park
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  CHECK (quantity IS NULL OR sold <= quantity)
+);
+
+CREATE TABLE order_item_addons (
+  order_item_id uuid NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
+  addon_id      uuid NOT NULL REFERENCES ticket_addons(id) ON DELETE RESTRICT,
+  quantity      integer NOT NULL CHECK (quantity > 0),
+  unit_price    numeric(14,2) NOT NULL,
+  redeemed_at   timestamptz,
+  PRIMARY KEY (order_item_id, addon_id)
+);
+
+CREATE TABLE waitlist_entries (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  ticket_type_id uuid NOT NULL REFERENCES ticket_types(id) ON DELETE CASCADE,
+  user_id        uuid REFERENCES users(id) ON DELETE CASCADE,
+  email          citext NOT NULL,
+  quantity       integer NOT NULL DEFAULT 1 CHECK (quantity > 0),
+  position       integer NOT NULL,
+  offered_at     timestamptz,
+  offer_expires_at timestamptz,
+  converted_order_id uuid REFERENCES orders(id) ON DELETE SET NULL,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  CHECK (offered_at IS NULL OR offer_expires_at IS NOT NULL)
+);
+
+CREATE UNIQUE INDEX waitlist_position_idx ON waitlist_entries (ticket_type_id, position);
+CREATE UNIQUE INDEX waitlist_one_per_person_idx
+  ON waitlist_entries (ticket_type_id, email) WHERE converted_order_id IS NULL;
+
+CREATE TABLE seat_holds (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id       uuid NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  seat_label     text NOT NULL,
+  reason         text NOT NULL,          -- player_family · sponsor · press · accessible · production
+  held_for       text,
+  released_at    timestamptz,
+  created_by     uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at     timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX seat_holds_active_idx
+  ON seat_holds (event_id, seat_label) WHERE released_at IS NULL;
+```
+
+**`seat_holds` replaces `ticket_types.held` for allocated seating.** An integer counter
+answers *how many* are held; it cannot answer *which seats, for whom, and why*. A
+stadium holding 40 seats for players' families, 20 for press and 12 for accessible
+provision needs the second answer — at the door, in the seat map overlay, and when
+somebody asks why row F is empty.
+
+The counter stays for general admission, where seats have no identity.
+
+**`waitlist_one_per_person_idx` stops the obvious abuse**: joining a waitlist twenty
+times to improve the odds. The partial index lets the same person rejoin after
+converting, which is the legitimate case.
+
+**Add-ons are inventory, not line-item text.** Parking has 400 spaces. Once modelled as
+a constrained quantity, the same oversell protection applies and `10` §10.10 becomes
+implementable rather than aspirational.
+
+---
+
+## 8.13b `revenue_splits` and `invoices`
+
+```sql
+CREATE TABLE revenue_splits (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id        uuid REFERENCES events(id) ON DELETE CASCADE,
+  organisation_id uuid REFERENCES organisations(id) ON DELETE CASCADE,
+  party_type      text NOT NULL,      -- organiser · venue · promoter · sponsor · platform
+  party_id        uuid,
+  percent         numeric(5,2) CHECK (percent IS NULL OR (percent >= 0 AND percent <= 100)),
+  fixed_amount    numeric(14,2) CHECK (fixed_amount IS NULL OR fixed_amount >= 0),
+  currency        char(3),
+  priority        integer NOT NULL DEFAULT 0,
+  effective_from  timestamptz NOT NULL DEFAULT now(),
+  effective_to    timestamptz,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  CHECK (percent IS NOT NULL OR fixed_amount IS NOT NULL),
+  CHECK (event_id IS NOT NULL OR organisation_id IS NOT NULL)
+);
+
+CREATE TABLE invoices (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  number          text NOT NULL UNIQUE,
+  order_id        uuid REFERENCES orders(id) ON DELETE RESTRICT,
+  payout_id       uuid REFERENCES payouts(id) ON DELETE RESTRICT,
+  issued_to       text NOT NULL,
+  net_amount      numeric(14,2) NOT NULL,
+  tax_amount      numeric(14,2) NOT NULL DEFAULT 0,
+  gross_amount    numeric(14,2) NOT NULL,
+  tax_rate        numeric(5,2),
+  tax_jurisdiction char(2),
+  tax_reference   text,
+  pdf_url         text,
+  issued_at       timestamptz NOT NULL DEFAULT now(),
+  CHECK (gross_amount = net_amount + tax_amount),
+  CHECK (order_id IS NOT NULL OR payout_id IS NOT NULL)
+);
+```
+
+### The split table is what makes multi-party settlement possible
+
+`settle()` today splits gross two ways: platform and organiser. A stadium show splits
+four — organiser, venue, promoter, platform — and the percentages are negotiated per
+deal, not set globally.
+
+```
+gross
+  ├─ platform     commission % + admin fee   (priority 0, always first)
+  ├─ venue        % of net or a fixed hire fee
+  ├─ promoter     % of their attributed sales only   (M18)
+  └─ organiser    the remainder
+```
+
+**`priority` orders the waterfall and the platform is always priority 0.** Not because
+we deserve it first, but because every other party's share is defined against a base
+that must be unambiguous. A waterfall with no defined order is four parties computing
+four different answers from the same gross.
+
+**The organiser takes the remainder, never a percentage.** If every party took a
+percentage they would not sum to 100 and rounding would either create or destroy money.
+Whoever takes the remainder absorbs the rounding, and it should be the party who set
+the terms.
+
+`percent` and `fixed_amount` are both nullable with a `CHECK` requiring one, because a
+venue hire fee is frequently flat and forcing it into a percentage loses the deal's
+actual shape.
+
+### Invoices are immutable once issued
+
+There is no `updated_at` and no correction path. A wrong invoice is corrected by
+issuing a credit note and a replacement — the same append-only discipline as
+`wallet_ledger`, for the same reason: a tax document that can be silently edited after
+issue is not a tax document.
+
+`number` is `UNIQUE` and gapless per jurisdiction, which most tax authorities require.
+
+**`tax_jurisdiction` is stored per invoice, not derived per query.** VAT treatment
+follows the rules in force where and when the sale happened. Recomputing an old
+invoice under today's rates produces a number that was never charged.
 
 ---
 
@@ -851,6 +1108,59 @@ detectable afterwards.
 
 **This closes debt D4** from `17` §17.8 — admin role grants and ACU grants were
 previously unattributed.
+
+---
+
+## 8.15a `follows` and `campaign_attribution`
+
+```sql
+CREATE TABLE follows (
+  user_id      uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject_type text NOT NULL CHECK (subject_type IN ('organisation','venue','artist','category')),
+  subject_id   uuid,
+  subject_key  text,                       -- for category follows, which have no row
+  notify       boolean NOT NULL DEFAULT true,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, subject_type, COALESCE(subject_id::text, subject_key))
+);
+
+CREATE INDEX follows_subject_idx ON follows (subject_type, subject_id) WHERE notify;
+
+CREATE TABLE campaign_attribution (
+  id           bigserial PRIMARY KEY,
+  order_id     uuid REFERENCES orders(id) ON DELETE CASCADE,
+  session_id   text,
+  source       text,                       -- ticket_rec · promoter · meta · google · organic
+  medium       text,
+  campaign     text,
+  promoter_id  uuid REFERENCES users(id) ON DELETE SET NULL,
+  source_ticket_id uuid REFERENCES tickets(id) ON DELETE SET NULL,
+  touched_at   timestamptz NOT NULL DEFAULT now(),
+  is_converting boolean NOT NULL DEFAULT false
+);
+
+CREATE INDEX attribution_order_idx  ON campaign_attribution (order_id, touched_at);
+CREATE INDEX attribution_source_idx ON campaign_attribution (source, touched_at DESC);
+```
+
+**`follows` is the subscription that makes notification legitimate.** An organiser
+emailing everyone who ever bought a ticket is a marketing list; an organiser notifying
+people who chose to follow them is a service. The distinction is consent, and under
+GDPR it is also the difference between a lawful basis and a fine.
+
+`notify` is separate from the follow itself so a fan can follow for their own feed
+without opting into email — following is a filing decision, notification is a
+permission.
+
+**Attribution stores every touch, not just the winner.** `is_converting` marks the one
+the model credits, and the rule that sets it is stated in `04` M18: last-touch within
+7 days, configurable per campaign. Keeping the full path means the model can be
+changed and history re-scored, which is impossible once you have thrown away
+everything but the winner.
+
+`source_ticket_id` closes the loop on M3a — a purchase originating from a
+recommendation printed on another ticket is traceable to the exact ticket that carried
+it.
 
 ---
 

@@ -617,3 +617,197 @@ Three differences make it a distinct operation:
 
 **The cut-off is a hard date.** Guest names lock before the caterer's headcount
 deadline, because a name added after that point is a person with no seat and no meal.
+
+
+---
+
+## Access control — the full contract (extends M3)
+
+| Control | Mechanism | Where |
+| --- | --- | --- |
+| Unforgeable ticket | HMAC-SHA256 over the reference **with a per-event salt** | `08` §8.10 `qr_hash` |
+| One-time use | `status = 'valid'` precondition on the redeem statement | `08` §8.10 |
+| Duplicate rejection at speed | Redis set of redeemed hashes, checked before the write | `07` §7.3 |
+| Offline tolerance | Signed local valid-set; **15-minute sync ceiling** | M16 |
+| Gate scoping | `gates.allowed_kinds` — set membership | `08` §8.12a |
+| Transferability | `ticket_types.transferable` | `08` §8.8 |
+| Identity linking | `ticket_types.identity_linked` + `gates.identity_check` | `08` §8.8 · §8.12a |
+| Wallet passes | PKPass and Google Wallet, `delivery_formats` | `06` §6.11 |
+| NFC wristbands | `tickets.nfc_tag_id`, unique | `08` §8.10 |
+| Screenshot suspicion | Brightness and screen-ratio heuristic → `screenshot_suspected` | `08` §8.12 |
+| Admin override | `scan_result = 'override'`, always attributed | `08` §8.12 |
+| Full history | Every scan, every outcome, per ticket and per gate | `08` §8.12 |
+
+### The per-event salt matters more than the algorithm
+
+HMAC-SHA256 with one platform-wide key means a single key compromise forges every
+ticket ever issued. Salting per event bounds the blast radius to one event, and lets a
+compromised event be re-issued without invalidating the platform.
+
+### Screenshot detection is a flag, never a refusal
+
+The heuristic — screen brightness, aspect ratio, moiré — produces false positives on
+cracked screens, high-brightness displays and screen protectors. A steward sees
+**"check this one"**, not a rejection. The scan still resolves on the authoritative
+signal, which is whether the reference has already been redeemed.
+
+A ticket presented from a screenshot is only fraud if the original has *also* been
+used, and that is exactly what one-time redemption already catches. The heuristic
+buys earlier warning, not a second source of truth.
+
+### The 15-minute offline ceiling
+
+Beyond 15 minutes of partition, a device's local valid-set is stale enough that
+duplicate risk exceeds the benefit of admitting from cache. The device switches to
+**record-and-flag**: it admits, marks the scan `offline_sync`, and every such entry is
+reconciled afterwards.
+
+Admitting a possible duplicate is the right trade at a door with a queue behind it.
+Refusing a valid ticket-holder because the wifi dropped is not.
+
+### Override is a first-class outcome, not a workaround
+
+`scan_result = 'override'` records an admin-cleared entry with the actor attached. The
+alternative — stewards waving people through when the system says no — produces the
+same admissions with no record at all. A door that cannot record an exception is a
+door whose log stops matching reality the first time something unusual happens.
+
+
+---
+
+## M3a — The Ticket as a Discovery Surface
+
+**Status:** `NEW`. Every ticket carries **three recommended events**, chosen from the
+holder's learned behaviour.
+
+### Why the ticket and not an email
+
+A ticket is opened repeatedly: at purchase, the night before, in the queue, and again
+when someone asks what time doors are. It is one of very few surfaces a fan
+*chooses* to look at, arrives at already engaged, and keeps. Marketing email competes
+for attention; a ticket already has it.
+
+| Surface | Open rate | Attention state |
+| --- | --- | --- |
+| Marketing email | ~20% | Interrupted, often hostile |
+| Push notification | ~5% acted on | Interrupted |
+| **The ticket** | ~100%, several times | Already thinking about going out |
+
+### Selection
+
+`concierge.v1` (`03` §3.8) picks three, ranked by fit:
+
+```
+candidates = published events
+             ∩ within travel radius of the holder
+             ∩ after this event's date
+           − events the holder already holds a ticket for
+           − events clashing with anything they hold
+           − the event this ticket is for
+rank by:   category affinity · organiser affinity · price band · lead time
+take 3, at most 2 from any one organiser
+```
+
+**Clash exclusion is not optional.** Recommending an event that starts while the holder
+is already at another one is an advert that proves the platform is not paying
+attention. The data to avoid it is already in `tickets`.
+
+**At most two from one organiser** stops the ticket becoming an advert for whoever sold
+it. The fan's surface serves the fan (`03` §3.8, `agent(X) ⊂ X`).
+
+### Frozen or live, by format
+
+| Format | Behaviour | Why |
+| --- | --- | --- |
+| **PDF / printed** | Frozen at issuance | Ink does not update |
+| **Wallet pass** (PKPass, Google) | Refreshed up to 48h before the event | The pass API supports it |
+| **In-app ticket** | Live on each open | No reason not to be |
+
+`recommendations_at` records when they were generated, so a stale set on a
+long-lead ticket is detectable rather than silently wrong.
+
+### On transfer, recommendations are cleared and regenerated
+
+A transferred ticket carries the **original buyer's** inferred taste. Leaving it in
+place shows the new holder somebody else's profile — a small privacy leak and a
+useless recommendation. `recommended_event_ids` resets to `{}` on transfer, and
+regenerates against the new holder if they have a profile.
+
+### Attribution and the constraint on it
+
+A `ticket_rec` UTM plus the source ticket id makes the conversion measurable end to
+end: recommendation shown → tapped → order. That is the number that decides whether
+this feature stays.
+
+**It must never compete with the ticket's actual job.** Hard rules:
+
+1. The QR occupies the top half of any layout. Recommendations sit below the fold on
+   the pass, and below the barcode in print.
+2. Event name, time, gate and seat are never displaced or shrunk to make room.
+3. On a printed ticket the block is monochrome and small — a ticket that scans badly
+   because of a decorative panel is a queue.
+4. One line per event: name, date, lead price. No images in the print layout.
+
+A ticket that fails at the door has cost more than any recommendation could earn.
+
+### Metering
+
+The selection runs once per ticket at issuance, batched per order. At `concierge.v1`
+rates this is a fraction of an ACU per ticket and is **platform-funded, not charged to
+the fan or the organiser** — it is our own distribution channel, and metering it to
+the organiser would give them a reason to switch it off.
+
+---
+
+## Notification matrix (extends M10)
+
+| Class | Trigger | Channels | Consent basis |
+| --- | --- | --- | --- |
+| **Transactional** | Booking confirmed · QR delivered · payout completed · refund issued | Email always, plus SMS/push if opted in | Contract — no opt-out |
+| **Event-critical** | Cancelled · date changed · venue moved · gate changed | **Every channel on file, immediately** | Contract — no opt-out |
+| **Pre-event** | T-7d · T-24h · T-2h, configurable per event | Per fan preference | Contract, narrowly |
+| **Post-event** | Review request · loyalty awarded · next-event recommendation | Per fan preference | Consent |
+| **Marketing** | Campaigns, announcements, presales | Only where `follows.notify` is true | **Consent, revocable** |
+| **Organiser ops** | Sales milestone · suspicious activity · payout · refund request | Push and email | Contract |
+
+### The line that must not move
+
+**Transactional and event-critical messages have no opt-out and carry no marketing.**
+A cancellation notice with a "you might also like" block underneath is a marketing
+email wearing a service message's exemption, and it is the single fastest way to lose
+the right to send either.
+
+`06` §6.6 already separates the sending infrastructure — different subdomains, different
+IP pools — so a marketing complaint cannot damage ticket-delivery reputation. This table
+is the policy that infrastructure exists to enforce.
+
+**Event-critical goes to every channel at once** and ignores quiet hours. A venue change
+at 17:00 for a 19:00 door is worth waking someone for; nothing else on this table is.
+
+---
+
+## Fan Intelligence — the reporting boundary (extends M9)
+
+| Audience | Receives | Never receives |
+| --- | --- | --- |
+| **Organiser** | Their own attendees: profile, history, preferences, contact | Attendees of events they did not sell |
+| **Venue** | Aggregate throughput, dwell, zone utilisation | Named individuals |
+| **Sponsor** | k-anonymised aggregates (≥25), consented leads only | Names, emails, individual records (M19) |
+| **Promoter** | Their attributed sales only | The organiser's wider audience |
+| **Platform** | Cross-event models on de-identified data | — |
+
+**Cross-event intelligence is built on de-identified data.** The platform learns that
+"attendees of jazz events in Manchester also attend blues events" without any organiser
+gaining access to another's attendee list. The model is shared; the rows are not.
+
+That constraint is what makes the data flywheel in `01` §1.5 defensible rather than a
+liability: every organiser benefits from aggregate learning, and none of them can
+extract a competitor's customers from it.
+
+### Live event dashboard
+
+Scan rate, gate throughput, revenue per minute, no-show rate against forecast — sourced
+from `scan_logs` (`08` §8.12) and refreshed every 10 seconds during the event window.
+
+This is the one surface where **latency matters more than completeness**. A gate steward
+needs to know the queue is building now, not an exact figure a minute late.
