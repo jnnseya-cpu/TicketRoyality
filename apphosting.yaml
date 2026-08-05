@@ -15,6 +15,11 @@ runConfig:
   # period — several seconds of Node boot plus Next.js server init, on the request a
   # real buyer is waiting for. One warm instance removes that entirely for roughly the
   # price of a coffee a month, and it is the fix for "the backend feels slow".
+  # Set to 0 while building and testing — a cold start costs nothing when nobody is
+  # waiting, and 0 keeps the bill inside the free tier. Raise to 1 on the day real
+  # users arrive: one always-on instance is ~£25/month and removes cold starts
+  # entirely. This single line is the difference between the £3-15 and £33-55 stages
+  # in docs/21 §21.13.
   minInstances: 1
   maxInstances: 20
 

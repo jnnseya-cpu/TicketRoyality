@@ -414,7 +414,46 @@ instance serves 80 simultaneous requests, and Next.js SSR is I/O-bound — most 
 request is waiting on Firestore — so the smaller size is right for launch. Scale the
 floor when a measurement says to.
 
-### Full monthly estimate at launch volume
+### Four stages, because "the cost" depends entirely on which one you are in
+
+The £70–150 figure below is **operating cost at real traffic**, not what it costs to
+get started. Those are different by an order of magnitude and conflating them is
+misleading.
+
+| Stage | What is running | Monthly |
+| --- | --- | --- |
+| **1. Build & test** | `minInstances: 0`, no users, everything inside free tiers | **£3–15** |
+| **2. Live, quiet** | `minInstances: 1`, a few hundred visitors, first events | **£33–55** |
+| **3. Operating** | ~50k views, ~500 tickets/month | **£70–150** |
+| **4. Paying organisers** | Stage 3 + mandatory KYB and AML | **£600+** |
+
+**Stage 1 is almost free**, and it is where you will be for the first weeks:
+
+| Line | Cost | Why |
+| --- | --- | --- |
+| Firebase (Blaze plan) | **£0** | Blaze is pay-as-you-go; free tiers cover development entirely |
+| Firestore | £0 | 50k reads, 20k writes, 1 GiB free **per day** |
+| Auth | £0 | Free below 50k monthly active users |
+| Storage | £0 | 5 GB free |
+| Cloud Functions | £0 | 2M invocations free |
+| Cloud Run | **£0** | With `minInstances: 0`. Cold starts do not matter with no users |
+| Hostinger domain | ~£1 | ~£12/year for `.com` |
+| Hostinger mailbox | £1–3 | |
+| AI while testing | £2–10 | Only what you actually call |
+| Stripe, BitriPay | £0 | Per-transaction only — nothing until a real sale |
+
+**Blaze requires a card on file but bills nothing while you stay inside the free
+tiers.** Set a budget alert at £20 on day one anyway; the failure mode of pay-as-you-go
+is a loop you did not notice, not a price you agreed to.
+
+New Google Cloud accounts also get **$300 of credit valid for 90 days**, which covers
+stage 1 and most of stage 2 outright.
+
+**The single switch between stage 1 and stage 2 is `minInstances`.** Leave it at `0`
+until you have real users; the ~£25/month it costs buys the absence of cold starts,
+which is worth nothing when nobody is waiting.
+
+### Full monthly estimate at stage 3
 
 Assuming ~50,000 page views, ~500 tickets, ~2,000 AI calls a month.
 

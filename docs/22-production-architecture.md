@@ -24,12 +24,17 @@ than preferential and it drives several other decisions.
 | Payments | **Stripe · BitriPay** | Cards and payouts · mobile money |
 | AI | **Claude · Gemini · OpenAI** | Behind the gateway (`07` §7.5a) |
 
-**Five accounts. Roughly £70–150/month** in infrastructure before transaction volume —
-worked through in `21` §21.13, where the dominant line is the always-on instance that
-removes cold starts.
+**Five accounts.** Cost depends entirely on stage, and the four are an order of
+magnitude apart (`21` §21.13):
 
-**Add roughly £500/month once payouts start**, for the KYB and AML providers that are
-legally required before you can pay an organiser. Infrastructure is the small part.
+| Stage | Monthly |
+| --- | --- |
+| Build and test — `minInstances: 0`, free tiers | **£3–15** |
+| Live but quiet — `minInstances: 1`, first events | **£33–55** |
+| Operating — ~50k views, ~500 tickets | **£70–150** |
+| Paying organisers — plus mandatory KYB and AML | **£600+** |
+
+Starting costs almost nothing. The step to £600 is compliance, not infrastructure.
 
 ---
 
