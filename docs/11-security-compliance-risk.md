@@ -610,3 +610,112 @@ cannot see it.
 
 Requires a nominated officer (MLRO) and a restricted case queue that the ordinary
 compliance surface does not expose. `OPEN`, blocking before AML monitoring goes live.
+
+---
+
+## 11.15 The complete RBAC matrix
+
+The source matrix covers 5 actors and 8 permissions. There are **13 actors** (`02` §2.1),
+and the permissions it omits are the dangerous ones — payouts, credit, impersonation,
+role grants. A matrix that stops before the money is a matrix that will be read as
+complete.
+
+Legend: `✓` full · `◐` own scope only · `◑` scoped to one event · `✗` denied ·
+`—` not applicable.
+
+### Catalogue and inventory
+
+| Permission | Super | Admin | Organiser | Venue | Promoter | Host | Gate | Sponsor | Dev | Merchant | Support | Regulator | Fan |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Create / edit events | ✓ | ✓ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ | ✗ |
+| Publish an event | ✓ | ✓ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ | ✗ |
+| Cancel an event | ✓ | ✓ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Edit seat maps | ✓ | ✓ | ◐ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Configure gates and zones | ✓ | ✓ | ◐ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Manage hospitality packages | ✓ | ✓ | ◐ | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+
+### Entry
+
+| Permission | Super | Admin | Organiser | Venue | Promoter | Host | Gate | Sponsor | Dev | Merchant | Support | Regulator | Fan |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **Scan tickets** | ✓ | ✓ | **◐** | ✗ | ✗ | ◑ | **◑** | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Override a refused scan | ✓ | ✓ | ◐ | ✗ | ✗ | ✗ | ◑ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Emergency blocklist | ✓ | ✓ | ◐ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+
+### Money — the block the source matrix omits
+
+| Permission | Super | Admin | Organiser | Venue | Promoter | Host | Gate | Sponsor | Dev | Merchant | Support | Regulator | Fan |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Process refunds | ✓ | ✓ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ |
+| Request a payout | ✓ | ✓ | ◐ | ✗ | ◐ | ✗ | ✗ | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ |
+| **Release a payout** | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Set commission terms | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Change platform pricing** | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Grant ACU credit** | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Write the wallet ledger** | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Approve offline payments | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Approve creator payouts | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+
+### Identity and governance
+
+| Permission | Super | Admin | Organiser | Venue | Promoter | Host | Gate | Sponsor | Dev | Merchant | Support | Regulator | Fan |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Approve / suspend organisers | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Grant the admin role** | ✓ ⁽²⁾ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Impersonate a user** | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ◐ ⁽³⁾ | ✗ | ✗ |
+| Platform configuration | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Agent autonomy and kill switch | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Configure own agents | ✓ | ✓ | ◐ ⁽⁴⁾ | ◐ ⁽⁴⁾ | ✗ | ◐ ⁽⁴⁾ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Manage API keys | ✓ | ✓ | ◐ | ✗ | ✗ | ✗ | ✗ | ✗ | ◐ | ◐ | ✗ | ✗ | ✗ |
+| Compliance override | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+
+### Data
+
+| Permission | Super | Admin | Organiser | Venue | Promoter | Host | Gate | Sponsor | Dev | Merchant | Support | Regulator | Fan |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| View all user data | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ◐ ⁽³⁾ | ✗ | ✗ |
+| View attendee lists | ✓ | ✓ | ◐ | ✗ | ✗ | ◐ | ✗ | ✗ | ✗ | ✗ | ◐ ⁽³⁾ | ✗ | ✗ |
+| View analytics | ✓ | ✓ | ◐ | ◐ agg. | ◐ | ◐ | ✗ | ◐ agg. ⁽⁵⁾ | ✗ | ◐ | ✗ | ✗ | ◐ |
+| View audit logs | ✓ | ◐ own | ◐ own events | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ read-only | ✗ |
+| **Write audit logs** | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Export personal data | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ◐ own |
+| Delete an account | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ◐ own |
+
+---
+
+### The five footnotes are where the real rules live
+
+**⁽¹⁾ Scanning is event-scoped, not role-scoped.** The source matrix gives Organiser a
+plain `✓` on scan, which reads as *any ticket*. It must be `◐` — own events only —
+because the alternative is one organiser admitting against another's inventory. This is
+already enforced (`16` §16.3): the redeem rule checks `organizerId == request.auth.uid`
+before anything else. Gate staff are narrower still: **one event**, by scoped link.
+
+**⁽²⁾ Admin role grants need two people.** Debt D5 (`17` §17.8). A self-propagating
+admin role with no second signature is correct at ten staff and wrong at a hundred, and
+the moment to fix it is before anyone has forgotten who granted whom.
+
+**⁽³⁾ Impersonation belongs to nobody by default.** Not super admin, not platform
+admin — only a support agent, only with the user's recorded consent, only time-boxed,
+and every action inside the session logged and attributed to the human, not the user.
+An admin who can silently become a customer can place orders, change payout details and
+read anything, with the audit trail naming the wrong person.
+
+**⁽⁴⁾ Configuring an agent cannot exceed your own authority.** An organiser may enable
+their agents, set budgets and adjust triggers. They cannot raise an agent above the
+autonomy ceiling `governance.v1` permits, and no configuration can grant an agent a
+scope its principal does not hold — `agent(X) ⊂ X` (`02` §2.1).
+
+**⁽⁵⁾ Sponsor analytics are aggregate only**, k-anonymised at 25 (`04` M19). This row
+is the one most likely to be widened by a commercial conversation, so it is stated here
+as well as there.
+
+### The two rows that are `✗` for everyone
+
+`Write the wallet ledger` and `Write audit logs` are denied to **every principal
+including super admin**, and that is not an oversight in the table. Both are written by
+trusted server code holding credentials no session ever has (`08` §8.16).
+
+An administrator who can silently edit the audit log is not an administrator, and a
+platform where credit can be minted from a browser is not a platform. Every other cell
+in this matrix is a policy decision; these two are the invariant the rest sits on.

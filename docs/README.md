@@ -71,7 +71,7 @@ this table is correct.
 | Quantity | Actual | Where |
 | --- | --- | --- |
 | Documents | 20 | this directory |
-| Total lines | 10,495 | `wc -l docs/*.md` |
+| Total lines | 10,604 | `wc -l docs/*.md` |
 | Actor types | **13** | `02` §2.1 |
 | AI Command Centres | **10** | `02` §2.3–2.12 |
 | AI agents | **28** | `03` §3.12 registry |
