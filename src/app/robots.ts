@@ -11,6 +11,7 @@ export default function robots(): MetadataRoute.Robots {
         // Authenticated surfaces, transactional dead-ends and the dev shortcut.
         disallow: [
           '/api/',
+          '/webhooks/',
           '/dashboard/',
           '/account',
           '/cart',

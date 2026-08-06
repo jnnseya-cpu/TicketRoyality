@@ -6,7 +6,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * KODA payment verification webhook.
+ * KODA payment verification webhook — https://ticketroyality.com/webhooks/koda
+ *
+ * The path is registered with KODA and must not change without re-registering there
+ * first. A moved webhook URL is silent: KODA keeps posting to the old path, gets a
+ * 404, retries for 24 hours and gives up, and the first symptom is a customer saying
+ * they paid and got nothing.
  *
  * This is the source of truth for a direct mobile-money payment, not the browser
  * redirect (docs/20 §20.6). A customer whose signal drops the instant their code is

@@ -57,7 +57,9 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        source: '/api/:path*',
+        // Webhook endpoints live outside /api because the paths are registered with
+        // providers, so they need the same no-store and noindex treatment explicitly.
+        source: '/(api|webhooks)/:path*',
         headers: [
           { key: 'Cache-Control', value: 'no-store' },
           { key: 'X-Robots-Tag', value: 'noindex' },
