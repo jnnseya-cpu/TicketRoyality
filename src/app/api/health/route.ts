@@ -24,6 +24,7 @@ export async function GET() {
     { name: 'datastore', configured: isFirebaseConfigured, critical: true },
     { name: 'stripe', configured: Boolean(process.env.STRIPE_SECRET_KEY), critical: false },
     { name: 'bitripay', configured: Boolean(process.env.BITRIPAY_CLIENT_ID), critical: false },
+    { name: 'koda', configured: Boolean(process.env.KODA_SECRET_KEY), critical: false },
     {
       name: 'ai',
       configured: Boolean(process.env.GEMINI_API_KEY ?? process.env.ANTHROPIC_API_KEY),

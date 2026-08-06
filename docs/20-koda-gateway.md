@@ -1,5 +1,11 @@
 # 20 — KODA Gateway API Door
 
+> **This document was corrected.** An earlier draft speculated an `/expectations` API
+> where our server pre-registered an expected payment. The real contract is
+> **intents plus a customer-submitted SMS code**, matched against the Sentinel SIM
+> ledger. §20.5 onward is the actual API; the commercial and regulatory reasoning in
+> §20.1–20.4 was unaffected.
+
 ## 20.1 What this is
 
 **KODA is a verification door, not a collection gateway.** It answers one question, in
@@ -145,114 +151,204 @@ which accounts are being observed has not consented, whatever the checkbox recor
 
 ---
 
-## 20.5 API surface
+## 20.5 API surface — the real contract
 
-Base: `https://api.ticketroyality.com/koda/v1`
-Auth: `Authorization: Bearer <key>` · sandbox and live keys are separate and
-visually distinct (`koda_sk_test_…` / `koda_sk_live_…`).
+Base URL `https://kodajnn.com/v1` · machine-readable at `/v1/openapi.json`.
 
-### `POST /expectations`
-
-Register a payment you are expecting, so KODA can match it when it lands.
-
-```json
-{
-  "reference": "TR-8F3K2M",
-  "merchant_account_ref": "acct_9x2...",
-  "amount": { "value": 4500, "currency": "CDF" },
-  "payer_msisdn_hint": "+243810000001",
-  "expires_at": "2026-08-05T18:00:00Z",
-  "metadata": { "order_id": "b3f1..." }
-}
+```
+Authorization: Bearer sk_live_xxx     (or)  X-API-Key: sk_live_xxx
 ```
 
-```json
-{
-  "id": "exp_7Hk2...",
-  "status": "awaiting",
-  "created_at": "2026-08-05T17:04:11Z"
-}
-```
+### Key types, and why three
 
-**Amounts are integer minor units.** `08` §8.3 — no floats cross this boundary.
+| Prefix | Scope | Where it may live |
+| --- | --- | --- |
+| `sk_` | `*` — full account | **Server only.** Never in a bundle, never in a repo |
+| `pk_` | `write:intents` only | **Safe in the browser** — can start a payment, never read data |
+| `rk_` | Read-only by default | A reconciliation key for an accountant |
 
-### `GET /expectations/{id}`
+`pk_` is the one worth understanding. It is safe in a page precisely because its scope
+is so narrow that a leaked key buys an attacker nothing but the ability to create
+intents nobody will pay.
 
-```json
-{
-  "id": "exp_7Hk2...",
-  "status": "verified",
-  "verification": {
-    "matched_at": "2026-08-05T17:06:52Z",
-    "amount": { "value": 4500, "currency": "CDF" },
-    "payer_msisdn": "+243810000001",
-    "provider": "vodacom",
-    "provider_reference": "QGH7X2K91",
-    "confidence": 1.0,
-    "match_basis": ["reference_exact", "amount_exact"]
-  }
-}
-```
+### Endpoints
 
-| `status` | Meaning |
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/ping` | Verify a key, see the merchant it unlocks |
+| `POST` | `/intents` | Create a payment intent |
+| `GET` | `/intents/{id}` | Poll status |
+| `POST` | `/intents/{id}/verify` | Submit the customer's SMS code |
+| `POST` | `/intents/{id}/cancel` | Cancel an awaiting intent |
+| `GET` | `/checkout/{id}?cs=` | Customer-facing read, authorised by `client_secret` — **no API key** |
+| `POST` | `/checkout/{id}/verify` | Customer submits their code; returns the redirect |
+| `GET` | `/receipts` | Filterable ledger of verified payments with audit traces |
+| `POST` | `/sandbox/sms` | Inject an operator-formatted SMS and watch ParserAgent structure it |
+| `GET` | `/billing/balance` | Prepaid ACU balance |
+| `GET` | `/agents` | Agent catalogue and ACU cost |
+| `POST` | `/agents/{type}/run` | Run ReconcilerAgent, trust lookup, dispute evidence, Vision |
+| `GET` | `/usage` | Monthly quota, usage, ACU |
+
+### Scopes
+
+| Scope | Grants |
 | --- | --- |
-| `awaiting` | Registered, nothing matched yet |
-| `verified` | Exact match on reference **and** amount |
-| `partial` | Matched, but the amount differs — **never auto-approved** |
-| `ambiguous` | More than one candidate matched |
-| `expired` | Window closed with no match |
+| `write:intents` | Create payment intents |
+| `read:receipts` | Read the verified-payments ledger |
+| `read:agents` | List the agent catalogue |
+| `run:agents` | Run agents — consumes ACU |
+| `read:usage` | API usage and ACU balance |
+| `*` | Full account |
 
-### `POST /verifications/search`
+### Creating an intent
 
-Match a payment observed without a prior expectation — the walk-up case, and how a
-merchant reconciles history.
+```json
+POST /v1/intents
+{
+  "amount": 25000,
+  "currency": "CDF",
+  "operators": ["orange_cd", "mpesa_cd"],
+  "metadata": { "order_id": "CMD-1042" },
+  "success_url": "https://ticketroyality.com/checkout/success"
+}
+→ {
+  "intent_id": "int_…",
+  "client_secret": "cs_…",
+  "checkout_url": "https://kodajnn.com/pay/int_…?cs=cs_…"
+}
+```
 
-### `GET /accounts`, `POST /accounts/{id}/consent`, `DELETE /accounts/{id}/consent`
+**Amounts are minor units.** No float crosses this boundary — `08` §8.3.
 
-Consent lifecycle. `DELETE` takes effect immediately and is irreversible without a
-fresh grant.
-
-### Idempotency
-
-Every mutating request accepts `Idempotency-Key`. Replaying a key returns the original
-response and never creates a second expectation — the same discipline as
-`payments.idempotency_key` in `08` §8.11.
+**Send our order reference as `Idempotency-Key`.** A retried request must never create
+a second intent, or the buyer sees two payment panels for one order.
 
 ---
 
-## 20.6 Webhooks
+## 20.6 Drop-in checkout
 
-| Event | Fires when |
+Two integration paths. We use the first.
+
+### Hosted checkout — server creates the intent
+
+Our server holds the `sk_` key, creates the intent, and hands the browser a
+`checkout_url`. The overlay is a script tag:
+
+```html
+<script src="https://kodajnn.com/js/koda.js"></script>
+<script>
+  Koda.checkout({
+    checkoutUrl: '<from your server>',
+    onVerified: function (r) { window.location = '/checkout/success'; }
+  });
+</script>
+```
+
+### Publishable key — front-end only
+
+A `pk_` key creates the intent in the page, no backend call:
+
+```html
+<button
+  data-koda-key="pk_live_…"
+  data-koda-amount="25000"
+  data-koda-currency="CDF"
+  data-koda-operators="orange_cd,mpesa_cd"
+  data-koda-order="CMD-1042">
+  Payer par mobile money
+</button>
+```
+
+**We use the hosted path.** The publishable route is genuinely safe and is the right
+answer for a shop with no backend — but we have one, and creating the intent
+server-side means the amount is set by us rather than by whatever the page says.
+
+### The browser hand-off is never the source of truth
+
+```
+customer pays operator directly
+   ▼
+receives operator SMS with a code
+   ▼
+pastes it into the KODA panel
+   ▼
+matched against the Sentinel SIM ledger
+   ▼
+fraud-scored · replay-checked
+   ▼
+signed payment.verified webhook ──▶ our server ──▶ tickets issued
+                                    │
+              onVerified in the browser advances the UI — convenience only
+```
+
+`15` §15.5 makes the same argument about Stripe's redirect. A customer whose signal
+drops the instant their code is accepted still gets their ticket.
+
+### Webhooks
+
+```
+x-koda-signature: <HMAC-SHA256 of the RAW body>
+```
+
+| Event | Meaning |
 | --- | --- |
-| `verification.matched` | An expectation is satisfied exactly |
-| `verification.partial` | Matched with an amount discrepancy |
-| `verification.ambiguous` | Multiple candidates |
-| `verification.expired` | Window closed unmatched |
-| `payment.observed` | An inbound payment with no expectation registered |
-| `consent.revoked` | Merchant withdrew access to an account |
+| `payment.verified` | Matched and accepted |
+| `payment.verified.late` | Matched after the intent window |
+| `payment.rejected` | Match failed |
+| `payment.expired` | Window closed unmatched |
 
-```
-POST <merchant endpoint>
-KODA-Signature: t=1754413612,v1=<hmac-sha256>
-```
+**Verify against the raw body string.** Parsing and re-serialising JSON changes key
+order and whitespace, the hash stops matching, and every webhook is rejected — a
+failure that looks like KODA being broken and is entirely ours.
 
-Signed with the merchant's webhook secret over `t.body`. **Reject any request whose
-timestamp is more than 5 minutes old**, or a captured payload can be replayed
-indefinitely.
+Compare in constant time. A fast-exit comparison leaks the signature byte by byte.
 
-Delivery retries on exponential backoff for 24 hours. **The webhook is a
-notification, not the source of truth** — a merchant that missed one reconciles with
-`GET /expectations/{id}`, exactly as `15` §15.5 treats Stripe's webhook versus its
-redirect.
+---
+
+## 20.6a Limits, ACU and failure codes
+
+| Plan | Rate limit |
+| --- | --- |
+| Free | 2 rps |
+| Boutique | 10 rps |
+| Commerce | 25 rps |
+| Plateforme | 100 rps |
+
+| Status | Meaning | Our handling |
+| --- | --- | --- |
+| `429` | Rate limited | Honour `Retry-After`; never retry blind |
+| `402` | Prepaid ACU exhausted, after a 72h grace buffer | Fall back to the manual queue — the merchant is out of credit, not in arrears |
+
+Monthly verification quota is included at no per-use cost. **Failed matches, rejections
+and expired intents are always free** — which is the right incentive: a verification
+layer that charged for failures would be paid most when it worked least.
+
+ACU is drawn only by AI features and by verifications beyond quota.
+
+### Sandbox references
+
+| Reference | Produces |
+| --- | --- |
+| `TEST-OK-25000` | Instant `payment.verified` |
+| `TEST-LATE-90` | Verifies after 90s — `payment.verified.late` |
+| `TEST-REPLAY` | `code_already_used` |
+| `TEST-SUFFIX` | `msisdn_suffix_mismatch` → challenge flow |
+
+A sandbox that only produces success teaches integrators to write code that crashes on
+everything else. Late verification and replay are exactly what they meet in production.
 
 ---
 
 ## 20.7 Matching, and where it refuses to decide
 
 ```
-inbound payment observed
+customer pays the merchant number directly
    ▼
-candidate expectations = open ∧ same account ∧ within window
+operator SMS lands on the customer's handset
+   ▼
+customer pastes the code into the KODA panel
+   ▼
+matched against the Sentinel SIM ledger
    ▼
 ┌──────────────────────────┬───────────────────────────────────────┐
 │ reference exact          │ amount exact  → verified, confidence 1 │
@@ -313,7 +409,8 @@ score with no explanation behind it.
 
 ## 20.10 Developer Centre
 
-Hosted at `developers.ticketroyality.com/koda`.
+Hosted by KODA. Machine-readable contract at `/v1/openapi.json` — import into Postman
+or generate an SDK.
 
 | Asset | Detail |
 | --- | --- |
@@ -329,16 +426,9 @@ A sandbox that only produces `verified` teaches integrators to write code that h
 the happy path and crashes on everything else. KODA's sandbox exposes deterministic
 triggers for each outcome:
 
-| Test reference | Produces |
-| --- | --- |
-| `TEST-VERIFIED` | Exact match |
-| `TEST-PARTIAL` | Amount discrepancy |
-| `TEST-AMBIGUOUS` | Multiple candidates |
-| `TEST-EXPIRED` | Window closes unmatched |
-| `TEST-TIMEOUT` | No response, to exercise retries |
-
-`partial` and `ambiguous` are the two an integrator is most likely to get wrong and
-most likely to meet in production.
+See §20.6a for the real sandbox references. `POST /v1/sandbox/sms` additionally injects
+an operator-formatted SMS so an integrator can watch ParserAgent structure it — which
+is the part of the pipeline hardest to reason about from documentation alone.
 
 ---
 
