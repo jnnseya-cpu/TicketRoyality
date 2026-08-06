@@ -26,6 +26,8 @@ import { Card, CardContent } from '@/frontend/components/ui/card';
 import { Separator } from '@/frontend/components/ui/separator';
 import VideoAds from '@/frontend/components/home/VideoAds';
 import { FeaturedEvents, UpcomingSample } from '@/frontend/components/home/FeaturedEvents';
+import { QuickDiscovery } from '@/frontend/components/home/QuickDiscovery';
+import { getEvents } from '@/shared/data/repositories';
 import { PersonalizedRecommendations } from '@/frontend/components/ai/PersonalizedRecommendations';
 import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
 
@@ -132,7 +134,11 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Fast-decision surfaces need real inventory. Failure degrades to nothing rendered
+  // rather than a broken homepage.
+  const events = await getEvents().catch(() => []);
+
   return (
     <>
       {/* ------------------------------------------------------------------ */}
@@ -278,6 +284,8 @@ export default function HomePage() {
       <VideoAds />
 
       {/* Featured placements */}
+      <QuickDiscovery events={events} />
+
       <FeaturedEvents />
 
       {/* Rotating upcoming sample */}

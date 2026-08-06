@@ -5,6 +5,7 @@ import { ArrowRight, BookOpen, LineChart, Mic, MapPin } from 'lucide-react';
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent } from '@/frontend/components/ui/card';
+import { publishedArticles } from '@/shared/content/articles';
 
 export const metadata: Metadata = {
   title: 'Blog',
@@ -13,17 +14,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * Article inventory is intentionally empty until real, human-reviewed pieces exist.
- * Nothing is auto-published here — see docs/04 M25. Rendering an honest empty state
- * beats seeding the index with filler that would drag the whole domain down.
+ * A small, hand-written set. Nothing is auto-published here (docs/04 M25) — the links
+ * inside each piece are dynamic, the prose is not.
  */
-const ARTICLES: Array<{
-  slug: string;
-  title: string;
-  kind: string;
-  excerpt: string;
-  date: string;
-}> = [];
+const ARTICLES = publishedArticles();
 
 const STRANDS = [
   {
@@ -76,7 +70,7 @@ export default function BlogPage() {
           {ARTICLES.map((article) => (
             <Card key={article.slug}>
               <CardContent className="space-y-2 pt-6">
-                <Badge variant="secondary">{article.kind}</Badge>
+                <Badge variant="secondary">{article.kind.replace('_', ' ')}</Badge>
                 <h2 className="font-headline text-lg font-semibold">{article.title}</h2>
                 <p className="text-sm text-muted-foreground">{article.excerpt}</p>
                 <Button asChild variant="link" className="px-0">

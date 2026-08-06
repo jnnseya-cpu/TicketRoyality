@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { EventStructuredData } from '@/frontend/components/seo/StructuredData';
+import { RelatedLinks } from '@/frontend/components/seo/RelatedLinks';
+import { relatedGroups } from '@/shared/related';
 import type { Metadata } from 'next';
 import { CalendarDays, Clock, ExternalLink, Radio, Share2, Ticket, Users } from 'lucide-react';
 
@@ -16,7 +18,7 @@ import { EventSpeakers } from '@/frontend/components/events/EventSpeakers';
 import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
 import { SimilarEvents } from '@/frontend/components/events/SimilarEvents';
 import { TicketBox } from '@/frontend/components/events/TicketBox';
-import { getEventById } from '@/shared/data/repositories';
+import { getEvents, getEventById } from '@/shared/data/repositories';
 import { formatEventDate } from '@/shared/utils';
 
 export async function generateMetadata({
@@ -38,6 +40,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const event = await getEventById(id);
   if (!event) notFound();
+
+  // Dynamic internal links (docs/04 M25). Failure here must not break the page — a
+  // related-events block is an enhancement, the event itself is the product.
+  const allEvents = await getEvents().catch(() => []);
+  const groups = relatedGroups(event, allEvents);
 
   const isPast = new Date(event.date).getTime() < Date.now();
   const totalCapacity =
@@ -232,6 +239,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             </CardContent>
           </Card>
         </aside>
+      </div>
+
+      <div className="container pb-14">
+        <RelatedLinks groups={groups} />
       </div>
     </article>
   );

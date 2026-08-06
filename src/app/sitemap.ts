@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 
 import { getEvents, getOrganisers } from '@/shared/data/repositories';
 import { siteUrl } from '@/shared/site';
+import { publishedArticles } from '@/shared/content/articles';
 
 export const revalidate = 3600;
 
@@ -39,6 +40,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: route.freq,
     priority: route.priority,
   }));
+
+  for (const article of publishedArticles()) {
+    entries.push({
+      url: `${base}/blog/${article.slug}`,
+      lastModified: new Date(article.updated),
+      changeFrequency: 'monthly',
+      priority: 0.6,
+    });
+  }
 
   // A sitemap must never fail the build or the route. If the catalogue is unreachable
   // we publish the static routes rather than nothing.
