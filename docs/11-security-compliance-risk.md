@@ -415,7 +415,7 @@ a login that frustrates real customers; raising cost and limiting blast radius d
 
 | Layer | Control | Blocks |
 | --- | --- | --- |
-| 1 | Cloudflare Bot Management + Turnstile | Commodity bots, headless browsers, datacentre IPs |
+| 1 | **Firebase App Check** — reCAPTCHA Enterprise, Play Integrity, App Attest | Commodity bots, headless browsers, anything not running our app |
 | 2 | Rate limiting per IP, ASN, device and email domain | Volume attempts |
 | 3 | Device fingerprinting (Seon, `06` §6.16) | Farms reusing one device across many accounts |
 | 4 | Disposable and role-address blocking | Throwaway inbox signups |
@@ -424,7 +424,7 @@ a login that frustrates real customers; raising cost and limiting blast radius d
 | 7 | Velocity across the graph — shared device, payment instrument, address | Coordinated registration |
 | 8 | Progressive friction on suspicion, never blanket | Attackers, without punishing everyone |
 | 9 | Passkeys offered on every account | Credential stuffing, at the login side |
-| 10 | Breached-password check at set and at login | Reused credentials |
+| 10 | Firebase Auth password policy | Weak and reused credentials |
 
 ### Progressive friction, not a wall
 
@@ -434,8 +434,8 @@ bots that mostly solve it anyway.
 ```
 risk score
   low      → nothing. Sign in, no challenge
-  medium   → Turnstile, invisible in most cases
-  high     → challenge + email verification
+  medium   → App Check attestation required (invisible in most cases)
+  high     → attestation + email verification
   severe   → refuse, log, no account created
 ```
 
@@ -480,8 +480,55 @@ Every challenge must have an accessible path. A visual-only CAPTCHA locks out bl
 users entirely, and a platform that sells accessible seating cannot have a front door
 that fails the same people.
 
-Turnstile is chosen partly because it is usually invisible and does not require solving
-a puzzle at all.
+App Check is chosen partly because it is **invisible by default** — reCAPTCHA
+Enterprise scores the session without presenting a puzzle at all, so there is nothing
+to fail for a screen-reader user.
+
+
+
+### App Check enforces at the data layer, which is the point
+
+A form-level CAPTCHA guards one door. **App Check guards the data** — the token is
+verified by Firestore, Storage and Cloud Functions themselves, so a script that
+bypasses our sign-up form still cannot read a document.
+
+```
+form CAPTCHA  →  guards the page      →  bypassed by calling the API directly
+App Check     →  guards the backend   →  no valid token, no data
+```
+
+Web attestation uses **reCAPTCHA Enterprise, in the same Google Cloud project**.
+Android uses Play Integrity, iOS uses App Attest. No new supplier, no new contract.
+
+### Enforcement is staged, not switched on everywhere at once
+
+| Surface | Mode | Why |
+| --- | --- | --- |
+| Signup, login, checkout, payment verify, organiser register, API keys | **Enforce** | A request here that cannot prove it came from our app has no legitimate reason to exist |
+| Catalogue and event reads | **Monitor** | Breaking public browsing to stop a scraper is a bad trade — the catalogue is what the platform is *for* |
+| Door scan | **Monitor** | A scanner that cannot attest in a venue basement must still admit ticket-holders (`04` M16) |
+
+Turning App Check to blocking across everything on day one locks out any client we have
+not instrumented — including our own gate app, mid-event. Monitor first, enforce where
+the money is.
+
+### The whole defence set, and its suppliers
+
+| Layer | Provider |
+| --- | --- |
+| Attestation | Firebase App Check + reCAPTCHA Enterprise — same GCP project |
+| Email verification gate | Firebase Auth |
+| MFA and step-up | Firebase Auth |
+| Authorisation | `firestore.rules` |
+| Honeypot, timing, interaction signals | This repository |
+| Velocity and device-reuse scoring | This repository + Firestore |
+| Rate limiting | This repository + Firestore counters |
+| Prompt-injection defence | This repository |
+| `sentinel.v1` | This repository + the AI gateway |
+| Edge WAF, if ever needed | Google Cloud Armor — same project |
+
+**Eleven layers, zero new vendors.** Every one is Firebase, the same Google Cloud
+project, or code in this repository.
 
 ### What we will not do
 
@@ -750,7 +797,7 @@ an hour later.
 | Honeypot field completed | 70 | Near-conclusive — invisible to a person |
 | Form completed under 800ms | 35 | Not typing. Generous to autofill |
 | No focus or keyboard events | 30 | Scripted submission |
-| Challenge failed | 30 | Turnstile |
+| App Check attestation failed | 30 | Firebase-native |
 | Impossible travel | 35 | |
 | Datacentre address | 25 | |
 | Disposable email domain | 25 | |

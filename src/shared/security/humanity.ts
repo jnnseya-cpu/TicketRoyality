@@ -14,8 +14,11 @@
 export type RiskBand = 'low' | 'medium' | 'high' | 'severe';
 
 export interface RequestSignals {
-  /** Cloudflare Turnstile or equivalent. Absent means unproven, not hostile. */
-  challengePassed?: boolean;
+  /**
+   * Firebase App Check attestation (`shared/security/appcheck.ts`). Absent means
+   * unproven, not hostile — a browser with an outdated cached token is not an attack.
+   */
+  attested?: boolean;
   /** Known datacentre / hosting ASN. */
   datacentreIp?: boolean;
   knownVpn?: boolean;
@@ -69,7 +72,7 @@ export function assessRisk(signals: RequestSignals): RiskAssessment {
   if (signals.humanInteraction === false) add(30, 'no focus or keyboard events');
 
   if (signals.datacentreIp) add(25, 'request from a hosting provider');
-  if (signals.challengePassed === false) add(30, 'challenge failed');
+  if (signals.attested === false) add(30, 'App Check attestation failed');
   if (signals.disposableEmail) add(25, 'disposable email domain');
   if (signals.roleAddress) add(10, 'role address rather than a person');
 

@@ -64,8 +64,8 @@ acceptable only because it fails open to the manual queue (`20` §20.8).
 | **Sumsub** | KYC + KYB | `REQUIRED` before payouts | £1–3/check | **Cannot pay organisers legally** |
 | **ComplyAdvantage** | Sanctions, PEP, adverse media | `REQUIRED` before payouts | £500+/mo | No AML screening — regulatory exposure |
 | **Seon** | Device intelligence, bot detection | `PHASE 2` | £0.01–0.05/check | Weaker fraud scoring |
-| **Cloudflare Turnstile** | Human verification (`11` §11.13) | `REQUIRED` | Free | Automated signup at scale |
-| **Have I Been Pwned** | Breached-password check | `REQUIRED` | Free tier | Credential stuffing succeeds more often |
+| **Firebase App Check** | Attestation (`11` §11.13) | `REQUIRED` | Free | Automated access at scale |
+| **Firebase Auth** password policy | Weak-password rejection | `REQUIRED` | Free | Credential stuffing succeeds more often |
 | **Persona** or Veriff | KYC secondary | `PHASE 3` | Per check | Single-vendor on identity |
 
 **Sumsub and ComplyAdvantage are launch-blocking for payouts, not for sales.** You can
@@ -169,7 +169,7 @@ worse.
 | 11 | Anthropic | AI | `LIVE` | Gemini, OpenAI |
 | 12 | Sumsub | KYC/KYB | `REQUIRED` payouts | Persona, Veriff |
 | 13 | ComplyAdvantage | AML | `REQUIRED` payouts | Refinitiv |
-| 14 | Turnstile | Bot defence | `REQUIRED` | hCaptcha |
+| 14 | Firebase App Check | Attestation | `REQUIRED` | Cloud Armor (same project) |
 | 15 | Open Exchange Rates | FX | `REQUIRED` multi-ccy | ECB feed |
 | 16 | Sentry | Errors | `REQUIRED` | Rollbar |
 | 17 | Better Stack | Uptime, logs | `REQUIRED` | Datadog |
@@ -360,9 +360,9 @@ roughly 5,000 emails a month, whichever comes first. Resend at $20 is the smalle
 possible upgrade and can be deferred until then. **A ticket that does not arrive is
 indistinguishable from fraud to the buyer**, so this is the caveat to watch hardest.
 
-**There is no edge WAF or bot management.** Google Cloud Armor is available and is the
-in-project option if it becomes necessary; until then, scalping defence lives in the
-application — server-side per-person ticket limits, velocity checks across device and
+**There is no edge WAF.** Google Cloud Armor is the in-project option if it becomes
+necessary; until then, attestation runs at the data layer via App Check and scalping
+defence lives in the application — server-side per-person ticket limits, velocity checks across device and
 payment instrument, and the layered controls in `11` §11.13, most of which never
 depended on the edge anyway.
 
