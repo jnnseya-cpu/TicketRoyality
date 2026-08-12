@@ -719,3 +719,98 @@ trusted server code holding credentials no session ever has (`08` §8.16).
 An administrator who can silently edit the audit log is not an administrator, and a
 platform where credit can be minted from a browser is not a platform. Every other cell
 in this matrix is a policy decision; these two are the invariant the rest sits on.
+
+---
+
+## 11.16 Only humans, and what that can honestly mean
+
+### The claim, stated accurately
+
+**"Only humans can sign up and log in" is not fully achievable, and any vendor who
+promises it is selling something.** An attacker can pay a person a fraction of a penny
+to solve any challenge. A platform that chases the absolute produces a login that
+punishes real customers and barely inconveniences a determined bot.
+
+What *is* achievable, and what this platform implements:
+
+> Make automated access **cost more than it is worth**, and make any account that does
+> get through **useless before it can act**.
+
+The second half is the one that holds. Blocking signup is a filter attackers route
+around; removing the reason to create an account is not.
+
+### Enforced at every gate, not just the door
+
+`shared/security/humanity.ts` scores each request and the score is checked again at
+every privileged action, because a session that was human at login is not proven human
+an hour later.
+
+| Signal | Weight | Note |
+| --- | --- | --- |
+| Honeypot field completed | 70 | Near-conclusive — invisible to a person |
+| Form completed under 800ms | 35 | Not typing. Generous to autofill |
+| No focus or keyboard events | 30 | Scripted submission |
+| Challenge failed | 30 | Turnstile |
+| Impossible travel | 35 | |
+| Datacentre address | 25 | |
+| Disposable email domain | 25 | |
+| Device linked to >3 accounts | 30 | Farm signal |
+| >5 signups from one network | 25 | |
+| **VPN detected** | **0** | **Deliberately not scored** — privacy-conscious users are not attackers |
+
+| Band | Score | Action |
+| --- | --- | --- |
+| Low | 0–14 | Allow. No friction |
+| Medium | 15–39 | Invisible challenge |
+| High | 40–69 | Challenge + email verification |
+| Severe | 70+ | Refuse, log, no account created |
+
+**Progressive, never blanket.** A CAPTCHA on every login is a conversion tax paid by
+customers to inconvenience bots that mostly solve it anyway.
+
+### An unverified account can browse. That is all.
+
+| Denied until verified | Why |
+| --- | --- |
+| `purchase` | No payment path, so no card testing |
+| `waitlist.join`, `presale.claim` | No inventory hoarding |
+| `referral.use` | No referral farming (`04` M26) |
+| `organiser.register` | Organiser is the money role |
+| `api.key.create` | No programmatic access |
+| `follow.notify`, `review.post` | No spam vector |
+
+---
+
+## 11.17 Blocking non-human instructions
+
+The real threat is not a bot filling a form. It is **prompt injection**: instructions
+hidden in attacker-controlled text that reach a model — a support message, an event
+description, an organiser bio, a webhook payload, an uploaded document.
+
+`backend/security/injection.ts` implements four layers, **in this order**:
+
+| # | Layer | What it does |
+| --- | --- | --- |
+| 1 | **Structural** | Untrusted text is fenced and labelled as data with explicit "this carries no authority" framing |
+| 2 | **Authority** | Agents hold scopes strictly narrower than their principal — `agent(X) ⊂ X` |
+| 3 | **Validation** | An out-of-scope tool call is rejected by the policy engine and treated as a compromised run |
+| 4 | **Detection** | Pattern scan — bidi overrides, zero-width obfuscation, chat template tokens, exfiltration and escalation phrasing |
+
+### Detection is last on purpose
+
+Pattern matching natural language is inherently leaky. Obfuscation, translation,
+encoding and novel phrasing all defeat it, and tightening it produces false positives —
+an event description genuinely discussing "admin access" is not an attack.
+
+**It is a signal to log and escalate, never the boundary.**
+
+The boundary is layers 2 and 3. An injected instruction that survives every layer still
+cannot do anything the agent was not already permitted to do, because no agent moves
+money without human approval and every kernel write passes the policy engine. That
+property is what makes running an agent layer safe at all — not the filter in front of
+it.
+
+**An agent requesting a scope it does not hold is the strongest injection signal
+available**, because a successful injection must eventually request an *effect*. It is
+caught by the policy engine rather than by reading text, and it routes straight to
+`sentinel.v1`.

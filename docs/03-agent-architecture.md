@@ -414,6 +414,48 @@ chargebacks. The failure-code classification is a lookup table, reviewed quarter
 | **SLO** | p95 < 120ms. **Fails open to `challenge`, never to `allow`** |
 | **Value** | Chargeback and fake-ticket loss avoided |
 
+### `sentinel.v1`
+
+| Field | Value |
+| --- | --- |
+| **Purpose** | Detect intrusion attempts across auth, checkout, door and agent telemetry, and contain them inside a bounded authority |
+| **Inputs** | `{ failedLogins, distinctAccountsAttempted, failedPayments, distinctCards, ticketsPurchased, duplicateScans, invalidSignatures, outOfScopeAgentCalls, payoutDestinationChanges, untrustedText }` |
+| **Outputs** | `{ signals: [{ kind, confidence, subject, evidence[] }], containments: [{ response, expiresInSeconds, reason, escalateToHuman }] }` |
+| **Scopes** | `read:telemetry`, `write:rate_limits`, `write:challenges`, `freeze:session` |
+| **Autonomy** | **L2 for challenge, rate limit and session freeze · L1 for anything touching an account** |
+| **Triggers** | Continuous on auth and checkout · every agent run · every webhook signature failure |
+| **Workflow** | Score the telemetry window against deterministic rules → emit signals with evidence → map each to a bounded, expiring containment → write to the audit log → escalate the money-adjacent ones |
+| **Escalation** | Card testing, payout fraud, ticket forgery, privilege probing and every injection attempt go to a human regardless of confidence |
+| **APIs** | Internal only. **No external calls at all** |
+| **Budget** | 20 ACU/day |
+| **Value** | Compresses time-to-containment from a support ticket to a telemetry threshold |
+
+**Detection is deterministic, not a model.** A security decision nobody can reconstruct
+is a security decision nobody can appeal, and *"the AI decided"* is not an answer to
+give an organiser locked out on the morning of their on-sale.
+
+**Every containment expires on its own.** The most severe action available is freezing
+a *session* — never an account, never a payout, never a ticket.
+
+### What `sentinel.v1` must never be given
+
+Not "not yet". Each of these converts a defence into a weapon an attacker can aim at
+our own customers by deliberately triggering it:
+
+| Forbidden | Why |
+| --- | --- |
+| Delete any record | An attacker who triggers it destroys evidence for us |
+| Permanently ban an account | Denial of service against a real customer, with no appeal |
+| Reverse, hold or release a payment | Money movement — `01` §1.7, permanent constraint |
+| Invalidate an issued ticket | Turns a false positive into a person refused at the door |
+| Modify rules or IAM | A compromised defence agent must not be able to widen its own access |
+| Disable another agent | Removes the governance watching it |
+| Suppress its own audit trail | The one thing that makes any of this reviewable |
+
+**A defence agent with unbounded authority is the most dangerous thing on the
+platform.** It is trusted, it acts fast, and it acts on attacker-supplied triggers —
+which is precisely the combination an attacker wants to control.
+
 ### `security.v1`
 
 | Field | Value |
@@ -811,6 +853,7 @@ line.
 | `payments.v1` | Money | L2 route · L1 payout | 12 | 3s |
 | `fraud.v3` | Security | L1 (block) | 3 | 120ms |
 | `security.v1` | Security | L2 | 5 | 1s |
+| `sentinel.v1` | Security | L2 bounded · L1 on accounts | 20/day | 500ms |
 | `compliance.v1` | Security | L1 | 12 | 5s |
 | `reliability.v1` | Platform | L2 | 25 | 2s |
 | `auto_repair.v1` | Platform | L1 | 60 | 120s |
@@ -823,7 +866,7 @@ line.
 | `analyst.v2` | Data | L3 | 8 | 4s |
 | `research.v1` | Data | L3 | 35 | 20s |
 
-**28 agents.** Where an outline names an agent this table does not, it is because the
+**29 agents.** Where an outline names an agent this table does not, it is because the
 function already has an owner rather than because it was missed:
 
 | Named elsewhere | Owned by | Why not separate |

@@ -73,10 +73,10 @@ this table is correct.
 | Quantity | Actual | Where |
 | --- | --- | --- |
 | Documents | 22 | this directory |
-| Total lines | 12,114 | `wc -l docs/*.md` |
+| Total lines | 12,252 | `wc -l docs/*.md` |
 | Actor types | **13** | `02` §2.1 |
 | AI Command Centres | **10** | `02` §2.3–2.12 |
-| AI agents | **28** | `03` §3.12 registry |
+| AI agents | **29** | `03` §3.12 registry |
 | — of which self-managing | **6** | `03` §3.7 |
 | Platform modules | **27** | `04` M1–M26 + M3a |
 | Connector categories | **21** | `06` §6.21 |
