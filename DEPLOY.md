@@ -101,6 +101,45 @@ npx eslint src --max-warnings=0
 
 All three pass on the current branch.
 
+### Then run it, and look at it
+
+A green build is not a working app. Serve the real production artefact locally and
+walk the pages a buyer will walk:
+
+```bash
+npm run start          # serves .next/standalone on :3000
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/
+```
+
+`npm run start` runs `node .next/standalone/server.js`, **not** `next start`. This is
+not a stylistic choice: `next start` refuses to serve a `output: 'standalone'` build
+and exits after printing "Ready", so it looks like it worked and then nothing is
+listening on the port. The standalone server is also exactly what Cloud Run executes,
+so this is the deployed runtime rather than an approximation of it.
+
+`npm run build` triggers `postbuild`, which copies `.next/static` (and `public/` if it
+exists) into the standalone tree. Next leaves these out because the canonical
+deployment puts a CDN in front. There is no CDN here — the Node process serves
+everything — so without the copy every page returns HTML whose stylesheets and scripts
+all 404, and the site renders unstyled and inert.
+
+Verified on the current branch, against the standalone server:
+
+| Check | Result |
+| --- | --- |
+| Every page route (46) | 200 |
+| Every internal `href` (23) | 200 — no broken links |
+| `/_next/static` CSS and JS | 200 — assets served |
+| `/webhooks/koda` unsigned + bad signature | 401 |
+| `/api/cron/*` without `CRON_SECRET` | 401 |
+| `/api/checkout` unconfigured | 303 → `/checkout/cancel`, no session created |
+| `/api/ai`, `/api/stripe-webhook` unconfigured | 503 — fails closed |
+| `/api/health` with no env | 503, `datastore: configured=false` |
+
+The two 503s and the health failure are correct behaviour for a machine with no
+secrets, not defects. They are the signal to check after deploying: once Secret
+Manager is populated, `/api/health` must return 200.
+
 ---
 
 ## Cost today
