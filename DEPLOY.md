@@ -127,7 +127,7 @@ Verified on the current branch, against the standalone server:
 
 | Check | Result |
 | --- | --- |
-| Every page route (46) | 200 |
+| Every page route (46 + 37 blog) | 200 |
 | Every internal `href` (23) | 200 — no broken links |
 | `/_next/static` CSS and JS | 200 — assets served |
 | `/webhooks/koda` unsigned + bad signature | 401 |
@@ -159,7 +159,9 @@ about £25/month. Full model in `docs/21` §21.13.
 - Event pages with `Event` JSON-LD — eligible for Google's events carousel
 - Organiser directory and profiles
 - Registration, login, all three dashboards
-- Blog with dynamically linked articles
+- Blog: 30 articles across 7 topic hubs, with contextual inline links generated from
+  a registry, related-article blocks, and event links resolved against live inventory
+  (`npm run check:links` validates the whole graph; `npm run report:links` reports density)
 - `robots.txt`, `sitemap.xml`, security headers
 - `/api/health`
 
