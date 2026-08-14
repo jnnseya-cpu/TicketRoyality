@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { verifyWebhook } from '@/backend/payments/koda';
+import { recordPaymentEvent } from '@/backend/services/payment-events';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,21 @@ export const dynamic = 'force-dynamic';
  * This is the source of truth for a direct mobile-money payment, not the browser
  * redirect (docs/20 §20.6). A customer whose signal drops the instant their code is
  * accepted still gets their ticket.
+ *
+ * As with Stripe, this handler verifies and records; issuance happens in the Cloud
+ * Function triggered by the document it writes.
  */
+
+/** The intent metadata we set at checkout and KODA echoes back. */
+interface KodaMetadata {
+  eventId?: string;
+  tierId?: string;
+  userId?: string;
+  quantity?: string;
+  attendeeName?: string;
+  attendeeEmail?: string;
+}
+
 export async function POST(request: Request) {
   // Read the raw body first. Parsing and re-serialising changes key order and
   // whitespace, which breaks the HMAC every time.
@@ -27,7 +42,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_signature' }, { status: 401 });
   }
 
-  let payload: { type?: string; data?: Record<string, unknown> };
+  let payload: {
+    id?: string;
+    type?: string;
+    data?: {
+      intent_id?: string;
+      receipt_id?: string;
+      amount?: number;
+      currency?: string;
+      metadata?: KodaMetadata;
+    };
+  };
   try {
     payload = JSON.parse(raw);
   } catch {
@@ -36,14 +61,65 @@ export async function POST(request: Request) {
 
   switch (payload.type) {
     case 'payment.verified':
-    case 'payment.verified.late':
-      // TODO(D1): issue tickets via the Cloud Function. Until that lands the event is
-      // acknowledged and left in the admin queue rather than silently dropped —
-      // returning 200 here without acting would tell KODA to stop retrying.
-      return NextResponse.json(
-        { received: true, issued: false, reason: 'issuance_pending' },
-        { status: 202 }
-      );
+    case 'payment.verified.late': {
+      const data = payload.data ?? {};
+      const meta = data.metadata ?? {};
+
+      // KODA's own event id keys idempotency. Falling back to the intent id is
+      // deliberate: a late verification for the same intent must not issue a second
+      // set of tickets, and the intent is what both deliveries have in common.
+      const providerEventId = payload.id ?? data.intent_id;
+
+      if (!providerEventId || !meta.eventId || !meta.tierId || !meta.userId) {
+        console.error('[koda] verified payment missing metadata', {
+          intentId: data.intent_id,
+          type: payload.type,
+        });
+        // 202 rather than 200: acknowledged, but explicitly not issued, and KODA is
+        // told the outcome rather than being left to assume success.
+        return NextResponse.json(
+          { received: true, issued: false, reason: 'missing_metadata' },
+          { status: 202 }
+        );
+      }
+
+      const quantity = Math.max(1, Number(meta.quantity ?? 1));
+
+      try {
+        const outcome = await recordPaymentEvent({
+          providerEventId,
+          provider: 'bitripay',
+          providerType: payload.type,
+          intent: 'issue',
+          eventId: meta.eventId,
+          tierId: meta.tierId,
+          userId: meta.userId,
+          quantity,
+          // KODA amounts are minor units (docs/08 §8.3) and are the total, not a unit
+          // price. Both conversions have to happen, and forgetting either produces a
+          // ticket priced 100x wrong.
+          price: data.amount ? data.amount / 100 / quantity : 0,
+          currency: (data.currency ?? 'CDF').toUpperCase(),
+          attendeeName: meta.attendeeName ?? 'Ticket holder',
+          attendeeEmail: meta.attendeeEmail ?? '',
+          providerRef: data.intent_id,
+        });
+
+        if (outcome === 'unavailable') {
+          // 5xx so KODA retries. Acknowledging a payment whose ticket will never be
+          // issued is the one outcome worth failing loudly to avoid.
+          return NextResponse.json({ error: 'datastore_unavailable' }, { status: 503 });
+        }
+
+        return NextResponse.json({ received: true, queued: outcome });
+      } catch (error) {
+        console.error('[koda] failed to record payment event', {
+          providerEventId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return NextResponse.json({ error: 'record_failed' }, { status: 503 });
+      }
+    }
 
     case 'payment.rejected':
     case 'payment.expired':

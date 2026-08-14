@@ -78,6 +78,15 @@ export function verifyWebhook(rawBody: string, signature: string): Stripe.Event 
 export function readCheckoutSession(session: Stripe.Checkout.Session) {
   return {
     sessionId: session.id,
+    /**
+     * The payment intent id, which is the only identifier shared between a checkout
+     * session and the `charge.refunded` event that later reverses it. Without it a
+     * refund cannot find the tickets it is meant to invalidate.
+     */
+    paymentIntentId:
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : (session.payment_intent?.id ?? undefined),
     userId: session.metadata?.userId || undefined,
     eventId: session.metadata?.eventId || undefined,
     tierId: session.metadata?.tierId || undefined,

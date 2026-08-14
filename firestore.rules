@@ -165,6 +165,38 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    /* ---------------------------------------------------------------- */
+    /* payment_events — webhook intake, read by the issuance function    */
+    /* ---------------------------------------------------------------- */
+
+    match /payment_events/{providerEventId} {
+      // Admins can look, to diagnose a payment that produced no ticket.
+      allow get, list: if isSuperuser();
+
+      // Nobody writes these from a client. A forged payment event would mint free
+      // tickets, so this is the single most dangerous collection on the platform to
+      // leave open. All writes come from the Admin SDK, which bypasses these rules.
+      allow create, update, delete: if false;
+    }
+
+    match /payment_events_archive/{providerEventId} {
+      allow get, list: if isSuperuser();
+      allow create, update, delete: if false;
+    }
+
+    /* ---------------------------------------------------------------- */
+    /* issued_payments — the idempotency marker for ticket issuance      */
+    /* ---------------------------------------------------------------- */
+
+    match /issued_payments/{providerEventId} {
+      allow get, list: if isSuperuser();
+
+      // Deleting a marker would allow a payment to be issued a second time. Denied to
+      // everyone including admins — the recovery path for a genuinely stuck payment is
+      // to fix it forward, never to remove the record that stops it repeating.
+      allow create, update, delete: if false;
+    }
+
     /* Deny everything not explicitly matched above. */
     match /{document=**} {
       allow read, write: if false;

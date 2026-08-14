@@ -197,7 +197,8 @@ latency and a second place for authorisation to drift out of sync.
 BuyBox ──POST form──▶ app/api/checkout ──▶ backend/payments/stripe ──▶ Stripe
                                                                         │
 Stripe ──webhook──▶ app/api/stripe-webhook ──▶ backend/payments/stripe (verify sig)
-                                            └─▶ backend/services/ticket-issuance
+                                            └─▶ backend/services/payment-events
+                                                  └─▶ functions/src/issuance
 ```
 
 Two details that are deliberate, not incidental:

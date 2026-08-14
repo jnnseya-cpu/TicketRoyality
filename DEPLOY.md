@@ -176,11 +176,55 @@ about £25/month. Full model in `docs/21` §21.13.
 
 None of these block publishing. Add them and redeploy when you have them.
 
-## What still blocks taking real money
+## Taking real money
 
-Server-side ticket issuance runs through Cloud Functions and is not wired yet
-(`docs/22` §22.11, item 2). Until it is, a Stripe payment completes but the ticket is
-not minted server-side.
+Server-side ticket issuance is wired. A confirmed payment now mints tickets through a
+Cloud Function using the Admin SDK, inside a transaction that also consumes inventory.
 
-**Publish today, sell when that lands.** They are separate milestones and it is worth
-being clear which one you are at.
+The flow:
+
+```
+provider ──webhook──▶ signature verified ──▶ payment_events/{providerEventId}
+                                                      │  Firestore trigger
+                                                      ▼
+                                        transaction: write tickets
+                                                     consume tier inventory
+                                                     write issued_payments marker
+```
+
+Deploy the functions alongside the app — they are a **separate deploy** and the app
+does not carry them:
+
+```bash
+cd functions && npm install && npm run build && cd ..
+firebase deploy --only functions
+firebase deploy --only firestore:rules      # payment_events + issued_payments are new
+```
+
+Cloud Scheduler is used by the reconciliation and audit jobs. The first
+`firebase deploy --only functions` will prompt to enable the Cloud Scheduler API if it
+is not already on; accept it, or the scheduled functions deploy but never fire.
+
+### Verify it before you trust it
+
+```bash
+npm run test:issuance
+```
+
+Ten tests against the Firestore emulator — real transactions, not mocks, because every
+failure worth catching here is an atomicity or concurrency failure and a mock has
+neither property. They cover: issuance and inventory consumption, replayed webhooks
+issuing nothing further, two concurrent buyers racing for the last two tickets with
+exactly one winning, oversell refusal, missing event and missing tier as terminal
+rather than retried, refunds returning inventory, double refunds not double-returning
+it, and a redeemed ticket never being silently reversed.
+
+All ten pass on the current branch.
+
+### What is deliberately not automatic
+
+A payment that confirms after its tier has sold out records `status: 'oversold'` and
+issues nothing. Money has moved and no ticket can legally be issued, so it needs a
+refund and a person — the function logs it as an error rather than resolving it
+quietly. Watch for `oversold` and `failed` in `payment_events`; both mean somebody paid
+and is holding nothing.

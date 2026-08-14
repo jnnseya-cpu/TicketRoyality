@@ -18,3 +18,8 @@ next-env.d.ts
 tsconfig.tsbuildinfo
 .firebase
 firebase-debug.log
+
+# Cloud Functions build output — compiled at deploy time, never committed.
+functions/lib
+firestore-debug.log
+ui-debug.log

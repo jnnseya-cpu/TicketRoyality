@@ -377,7 +377,7 @@ cannot operate without.
 
 | Path | Must never depend on | Why it holds |
 | --- | --- | --- |
-| Ticket issuance | Any external ticketing platform | `backend/services/ticket-issuance` mints from our own inventory model |
+| Ticket issuance | Any external ticketing platform | `functions/src/issuance.ts` mints from our own inventory model |
 | Entry validation | Any external scanning service | QR reference + `firestore.rules` redeem; works with one venue tablet |
 | The record of who owns what | Any external system | `tickets` and `wallet_ledger` are ours, append-only, exportable |
 | Fan relationship | Any discovery aggregator | Organiser owns their attendee data; our surface is a channel, not a gate |

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 
 import { isStripeConfigured, readCheckoutSession, verifyWebhook } from '@/backend/payments/stripe';
+import { recordPaymentEvent } from '@/backend/services/payment-events';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,12 +11,18 @@ export const dynamic = 'force-dynamic';
  * Stripe webhook — the authority for ticket issuance.
  *
  * A user who closes the tab the instant their card is charged must still receive their
- * ticket, so the redirect is never trusted; this handler is. It is signature-verified
- * and idempotent: replayed deliveries of the same event id are acknowledged with 200
- * and issue nothing further.
+ * ticket, so the redirect is never trusted; this handler is.
+ *
+ * It verifies the signature and records the event, then returns. Issuance happens in
+ * `functions/src/index.ts`, triggered by the document written here. That split is
+ * deliberate: Stripe marks a delivery failed if it is not acknowledged within a few
+ * seconds, and a Firestore transaction under on-sale contention is exactly the
+ * operation that occasionally takes longer than that.
+ *
+ * Idempotency is the document id — the Stripe event id — enforced by `create()`. A
+ * replayed delivery cannot create a second document and therefore cannot issue a
+ * second set of tickets, across restarts and across instances.
  */
-const processedEvents = new Set<string>();
-
 export async function POST(request: Request) {
   if (!isStripeConfigured() || !process.env.STRIPE_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Stripe webhook is not configured.' }, { status: 503 });
@@ -36,30 +43,103 @@ export async function POST(request: Request) {
     );
   }
 
-  // In-process guard. Production replaces this with an `issued_payments/{eventId}`
-  // marker written in the same transaction as the tickets, so idempotency survives
-  // a restart and holds across instances.
-  if (processedEvents.has(event.id)) {
-    return NextResponse.json({ received: true, duplicate: true });
-  }
-  processedEvents.add(event.id);
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const checkout = readCheckoutSession(event.data.object as Stripe.Checkout.Session);
 
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const checkout = readCheckoutSession(event.data.object as Stripe.Checkout.Session);
-      // Issuance needs the Admin SDK — see @/backend/services/ticket-issuance and
-      // debt item D1 in docs/13. Logged here so the payload is observable meanwhile.
-      console.info('[stripe] checkout.session.completed', checkout);
-      break;
-    }
-    case 'charge.refunded': {
-      const charge = event.data.object as Stripe.Charge;
-      console.info('[stripe] charge.refunded', { chargeId: charge.id });
-      break;
-    }
-    default:
-      break;
-  }
+        // Metadata is set when the checkout session is created. Without it there is
+        // nothing to issue against, and issuing a guess would be worse than stopping:
+        // recorded as terminal so it surfaces in the queue rather than retrying.
+        if (!checkout.eventId || !checkout.tierId || !checkout.userId) {
+          console.error('[stripe] checkout.session.completed missing metadata', {
+            eventId: event.id,
+            sessionId: checkout.sessionId,
+          });
+          return NextResponse.json(
+            { received: true, issued: false, reason: 'missing_metadata' },
+            { status: 202 }
+          );
+        }
 
-  return NextResponse.json({ received: true });
+        const outcome = await recordPaymentEvent({
+          providerEventId: event.id,
+          provider: 'stripe',
+          providerType: event.type,
+          intent: 'issue',
+          eventId: checkout.eventId,
+          tierId: checkout.tierId,
+          userId: checkout.userId,
+          quantity: checkout.quantity,
+          // Unit price, not the session total: a partial refund reverses one ticket,
+          // and a ticket carrying the whole basket's value settles wrongly.
+          price: checkout.quantity > 0 ? checkout.amountTotal / checkout.quantity : 0,
+          currency: checkout.currency,
+          attendeeName: checkout.customerName ?? 'Ticket holder',
+          attendeeEmail: checkout.customerEmail ?? '',
+          providerRef: checkout.paymentIntentId,
+        });
+
+        if (outcome === 'unavailable') {
+          // Firestore is unreachable. A 500 makes Stripe redeliver, which is exactly
+          // what should happen — the alternative is acknowledging a payment whose
+          // ticket will never be issued.
+          return NextResponse.json({ error: 'datastore_unavailable' }, { status: 500 });
+        }
+
+        return NextResponse.json({ received: true, queued: outcome });
+      }
+
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+
+        // The payment intent is the only identifier a charge shares with the checkout
+        // session that issued the tickets. Without it the refund cannot be matched to
+        // anything, so it is recorded as unmatched rather than silently dropped.
+        const paymentIntentId =
+          typeof charge.payment_intent === 'string'
+            ? charge.payment_intent
+            : charge.payment_intent?.id;
+
+        if (!paymentIntentId) {
+          console.warn('[stripe] charge.refunded without a payment intent', {
+            chargeId: charge.id,
+          });
+          return NextResponse.json({ received: true, refunded: false }, { status: 202 });
+        }
+
+        await recordPaymentEvent({
+          providerEventId: event.id,
+          provider: 'stripe',
+          providerType: event.type,
+          intent: 'refund',
+          // The issuance fields are carried by the original payment, which the
+          // function resolves via `refundsRef`. Blank here rather than guessed.
+          eventId: '',
+          tierId: '',
+          userId: '',
+          quantity: 0,
+          price: 0,
+          currency: (charge.currency ?? 'gbp').toUpperCase(),
+          attendeeName: '',
+          attendeeEmail: '',
+          refundsRef: paymentIntentId,
+        });
+
+        return NextResponse.json({ received: true });
+      }
+
+      default:
+        // Acknowledged without action. A 4xx here makes Stripe retry an event type we
+        // will never handle, forever.
+        return NextResponse.json({ received: true, ignored: event.type });
+    }
+  } catch (error) {
+    console.error('[stripe] failed to record payment event', {
+      eventId: event.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    // 500 so Stripe redelivers. Losing this event loses a paid-for ticket.
+    return NextResponse.json({ error: 'record_failed' }, { status: 500 });
+  }
 }

@@ -149,7 +149,7 @@ src/app/dashboard/superuser/
 src/backend/services/
 ├── acu-ledger.ts           buildEntry · welcomeBonus · stripeTopup · adminGrant ·
 │                           aiSpend · reversal
-└── ticket-issuance.ts      buildTickets · issueTickets
+└── payment-events.ts       recordPaymentEvent (issuance runs in functions/)
 
 firestore.rules              isSuperuser() — the entire trust definition
 ```
@@ -194,7 +194,7 @@ half of it.
 Offline payments ──approve──▶ updateOfflinePaymentStatus
                                     │
                                     ▼
-                        backend/services/ticket-issuance.issueTickets
+                        functions/src/issuance.issueTickets
                                     │  buys tickets *for another user*
                                     ▼
                               Admin SDK required

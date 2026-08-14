@@ -104,7 +104,8 @@ guard behind the lint rule.
 | `ai/flows.ts` | `generateAdCopy`, `recommendEvents`, `findSimilarEvents` |
 | `payments/stripe.ts` | Checkout sessions, webhook verification |
 | `payments/bitripay.ts` | Token exchange, payment creation |
-| `services/ticket-issuance.ts` | Builds and persists tickets from a confirmed payment |
+| `services/payment-events.ts` | Records a verified provider event for the issuance function |
+| `firebase/admin.ts` | Admin SDK handle — the only code that bypasses `firestore.rules` |
 | `services/acu-ledger.ts` | Append-only wallet ledger |
 
 ### `src/app` — the shell
@@ -139,11 +140,23 @@ add latency and a second place for authorisation to drift, without adding safety
 
 ```
 Stripe ──webhook──▶ app/api/stripe-webhook ──▶ backend/payments/stripe (verify)
-                                           └──▶ backend/services/ticket-issuance
+                                           └──▶ backend/services/payment-events
+                                                        │
+                                                        ▼
+                                            payment_events/{providerEventId}
+                                                        │  Firestore trigger
+                                                        ▼
+                                            functions/src/issuance.issueTickets
 ```
 
 A user who closes the tab the instant their card is charged still receives their
 ticket. The redirect is a convenience; the webhook is the authority.
+
+The webhook records and returns; it does not issue. Stripe marks a delivery failed if
+it is not acknowledged within seconds, and a Firestore transaction under on-sale
+contention is exactly the operation that occasionally takes longer than that. The
+document id is the provider's event id, so a replayed delivery cannot create a second
+document and cannot issue a second set of tickets.
 
 ## 14.4 Two guards, not one
 
@@ -163,7 +176,7 @@ forbids them:
 
 | Operation | Blocked by | Correct home |
 | --- | --- | --- |
-| Issue a ticket for another user | `tickets` create requires `userId == request.auth.uid` | `backend/services/ticket-issuance` + Admin SDK |
+| Issue a ticket for another user | `tickets` create requires `userId == request.auth.uid` | `functions/src/issuance.ts` (Cloud Function, Admin SDK) |
 | Write the ACU ledger | `wallet_ledger` is `create/update/delete: false` for all clients | `backend/services/acu-ledger` + Admin SDK |
 | Grant credit as an admin | Same | Same |
 

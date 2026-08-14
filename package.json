@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "check:links": "tsx scripts/check-links.ts",
     "report:links": "tsx scripts/link-report.ts",
-    "genkit:dev": "genkit start -- tsx src/backend/ai/dev.ts"
+    "genkit:dev": "genkit start -- tsx src/backend/ai/dev.ts",
+    "test:issuance": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx functions/src/issuance.test.ts\""
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.40.1",
@@ -44,6 +45,7 @@
     "embla-carousel-autoplay": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
     "firebase": "^11.3.0",
+    "firebase-admin": "^13.10.0",
     "genkit": "^1.40.1",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.475.0",

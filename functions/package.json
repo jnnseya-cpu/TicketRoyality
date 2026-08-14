@@ -1,0 +1,25 @@
+{
+  "name": "ticketroyality-functions",
+  "version": "1.0.0",
+  "description": "Privileged server functions: ticket issuance, refunds, reconciliation.",
+  "main": "lib/index.js",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "serve": "npm run build && firebase emulators:start --only functions,firestore",
+    "deploy": "firebase deploy --only functions",
+    "test": "cd .. && npm run test:issuance"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.2",
+    "firebase-functions": "^6.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "tsx": "^4.19.2"
+  }
+}
