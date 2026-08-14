@@ -32,7 +32,8 @@ export interface DispatchResult {
 function providerFor(channel: Channel): string {
   switch (channel) {
     case 'email':
-      return process.env.RESEND_API_KEY ? 'resend' : 'smtp';
+      // SMTP only. An email API would be a sixth vendor (CLAUDE.md §1).
+      return 'smtp';
     case 'sms':
     case 'whatsapp':
       return 'twilio';
@@ -46,7 +47,7 @@ function providerFor(channel: Channel): string {
 function configured(channel: Channel): boolean {
   switch (channel) {
     case 'email':
-      return Boolean(process.env.RESEND_API_KEY ?? process.env.SMTP_HOST);
+      return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
     case 'sms':
     case 'whatsapp':
       return Boolean(process.env.TWILIO_ACCOUNT_SID);

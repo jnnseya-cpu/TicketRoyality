@@ -2,6 +2,8 @@
 
 **Last verified: 14 August 2026, against the code on `claude/optimistic-heisenberg-0n2w42`.**
 
+Operating rules for changing this codebase are in `/CLAUDE.md`.
+
 This file is the single source of truth for what exists. It exists because the project
 did not have one, and the cost of that was concrete: thirty blog articles were written
 describing platform features in the present tense, and **sixteen of them described
@@ -45,6 +47,7 @@ and read. If it says **Not built**, it was looked for and is absent.
 | AI studio | Real generation call against the AI gateway | `/dashboard/organiser/ai-studio` |
 | Video ad carousel | Homepage component | `VideoAds.tsx` |
 | ACU billing | Credit constants, ledger entry builder, balance guard | `src/backend/services/acu-ledger.ts` |
+| **Ticket delivery** | **SMTP email on issuance — one email per purchase, retried, outcome recorded** | `functions/src/email.ts` — 10 tests |
 | Blog | 14 published articles, 6 topic hubs, generated link graph | `npm run check:links` |
 | SEO | `robots.txt`, `sitemap.xml`, Article/FAQ/Breadcrumb schema | `src/app/sitemap.ts` |
 | Security headers | CSP-adjacent headers, HSTS, frame denial | `next.config.ts` |
@@ -57,7 +60,7 @@ is precisely what caused the confusion this file exists to end.
 
 | Gap | Consequence if you launch without it | Spec |
 | --- | --- | --- |
-| **Message delivery** | **A buyer gets a ticket in Firestore and no email.** `dispatch()` records `queued`/`logged` and calls no provider. They must log in to find their ticket. | `docs/04` M10 |
+| Message delivery **beyond the ticket** | Ticket emails send. Every *other* catalogue event — payment failed, event postponed, venue changed, payout sent, refund processed — still records `queued` and calls no provider. `dispatch()` in the app is not yet wired to the SMTP sender. | `docs/04` M10 |
 | **Checkout inventory holds** | Two buyers can both reach checkout for the last ticket. Issuance stops the oversell, but the loser is charged and flagged for refund. `release-holds` returns `implemented: false`. | `docs/08` §8.8 |
 | Ticket transfer | The wallet cannot send a ticket to someone else | `docs/04` M3 |
 | QR rotation + signing | QR is static, unsigned JSON. `QR_SIGNING_KEY` is configured but read nowhere. A screenshot is a working ticket. | `docs/04` M3 |
@@ -79,12 +82,13 @@ is precisely what caused the confusion this file exists to end.
 
 ## Ordered by what actually blocks revenue
 
-1. **Message delivery.** Highest priority and not close. A paid ticket that never
-   arrives is indistinguishable from fraud to the person who paid.
-2. **Checkout holds.** Every oversold race is a charged customer with no ticket and a
+1. **Checkout holds.** Every oversold race is a charged customer with no ticket and a
    manual refund.
-3. **QR signing.** Without it a screenshot is a valid ticket, and the fraud is the
+2. **QR signing.** Without it a screenshot is a valid ticket, and the fraud is the
    buyer's loss, not yours.
+3. **The rest of the comms catalogue.** Ticket delivery is wired; cancellations, venue
+   changes and refund confirmations are not. Point `dispatch()` at the same SMTP sender
+   rather than building a second one.
 4. **Ticket transfer.** The most-requested consumer feature in ticketing.
 5. **Referral / influencer.** The only acquisition mechanism that works without waiting
    months for SEO — and the one currently sold on `/growth` without existing.
@@ -98,6 +102,8 @@ is precisely what caused the confusion this file exists to end.
 | `payment_events.status == 'failed'` | Issuance gave up after 5 attempts; a person must look |
 | `payment_events` stuck `pending` > 10 min | The reconciliation sweep is not running |
 | Function log `inventory drift` | A tier counter disagrees with issued tickets |
+| `issued_payments.delivery` starts `failed:` | Tickets issued but the email did not send |
+| `issued_payments.delivery == 'skipped'` | SMTP unconfigured, or the buyer has no email address |
 
 ## Commands
 
@@ -107,6 +113,8 @@ npm run typecheck      # app + the functions contract guard
 npm run lint
 npm run check:links    # link graph + publishing gate
 npm run report:links   # inline link density
-npm run test:issuance  # 10 tests, Firestore emulator
+npm test               # issuance + delivery
+npm run test:issuance  # 10 tests, Firestore emulator, real transactions
+npm run test:delivery  # 10 tests, real SMTP conversation
 cd functions && npm run build
 ```

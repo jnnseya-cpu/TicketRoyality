@@ -110,6 +110,27 @@ env:
     secret: STRIPE_WEBHOOK_SECRET
     availability:
       - RUNTIME
+  - variable: SMTP_HOST
+    secret: SMTP_HOST
+    availability:
+      - RUNTIME
+  - variable: SMTP_PORT
+    value: "465"
+    availability:
+      - RUNTIME
+  - variable: SMTP_USER
+    secret: SMTP_USER
+    availability:
+      - RUNTIME
+  - variable: SMTP_PASSWORD
+    secret: SMTP_PASSWORD
+    availability:
+      - RUNTIME
+  - variable: EMAIL_FROM
+    value: TicketRoyality <info@ticketroyality.com>
+    availability:
+      - RUNTIME
+
   - variable: BITRIPAY_BASE_URL
     value: https://bitripay.com/pay/sandbox/api/v1
     availability:

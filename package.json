@@ -15,7 +15,9 @@
     "check:links": "tsx scripts/check-links.ts",
     "report:links": "tsx scripts/link-report.ts",
     "genkit:dev": "genkit start -- tsx src/backend/ai/dev.ts",
-    "test:issuance": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx functions/src/issuance.test.ts\""
+    "test:issuance": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx functions/src/issuance.test.ts\"",
+    "test:delivery": "tsx functions/src/delivery.test.ts",
+    "test": "npm run test:issuance && npm run test:delivery"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.40.1",

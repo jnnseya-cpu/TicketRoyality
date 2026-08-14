@@ -5,7 +5,9 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { logger } from 'firebase-functions';
 
-import type { PaymentEventDoc, PaymentEventStatus } from './domain';
+import type { PaymentEventDoc, PaymentEventStatus, TicketDoc } from './domain';
+import { isEmailConfigured, send } from './email';
+import { ticketIssuedEmail } from './templates';
 import {
   PermanentIssuanceError,
   TransientIssuanceError,
@@ -49,8 +51,11 @@ async function findIssuedPaymentByRef(ref: string | undefined): Promise<string |
  * Processes one payment event. Shared by the trigger and the reconciliation sweep, so
  * both paths have identical semantics — a sweep that behaves differently from the
  * trigger is a second implementation to keep correct.
+ *
+ * Not named `process`: that shadows the Node global at module scope, so every later
+ * `process.env` in this file silently resolves to this function instead.
  */
-async function process(providerEventId: string): Promise<PaymentEventStatus> {
+async function processPaymentEvent(providerEventId: string): Promise<PaymentEventStatus> {
   const firestore = db();
   const ref = firestore.collection('payment_events').doc(providerEventId);
   const snap = await ref.get();
@@ -149,7 +154,89 @@ async function process(providerEventId: string): Promise<PaymentEventStatus> {
 export const onPaymentEvent = onDocumentCreated(
   { document: 'payment_events/{providerEventId}', retry: true },
   async (event) => {
-    await process(event.params.providerEventId);
+    await processPaymentEvent(event.params.providerEventId);
+  }
+);
+
+/**
+ * Ticket delivery — `ticket.issued` in the comms catalogue.
+ *
+ * Triggered by the issuance marker rather than by ticket creation, so a buyer of four
+ * tickets receives **one** email listing four references, not four emails.
+ *
+ * Separated from issuance on purpose. A ticket that is paid for and written to the
+ * database must never be rolled back because an SMTP server was briefly unreachable,
+ * and issuance has no way to fix a mail problem by retrying itself. Delivery therefore
+ * fails and retries independently, and its outcome is recorded on the marker so
+ * "did they get it?" is answerable without reading logs.
+ */
+export const onTicketsIssued = onDocumentCreated(
+  { document: 'issued_payments/{providerEventId}', retry: true },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+
+    const marker = snap.data() as { ticketIds?: string[]; deliveredAt?: string };
+    if (marker.deliveredAt) return;
+
+    const ticketIds = marker.ticketIds ?? [];
+    if (ticketIds.length === 0) return;
+
+    const firestore = db();
+    const refs = ticketIds.map((id) => firestore.collection('tickets').doc(id));
+    const tickets = (await firestore.getAll(...refs))
+      .filter((doc) => doc.exists)
+      .map((doc) => doc.data() as TicketDoc);
+
+    if (tickets.length === 0) {
+      logger.error('issuance marker has no readable tickets', {
+        providerEventId: event.params.providerEventId,
+        ticketIds,
+      });
+      return;
+    }
+
+    const recipient = tickets[0].attendeeEmail;
+
+    if (!recipient) {
+      // Not a failure that retrying fixes. The ticket is valid and reachable in the
+      // buyer's account; there is simply no address to send it to.
+      logger.warn('tickets issued with no recipient email', {
+        providerEventId: event.params.providerEventId,
+        userId: tickets[0].userId,
+      });
+      await snap.ref.update({ delivery: 'skipped:no-address', deliveredAt: new Date().toISOString() });
+      return;
+    }
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://ticketroyality.com';
+    const email = ticketIssuedEmail(tickets, siteUrl);
+    const outcome = await send({ to: recipient, ...email });
+
+    if (outcome.status === 'failed') {
+      // Recorded, then rethrown so the platform retries. This is the one message on the
+      // platform where giving up silently is unacceptable: an unreachable ticket is
+      // indistinguishable from fraud to the person who paid for it.
+      await snap.ref.update({ delivery: `failed: ${outcome.reason}` });
+      logger.error('ticket delivery failed', {
+        providerEventId: event.params.providerEventId,
+        reason: outcome.reason,
+      });
+      throw new Error(`ticket delivery failed: ${outcome.reason}`);
+    }
+
+    await snap.ref.update({
+      delivery: outcome.status,
+      deliveredAt: new Date().toISOString(),
+      ...(outcome.status === 'sent' ? { messageId: outcome.messageId } : {}),
+    });
+
+    logger.info('ticket delivery', {
+      providerEventId: event.params.providerEventId,
+      status: outcome.status,
+      tickets: tickets.length,
+      emailConfigured: isEmailConfigured(),
+    });
   }
 );
 
@@ -183,7 +270,7 @@ export const reconcilePayments = onSchedule(
 
     for (const doc of stale.docs) {
       try {
-        await process(doc.id);
+        await processPaymentEvent(doc.id);
       } catch (error) {
         // Already logged and recorded on the document. Swallowed so one bad payment
         // does not stop the sweep reaching the other forty-nine.
