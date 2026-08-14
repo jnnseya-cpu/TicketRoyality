@@ -272,11 +272,19 @@ export interface InlineLinkState {
   used: Set<string>;
   /** The page being rendered, so an article never links to itself. */
   currentHref: string;
+  /**
+   * Slugs that are actually published. Passed in rather than imported, because
+   * `articles.ts` already imports this module for `DestinationKey` and reaching back
+   * the other way at runtime would be a cycle.
+   *
+   * Without this, a phrase whose target is still a draft renders a link to a 404.
+   */
+  publishedSlugs: Set<string>;
   count: number;
 }
 
-export function newLinkState(currentHref: string): InlineLinkState {
-  return { used: new Set(), currentHref, count: 0 };
+export function newLinkState(currentHref: string, publishedSlugs: Set<string>): InlineLinkState {
+  return { used: new Set(), currentHref, publishedSlugs, count: 0 };
 }
 
 /**
@@ -292,6 +300,13 @@ export function linkify(text: string, state: InlineLinkState): TextToken[] {
 
   for (const term of ORDERED_PHRASES) {
     if (state.count >= MAX_INLINE_LINKS) break;
+
+    // A term pointing at an unpublished article is skipped rather than removed from
+    // the registry: when that article ships, its links light up everywhere at once.
+    if (term.to.startsWith('article:')) {
+      const slug = term.to.slice('article:'.length);
+      if (!state.publishedSlugs.has(slug)) continue;
+    }
 
     const href = hrefFor(term.to);
     if (href === state.currentHref || state.used.has(href)) continue;

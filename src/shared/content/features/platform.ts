@@ -6,6 +6,7 @@ const AUTHOR = 'TicketRoyality';
 export const PLATFORM_ARTICLES: Article[] = [
   {
     slug: 'developer-api-and-webhooks',
+    status: 'draft',
     title: 'The API door: sandbox, signed webhooks, idempotency',
     kind: 'feature',
     cluster: 'platform',
@@ -73,6 +74,7 @@ export const PLATFORM_ARTICLES: Article[] = [
   },
   {
     slug: 'notifications-that-arrive',
+    status: 'draft',
     title: 'The messages that must arrive, and the ones you can turn off',
     kind: 'feature',
     cluster: 'platform',

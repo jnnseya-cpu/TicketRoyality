@@ -9,9 +9,11 @@ import { ArticleLinks } from '@/frontend/components/seo/ArticleLinks';
 import { RichText } from '@/frontend/components/seo/RichText';
 import { ProductLinks, RelatedArticles } from '@/frontend/components/seo/ArticleFooterLinks';
 import {
-  ARTICLES,
   clusterMeta,
   getArticle,
+  isShipped,
+  publishedArticles,
+  publishedSlugs,
   relatedArticles,
   type ArticleBlock,
 } from '@/shared/content/articles';
@@ -23,7 +25,7 @@ import { siteUrl } from '@/shared/site';
 export const revalidate = 3600;
 
 export function generateStaticParams() {
-  return ARTICLES.map((article) => ({ slug: article.slug }));
+  return publishedArticles().map((article) => ({ slug: article.slug }));
 }
 
 export async function generateMetadata({
@@ -33,7 +35,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const article = getArticle(slug);
-  if (!article) return { title: 'Not found' };
+  if (!article || !isShipped(article)) return { title: 'Not found' };
 
   return {
     title: article.title,
@@ -74,10 +76,12 @@ type RenderedBlock = ArticleBlock & { tokens?: TextToken[]; itemTokens?: TextTok
 export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const article = getArticle(slug);
-  if (!article) notFound();
+  // A draft 404s rather than rendering. `generateStaticParams` already omits them, but
+  // this route is also reachable directly, and a half-true page is worse than none.
+  if (!article || !isShipped(article)) notFound();
 
   const cluster = clusterMeta(article.cluster);
-  const state = newLinkState(`/blog/${article.slug}`);
+  const state = newLinkState(`/blog/${article.slug}`, publishedSlugs());
 
   // Headings are deliberately excluded. A link inside a heading competes with the
   // heading's job of describing the section, and it is a weak SEO signal besides.

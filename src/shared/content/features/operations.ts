@@ -6,12 +6,12 @@ const AUTHOR = 'TicketRoyality';
 export const OPERATIONS_ARTICLES: Article[] = [
   {
     slug: 'door-check-in-and-scanning',
-    title: 'The door: scanning, queues and the fifteen-minute offline ceiling',
+    title: 'The door: scanning, queues and who can see what',
     kind: 'feature',
     cluster: 'operations',
-    tags: ['door', 'check-in', 'offline', 'operations'],
+    tags: ['door', 'check-in', 'operations'],
     excerpt:
-      'Any phone becomes a scanner. It keeps working when the venue wifi dies — for fifteen minutes, deliberately, and here is why the limit exists.',
+      'Any phone becomes a scanner, scoped to one event and nothing else — and a duplicate scan tells staff when and where, rather than just refusing.',
     published: '2026-08-14T11:00:00.000Z',
     updated: '2026-08-14T11:00:00.000Z',
     readMinutes: 6,
@@ -24,25 +24,16 @@ export const OPERATIONS_ARTICLES: Article[] = [
       { type: 'heading', text: 'Any phone, scoped to one event' },
       {
         type: 'paragraph',
-        text: 'Door staff sign in and get a scanner scoped to a single event, and to specific zones within it. They can validate tickets and admit people. They cannot see your revenue, your sales figures, your other events or your customer list.',
+        text: 'Door staff sign in and get a scanner scoped to a single event. They can validate tickets and admit people. They cannot see your revenue, your sales figures, your other events or your customer list.',
       },
       {
         type: 'paragraph',
         text: 'That scoping is enforced in the security rules rather than by hiding buttons in the interface. The person on the door is frequently a friend, a volunteer, or agency staff you met an hour ago, and the correct assumption is that they will see exactly what the rules permit and nothing else.',
       },
-      { type: 'heading', text: 'It works without signal' },
+      { type: 'heading', text: 'It needs a connection today' },
       {
         type: 'paragraph',
-        text: 'The scanner caches the validation set for its event and keeps admitting people when connectivity drops. Scans queue locally and reconcile when the connection returns. Basements, marquees, fields and car parks are normal venues, not edge cases.',
-      },
-      { type: 'heading', text: 'Why offline stops at fifteen minutes' },
-      {
-        type: 'paragraph',
-        text: 'An offline scanner cannot know that a ticket was refunded, transferred or already scanned at another door in the last few minutes. That window is a real fraud opening: the same QR code presented at two doors, both offline, both admitting.',
-      },
-      {
-        type: 'paragraph',
-        text: 'Fifteen minutes is long enough to survive every realistic connectivity failure and short enough that duplicate-scan exposure stays small. After it, the device warns staff that it is operating on stale data. It does not lock them out — a scanner that stops working mid-event is a worse outcome than a small amount of duplicate-scan risk — but nobody is admitting people on an hour-old cache while believing it is live.',
+        text: 'Validation is checked centrally on every scan, so the scanner needs signal. Offline caching is designed and specified (docs/04 M16) and is not built yet — so if your venue is a basement with no reception, plan for it rather than assume it. This is stated here because discovering it at 20:45 with a queue outside is the worst possible time to learn it.',
       },
       { type: 'heading', text: 'Override is a first-class outcome' },
       {
@@ -61,14 +52,14 @@ export const OPERATIONS_ARTICLES: Article[] = [
     ],
     answers: [
       {
-        question: 'Does ticket scanning work without internet?',
-        answer:
-          'Yes. The scanner caches its event validation set and keeps admitting people when connectivity drops, queueing scans to reconcile later. After fifteen minutes offline it warns staff it is running on stale data, because an offline device cannot know about refunds, transfers or scans at other doors.',
-      },
-      {
         question: 'What device do I need to scan tickets?',
         answer:
-          'Any phone. Door staff sign in and get a scanner scoped to one event and specific zones — they can admit people but cannot see revenue, sales or your other events.',
+          'Any phone. Door staff sign in and get a scanner scoped to one event — they can admit people but cannot see revenue, sales or your other events.',
+      },
+      {
+        question: 'Does ticket scanning work without internet?',
+        answer:
+          'Not yet. Every scan is validated centrally, so the scanner needs a connection. Offline caching is specified but not built — plan for signal at the door.',
       },
     ],
     linkSlots: [{ heading: 'Events happening soon', query: '', href: '/events' }],
@@ -76,6 +67,7 @@ export const OPERATIONS_ARTICLES: Article[] = [
   },
   {
     slug: 'rotating-qr-and-ticket-forgery',
+    status: 'draft',
     title: 'Why a screenshot of your ticket does not get anyone in',
     kind: 'feature',
     cluster: 'trust',
@@ -139,6 +131,7 @@ export const OPERATIONS_ARTICLES: Article[] = [
   },
   {
     slug: 'venue-zones-and-access-control',
+    status: 'draft',
     title: 'Zones: why this is not just gates plus a spreadsheet',
     kind: 'feature',
     cluster: 'operations',
@@ -187,6 +180,7 @@ export const OPERATIONS_ARTICLES: Article[] = [
   },
   {
     slug: 'hospitality-operations',
+    status: 'draft',
     title: 'Hospitality: tables, packages and the guest who is not the buyer',
     kind: 'feature',
     cluster: 'operations',
@@ -240,6 +234,7 @@ export const OPERATIONS_ARTICLES: Article[] = [
   },
   {
     slug: 'live-streaming-hybrid-events',
+    status: 'draft',
     title: 'Selling a room and a stream at the same time',
     kind: 'feature',
     cluster: 'operations',

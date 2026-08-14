@@ -11,6 +11,16 @@ endpoint contracts, agent I/O definitions, permission boundaries, escalation rul
 acceptance criteria. Where a decision is deferred it is marked `OPEN` with the owner
 and the date it must be resolved.
 
+## These documents specify the target, not the shipped system
+
+**`/STATUS.md` at the repository root is the source of truth for what is built.**
+Everything in this directory describes where the platform is going, and most of it is
+not implemented yet. Reading a module specification here and assuming it exists is the
+single easiest mistake to make with this document set — and it has already been made,
+at the cost of sixteen blog articles describing features that were never built.
+
+Before relying on anything here being real, check `STATUS.md`.
+
 ## Scope discipline
 
 Nothing in the existing platform is removed. Every module, user journey, revenue
@@ -72,8 +82,8 @@ this table is correct.
 
 | Quantity | Actual | Where |
 | --- | --- | --- |
-| Documents | 22 | this directory |
-| Total lines | 12,299 | `wc -l docs/*.md` |
+| Documents | 23 | this directory |
+| Total lines | 12,313 | `wc -l docs/*.md` |
 | Actor types | **13** | `02` §2.1 |
 | AI Command Centres | **10** | `02` §2.3–2.12 |
 | AI agents | **29** | `03` §3.12 registry |

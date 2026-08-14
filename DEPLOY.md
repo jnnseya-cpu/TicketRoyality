@@ -1,5 +1,8 @@
 # Deploy — publish today
 
+> **Read `/STATUS.md` first.** It lists what is actually built and what is not.
+> This file tells you how to deploy; that file tells you what you are deploying.
+
 `frontend/`, `backend/` and `shared/` are **folders in one Next.js application**, not
 three deployable services. They ship together in a single build. The layer separation
 is a compile-time boundary enforced by lint (`docs/14`), not a runtime one.
@@ -144,12 +147,16 @@ Manager is populated, `/api/health` must return 200.
 
 ## Cost today
 
-With `minInstances: 0` in `apphosting.yaml` — which is what you want until real users
-arrive — everything sits inside the free tiers. **Roughly £0–5 for the first month**,
-plus the domain.
+`apphosting.yaml` currently sets **`minInstances: 1`**, which keeps one instance warm
+at all times: no cold starts, and **about £25/month from the day you deploy**, before a
+single visitor.
 
-Set `minInstances: 1` on the day you have buyers; it removes cold starts and costs
-about £25/month. Full model in `docs/21` §21.13.
+If you want the free-tier bill while you are still testing, change it to `0` before
+deploying. Everything then sits inside the free tiers at **roughly £0–5 for the first
+month** plus the domain, at the cost of a few seconds of cold start on the first
+request after an idle period.
+
+Set it back to `1` on the day you have buyers waiting. Full model in `docs/21` §21.13.
 
 ---
 
@@ -159,9 +166,9 @@ about £25/month. Full model in `docs/21` §21.13.
 - Event pages with `Event` JSON-LD — eligible for Google's events carousel
 - Organiser directory and profiles
 - Registration, login, all three dashboards
-- Blog: 30 articles across 7 topic hubs, with contextual inline links generated from
-  a registry, related-article blocks, and event links resolved against live inventory
-  (`npm run check:links` validates the whole graph; `npm run report:links` reports density)
+- Blog: 14 published articles across 6 topic hubs, with contextual inline links
+  generated from a registry (16 further articles are held as drafts because they
+  describe features that are not built — see `/STATUS.md`)
 - `robots.txt`, `sitemap.xml`, security headers
 - `/api/health`
 

@@ -5,7 +5,7 @@ import { ArrowRight, BookOpen, Clock } from 'lucide-react';
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent } from '@/frontend/components/ui/card';
-import { CLUSTERS, articlesInCluster, publishedArticles } from '@/shared/content/articles';
+import { articlesInCluster, publishedArticles, publishedClusters } from '@/shared/content/articles';
 import { siteUrl } from '@/shared/site';
 
 export const metadata: Metadata = {
@@ -114,7 +114,7 @@ export default function BlogPage() {
             </div>
           </section>
 
-          {CLUSTERS.map((cluster) => {
+          {publishedClusters().map((cluster) => {
             const articles = articlesInCluster(cluster.key);
             if (articles.length === 0) return null;
 

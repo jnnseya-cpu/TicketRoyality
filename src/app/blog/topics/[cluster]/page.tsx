@@ -7,9 +7,9 @@ import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent } from '@/frontend/components/ui/card';
 import {
-  CLUSTERS,
   articlesInCluster,
   clusterMeta,
+  publishedClusters,
   type Cluster,
 } from '@/shared/content/articles';
 import { siteUrl } from '@/shared/site';
@@ -25,11 +25,12 @@ export const revalidate = 3600;
  * page from which every article in a topic is one click away.
  */
 export function generateStaticParams() {
-  return CLUSTERS.map((cluster) => ({ cluster: cluster.key }));
+  return publishedClusters().map((cluster) => ({ cluster: cluster.key }));
 }
 
+/** A cluster with nothing published in it is not a page. */
 function isCluster(value: string): value is Cluster {
-  return CLUSTERS.some((c) => c.key === value);
+  return publishedClusters().some((c) => c.key === value);
 }
 
 export async function generateMetadata({
@@ -131,7 +132,7 @@ export default async function TopicPage({ params }: { params: Promise<{ cluster:
       <nav className="mt-14 border-t border-border pt-8">
         <h2 className="font-headline text-lg font-semibold">Other topics</h2>
         <ul className="mt-4 flex flex-wrap gap-2">
-          {CLUSTERS.filter((c) => c.key !== cluster).map((other) => (
+          {publishedClusters().filter((c) => c.key !== cluster).map((other) => (
             <li key={other.key}>
               <Link href={`/blog/topics/${other.key}`}>
                 <Badge variant="secondary" className="hover:opacity-80">

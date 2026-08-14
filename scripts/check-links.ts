@@ -13,7 +13,7 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { ARTICLES, CLUSTERS } from '../src/shared/content/articles';
+import { ARTICLES, CLUSTERS, publishedArticles, publishedClusters } from '../src/shared/content/articles';
 import { DESTINATIONS, LINK_TERMS, hrefFor } from '../src/shared/content/links';
 
 const failures: string[] = [];
@@ -121,11 +121,11 @@ for (const article of ARTICLES) {
   }
 }
 
-// 5. Every cluster has at least one article, or its hub page is an empty room that
-//    the sitemap would otherwise advertise.
-for (const cluster of CLUSTERS) {
-  if (!ARTICLES.some((a) => a.cluster === cluster.key)) {
-    fail(`Cluster "${cluster.key}" has no articles but has a hub page`);
+// 5. Every published article's cluster must actually render as a hub.
+const renderedClusters = new Set(publishedClusters().map((c) => c.key));
+for (const article of publishedArticles()) {
+  if (!renderedClusters.has(article.cluster)) {
+    fail(`${article.slug} is published in cluster "${article.cluster}", which has no hub page`);
   }
 }
 
@@ -134,7 +134,7 @@ for (const cluster of CLUSTERS) {
 const linkedSlugs = new Set(
   LINK_TERMS.filter((t) => t.to.startsWith('article:')).map((t) => t.to.slice('article:'.length))
 );
-const orphans = ARTICLES.filter((a) => !linkedSlugs.has(a.slug)).map((a) => a.slug);
+const orphans = publishedArticles().filter((a) => !linkedSlugs.has(a.slug)).map((a) => a.slug);
 
 if (failures.length > 0) {
   console.error(`\n✗ ${failures.length} link graph problem(s):\n`);
@@ -144,7 +144,8 @@ if (failures.length > 0) {
 
 const phraseCount = LINK_TERMS.reduce((sum, t) => sum + t.phrases.length, 0);
 console.log(
-  `✓ ${ARTICLES.length} articles, ${CLUSTERS.length} clusters, ${LINK_TERMS.length} targets, ${phraseCount} phrases`
+  `✓ ${publishedArticles().length} published (${ARTICLES.length - publishedArticles().length} drafts held back), ` +
+    `${publishedClusters().length}/${CLUSTERS.length} clusters live, ${LINK_TERMS.length} targets, ${phraseCount} phrases`
 );
 console.log(`✓ every destination, link term and slot resolves to a real route`);
 if (orphans.length > 0) {

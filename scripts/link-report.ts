@@ -7,11 +7,11 @@
  *
  * Run with `npm run report:links` after adding articles or phrases.
  */
-import { ARTICLES } from '../src/shared/content/articles';
+import { publishedArticles, publishedSlugs } from '../src/shared/content/articles';
 import { LINK_TERMS, linkify, newLinkState } from '../src/shared/content/links';
 
 /** Article prose, headings excluded — the same text `linkify` is given at render. */
-function proseOf(article: (typeof ARTICLES)[number]): string[] {
+function proseOf(article: ReturnType<typeof publishedArticles>[number]): string[] {
   const runs: string[] = [];
   for (const block of article.blocks) {
     if (block.type === 'heading') continue;
@@ -28,8 +28,11 @@ for (const term of LINK_TERMS) for (const phrase of term.phrases) phraseHits.set
 
 const perArticle: { slug: string; count: number }[] = [];
 
+const ARTICLES = publishedArticles();
+const SLUGS = publishedSlugs();
+
 for (const article of ARTICLES) {
-  const state = newLinkState(`/blog/${article.slug}`);
+  const state = newLinkState(`/blog/${article.slug}`, SLUGS);
   for (const run of proseOf(article)) linkify(run, state);
   perArticle.push({ slug: article.slug, count: state.count });
 

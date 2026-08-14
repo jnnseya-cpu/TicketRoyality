@@ -113,6 +113,22 @@ export interface LinkSlot {
 
 export interface Article {
   slug: string;
+  /**
+   * `draft` articles never reach the site — excluded from /blog, the topic hubs, the
+   * sitemap, the related-article graph and inline linking.
+   *
+   * This exists because of a real failure, not as a nicety. An earlier revision of this
+   * set published thirty articles describing features in the present tense, sixteen of
+   * which were not built. Several stated the opposite of what the code does — the
+   * ticket QR was described as rotating and per-event signed when it is a static
+   * unsigned payload — and those claims were attached to FAQ structured data, which is
+   * the format search engines quote directly to users.
+   *
+   * Marketing copy that runs ahead of the code is not an exaggeration, it is a false
+   * statement to a customer about something they are paying for. Default is `shipped`,
+   * so the burden is on the writer to have checked.
+   */
+  status?: 'shipped' | 'draft';
   title: string;
   kind: ArticleKind;
   cluster: Cluster;
@@ -147,8 +163,35 @@ export function getArticle(slug: string): Article | undefined {
   return ARTICLES.find((a) => a.slug === slug);
 }
 
-export function publishedArticles(): Article[] {
+/** Everything written, drafts included. Use only where drafts are the point. */
+export function allArticles(): Article[] {
   return [...ARTICLES].sort((a, b) => b.published.localeCompare(a.published));
+}
+
+export function isShipped(article: Article): boolean {
+  return article.status !== 'draft';
+}
+
+/** The published set. Every rendering path must go through this, never `ARTICLES`. */
+export function publishedArticles(): Article[] {
+  return allArticles().filter(isShipped);
+}
+
+/** Slugs safe to link to. Passed into the linker so drafts are never linked. */
+export function publishedSlugs(): Set<string> {
+  return new Set(publishedArticles().map((a) => a.slug));
+}
+
+/**
+ * Clusters that currently have something published in them.
+ *
+ * A hub page listing nothing is an empty room, and the sitemap would be advertising
+ * it. Deriving the rendered set from published content means a cluster appears and
+ * disappears with its articles rather than being maintained by hand.
+ */
+export function publishedClusters(): ClusterMeta[] {
+  const live = new Set(publishedArticles().map((a) => a.cluster));
+  return CLUSTERS.filter((c) => live.has(c.key));
 }
 
 export function articlesInCluster(cluster: Cluster): Article[] {

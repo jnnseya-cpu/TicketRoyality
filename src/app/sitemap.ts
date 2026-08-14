@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 
 import { getEvents, getOrganisers } from '@/shared/data/repositories';
 import { siteUrl } from '@/shared/site';
-import { CLUSTERS, articlesInCluster, publishedArticles } from '@/shared/content/articles';
+import { articlesInCluster, publishedArticles, publishedClusters } from '@/shared/content/articles';
 
 export const revalidate = 3600;
 
@@ -45,7 +45,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // internal authority, so they are prioritised above the leaves rather than level
   // with them. `lastModified` is the newest article in the cluster — the hub really
   // did change when that piece was added to it.
-  for (const cluster of CLUSTERS) {
+  for (const cluster of publishedClusters()) {
     const articles = articlesInCluster(cluster.key);
     if (articles.length === 0) continue;
 

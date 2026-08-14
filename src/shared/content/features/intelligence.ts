@@ -87,6 +87,7 @@ export const INTELLIGENCE_ARTICLES: Article[] = [
   },
   {
     slug: 'venue-map-studio',
+    status: 'draft',
     title: 'Venue maps without drawing a single seat',
     kind: 'feature',
     cluster: 'intelligence',
@@ -157,6 +158,7 @@ export const INTELLIGENCE_ARTICLES: Article[] = [
   },
   {
     slug: 'ticket-as-discovery-surface',
+    status: 'draft',
     title: 'Your ticket recommends the next event',
     kind: 'feature',
     cluster: 'intelligence',
@@ -205,6 +207,7 @@ export const INTELLIGENCE_ARTICLES: Article[] = [
   },
   {
     slug: 'analytics-and-fan-intelligence',
+    status: 'draft',
     title: 'What you learn about your audience, and where the line is',
     kind: 'feature',
     cluster: 'intelligence',

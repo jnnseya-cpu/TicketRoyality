@@ -46,11 +46,11 @@ export const SELLING_ARTICLES: Article[] = [
       { type: 'heading', text: 'What happens when a tier sells out mid-checkout' },
       {
         type: 'paragraph',
-        text: 'Inventory is held from the moment you enter checkout, for a bounded window, and released automatically if you do not complete. The count you see on the event page is real availability minus active holds, so two people cannot both be told the last ticket is theirs.',
+        text: 'Capacity is enforced at issuance, inside the same database transaction that writes the tickets and increments the sold count. Two buyers racing for the last two tickets cannot both succeed: the transaction replays if the tier changed underneath, so exactly one wins. A tier can never exceed the quantity you set.',
       },
       {
         type: 'paragraph',
-        text: 'If a hold does expire under you, checkout stops and tells you plainly rather than taking the payment and sorting it out later. Selling a ticket that does not exist is a refund, an apology, and a person who is not coming to your next event.',
+        text: 'Checkout-time holds — reserving stock while you enter card details — are specified but not yet built. Until they are, the buyer who loses that race has their payment confirmed and no ticket issued; it is flagged for refund rather than resolved silently. That is an honest description of a real gap, and it is why the tier count on an event page is availability rather than a promise.',
       },
       { type: 'heading', text: 'Reserved seating on top' },
       {
@@ -67,7 +67,7 @@ export const SELLING_ARTICLES: Article[] = [
       {
         question: 'What stops two people buying the last ticket?',
         answer:
-          'Inventory is held when checkout opens and released automatically if the purchase is not completed. Displayed availability is real stock minus active holds, so the same ticket is never promised twice.',
+          'Capacity is enforced inside the transaction that issues tickets, so a tier can never exceed its quantity. If two payments race for the last ticket, one is issued and the other is flagged for refund rather than overselling the room.',
       },
     ],
     linkSlots: [{ heading: 'Events with tiered pricing', query: '', href: '/events' }],
@@ -124,6 +124,7 @@ export const SELLING_ARTICLES: Article[] = [
   },
   {
     slug: 'affiliate-and-promoter-network',
+    status: 'draft',
     title: 'Pay promoters for sales, not for promises',
     kind: 'feature',
     cluster: 'selling',
@@ -176,6 +177,7 @@ export const SELLING_ARTICLES: Article[] = [
   },
   {
     slug: 'referral-and-influencer-programme',
+    status: 'draft',
     title: 'Get paid 1% for sending people to events',
     kind: 'feature',
     cluster: 'selling',
@@ -286,6 +288,7 @@ export const SELLING_ARTICLES: Article[] = [
   },
   {
     slug: 'sponsor-activation',
+    status: 'draft',
     title: 'Sponsorship you can actually report on',
     kind: 'feature',
     cluster: 'selling',
@@ -338,6 +341,7 @@ export const SELLING_ARTICLES: Article[] = [
   },
   {
     slug: 'loyalty-and-fan-rewards',
+    status: 'draft',
     title: 'Rewarding the people who keep coming back',
     kind: 'feature',
     cluster: 'selling',

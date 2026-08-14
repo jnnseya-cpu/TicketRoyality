@@ -6,6 +6,7 @@ const AUTHOR = 'TicketRoyality';
 export const TRUST_ARTICLES: Article[] = [
   {
     slug: 'only-humans-buy-here',
+    status: 'draft',
     title: 'Only humans get in: how we keep bots out of the queue',
     kind: 'feature',
     cluster: 'trust',
@@ -72,6 +73,7 @@ export const TRUST_ARTICLES: Article[] = [
   },
   {
     slug: 'anti-fraud-agent',
+    status: 'draft',
     title: 'The security agent that is not allowed to ban you',
     kind: 'feature',
     cluster: 'trust',
@@ -203,6 +205,7 @@ export const TRUST_ARTICLES: Article[] = [
   },
   {
     slug: 'your-ticket-wallet',
+    status: 'draft',
     title: 'Where your tickets live, and how to send one to a friend',
     kind: 'feature',
     cluster: 'buying',
