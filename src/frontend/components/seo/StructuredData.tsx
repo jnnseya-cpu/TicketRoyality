@@ -1,4 +1,4 @@
-import type { Event, UserProfile } from '@/shared/types';
+import type { Event } from '@/shared/types';
 import { leadPrice } from '@/shared/pricing';
 import { SITE_NAME, siteUrl } from '@/shared/site';
 
@@ -103,7 +103,19 @@ export function EventStructuredData({ event }: { event: Event }) {
   );
 }
 
-export function OrganiserStructuredData({ organiser }: { organiser: UserProfile }) {
+/** Structurally typed: every field used here is public, so a projection is enough. */
+export function OrganiserStructuredData({
+  organiser,
+}: {
+  organiser: {
+    uid: string;
+    fullName: string;
+    companyName?: string;
+    logoUrl?: string;
+    bio?: string;
+    website?: string;
+  };
+}) {
   const base = siteUrl();
   return (
     <JsonLd

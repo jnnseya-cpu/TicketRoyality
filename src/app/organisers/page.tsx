@@ -6,8 +6,18 @@ import { ArrowRight, Globe } from 'lucide-react';
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent } from '@/frontend/components/ui/card';
-import { getOrganisers } from '@/shared/data/repositories';
+import { getPublicOrganisers } from '@/backend/services/public-profiles';
 import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
+
+/**
+ * Rendered per request, not at build time.
+ *
+ * The directory is live data behind privileged credentials. Prerendering it during
+ * `next build` meant querying Firestore with no credentials at all, which the rules
+ * correctly denied — and a denied read there fails the entire deploy rather than one
+ * page.
+ */
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Event organisers',
@@ -15,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 export default async function OrganisersPage() {
-  const organisers = await getOrganisers('approved');
+  const organisers = await getPublicOrganisers();
 
   return (
     <div className="container py-12">

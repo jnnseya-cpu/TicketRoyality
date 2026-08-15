@@ -51,8 +51,14 @@ service cloud.firestore {
                  || isSuperuser()
                  || resource.data.userType == 'organiser';
 
-      // Listing users is restricted: superusers see everything, anyone may query the
-      // organiser directory (the client always filters on userType == 'organiser').
+      // Listing users requires a signed-in caller, deliberately. `users` documents
+      // carry email, phone, address and date of birth, so an anonymous list would make
+      // every organiser's contact details bulk-harvestable.
+      //
+      // The public organiser directory does NOT go through this rule. It is rendered
+      // server-side by backend/services/public-profiles.ts using the Admin SDK, which
+      // returns a whitelist projection of branding fields only. That keeps the
+      // directory public and indexable without publishing personal data.
       allow list: if isSuperuser() || isSignedIn();
 
       // A new profile may only be created by its owner, must claim its own uid, and

@@ -32,7 +32,8 @@ and read. If it says **Not built**, it was looked for and is absent.
 
 | Area | What works | Evidence |
 | --- | --- | --- |
-| Catalogue | Events, search, filters, calendar, map, organiser directory | `src/app/events`, `/organisers` |
+| Catalogue | Events, search, filters, calendar, map | `src/app/events` |
+| Organiser directory | Public, server-rendered via an Admin SDK **whitelist projection** — branding fields only, no email/phone/address | `backend/services/public-profiles.ts` |
 | Event pages | Server-rendered with `Event` JSON-LD | `src/app/events/[id]` |
 | Accounts | Register (customer/organiser), login, forgot password, three role dashboards | `src/app/register`, `/dashboard/*` |
 | Password reveal | Eye toggle on every password field, accessible, never submits the form | `ui/password-input.tsx` |
@@ -79,6 +80,7 @@ is precisely what caused the confusion this file exists to end.
 | Public API + sandbox | No developer API. `/developers` is a marketing page. | `docs/04` M13 |
 | App Check enforcement | `appcheck.ts` exists and is wired into no route. The sign-up gate stops naive automation, but a script can call Firebase Auth directly and never touch it — App Check is the layer that closes that, and it needs a reCAPTCHA Enterprise site key from the console. | `docs/11` |
 | Bot gate on **login** | Only sign-up is gated. Credential-stuffing against `/login` is unthrottled. | `docs/11` |
+| Organiser profile `get` rule | `firestore.rules` allows **anyone** to read a full organiser `users` document by uid — including email, phone, address and date of birth. The public pages no longer expose it, but the rule still permits a direct SDK read. Should be narrowed to a public projection or a separate collection. | `firestore.rules` |
 | Sentinel telemetry | `sentinel.ts` reads no real signal | `docs/03` §3.6 |
 | Atomic ACU ledger (**D2**) | Ledger entry and balance are not written in one transaction | `docs/13` D2 |
 | Venue map generation | Only a preview component exists | `docs/04` M23 |

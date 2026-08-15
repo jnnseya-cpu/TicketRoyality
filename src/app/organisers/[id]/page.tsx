@@ -4,13 +4,20 @@ import { notFound } from 'next/navigation';
 
 import { OrganiserStructuredData } from '@/frontend/components/seo/StructuredData';
 import type { Metadata } from 'next';
-import { Globe, Mail } from 'lucide-react';
+import { Globe } from 'lucide-react';
 
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { EventCard } from '@/frontend/components/events/EventCard';
-import { getEventsByOrganizer, getUserProfile } from '@/shared/data/repositories';
+import { getEventsByOrganizer } from '@/shared/data/repositories';
+import { getPublicOrganiser } from '@/backend/services/public-profiles';
 import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
+
+/**
+ * Per request, not prerendered. Same reason as the directory: the profile is live data
+ * read with privileged credentials, and a build-time read has none.
+ */
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
   params,
@@ -18,7 +25,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const organiser = await getUserProfile(id);
+  const organiser = await getPublicOrganiser(id);
   if (!organiser) return { title: 'Organiser not found' };
   const name = organiser.companyName ?? organiser.fullName;
   return { title: name, description: organiser.bio?.slice(0, 160) };
@@ -30,8 +37,10 @@ export default async function OrganiserDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const organiser = await getUserProfile(id);
-  if (!organiser || organiser.userType !== 'organiser') notFound();
+  // getPublicOrganiser already returns null for anyone who is not an approved
+  // organiser, so an unvetted seller never gets a public page.
+  const organiser = await getPublicOrganiser(id);
+  if (!organiser) notFound();
 
   const events = await getEventsByOrganizer(id);
   const now = Date.now();
@@ -71,7 +80,8 @@ export default async function OrganiserDetailPage({
             <div className="mt-2 flex flex-wrap gap-2">
               <Badge variant="gold">{upcoming.length} upcoming</Badge>
               <Badge variant="secondary">{past.length} past</Badge>
-              {organiser.status === 'approved' && <Badge variant="success">Verified</Badge>}
+              {/* Unconditional: this page only exists for approved organisers. */}
+              <Badge variant="success">Verified</Badge>
             </div>
           </div>
 
@@ -83,11 +93,8 @@ export default async function OrganiserDetailPage({
                 </a>
               </Button>
             )}
-            <Button variant="outline" size="sm" asChild>
-              <a href={`mailto:${organiser.email}`}>
-                <Mail className="h-4 w-4" /> Contact
-              </a>
-            </Button>
+            {/* The organiser's email is personal data and this page is indexed —
+                  contact goes through the platform, not a published mailbox. */}
           </div>
         </div>
 
