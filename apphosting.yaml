@@ -34,49 +34,76 @@ runConfig:
   timeoutSeconds: 300
 
 env:
-  # Public values — safe to expose to the browser.
+  # Firebase web config for project `ticketroyality`.
+  #
+  # These are plain values, not Secret Manager secrets, and that is correct rather
+  # than lazy. Every `NEXT_PUBLIC_*` variable is inlined into the JavaScript bundle at
+  # build time — the prefix means exactly that — so all six are already readable by
+  # anyone who opens the site. Storing a value in Secret Manager that is published to
+  # every visitor adds six setup steps and six ways to mistype a deploy, and protects
+  # nothing.
+  #
+  # What actually protects the data is `firestore.rules`, plus App Check when it is
+  # enabled. The Firebase API key is an identifier, not a credential.
+  #
+  # Worth doing separately: restrict this key in the Google Cloud console
+  # (APIs & Services → Credentials → HTTP referrers → ticketroyality.com/*) so it
+  # cannot be used to bill quota from someone else's site.
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    secret: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyAR2vz9oFkiBIeSMHkxJYTiMGdrORucDYo
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-    secret: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: ticketroyality.firebaseapp.com
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    secret: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: ticketroyality
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    secret: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: ticketroyality.firebasestorage.app
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-    secret: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "15675127953"
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
-    secret: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:15675127953:web:d66fcdc5387dd492c7a730
     availability:
       - BUILD
       - RUNTIME
-  - variable: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-    secret: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-    availability:
-      - BUILD
-      - RUNTIME
+  # Maps is not wired to a key yet — the event page falls back to a text address
+  # panel. Add it back as a value here once a key exists and is referrer-restricted.
   - variable: NEXT_PUBLIC_SITE_URL
     value: https://ticketroyality.com
     availability:
       - BUILD
       - RUNTIME
 
-  # Server-only secrets. RUNTIME only — these must never reach the client bundle.
+  # ── Server-only secrets ────────────────────────────────────────────────────
+  #
+  # ALL COMMENTED OUT FOR THE FIRST ROLLOUT.
+  #
+  # App Hosting fails a rollout when a declared secret is missing from Secret
+  # Manager, so referencing a key that does not exist yet blocks the entire deploy
+  # — including the catalogue, the blog and everything that needs no keys at all.
+  #
+  # Re-enable one at a time as each key becomes available:
+  #
+  #   firebase apphosting:secrets:set <NAME>
+  #   (uncomment the block below, commit, push — App Hosting redeploys on push)
+  #
+  # What each one costs while it stays off is noted against it. None of them stop
+  # the site being live; they stop it taking money, sending mail or calling AI.
+  #
+  # Server-only. RUNTIME only — these must never reach the client bundle.
   #
   # Only variables the code actually reads are declared here. App Hosting fails a
   # rollout when a referenced secret is missing from Secret Manager, so declaring one
@@ -84,22 +111,22 @@ env:
   # Removed until their feature lands: ANTHROPIC_API_KEY and OPENAI_API_KEY (the AI
   # gateway calls Gemini only), QR_SIGNING_KEY (no signing implemented),
   # NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (checkout redirects server-side).
-  - variable: GEMINI_API_KEY
-    secret: GEMINI_API_KEY
-    availability:
-      - RUNTIME
-  - variable: CRON_SECRET
-    secret: CRON_SECRET
-    availability:
-      - RUNTIME
-  - variable: STRIPE_SECRET_KEY
-    secret: STRIPE_SECRET_KEY
-    availability:
-      - RUNTIME
-  - variable: STRIPE_WEBHOOK_SECRET
-    secret: STRIPE_WEBHOOK_SECRET
-    availability:
-      - RUNTIME
+#  - variable: GEMINI_API_KEY
+#    secret: GEMINI_API_KEY
+#    availability:
+#      - RUNTIME
+#  - variable: CRON_SECRET
+#    secret: CRON_SECRET
+#    availability:
+#      - RUNTIME
+#  - variable: STRIPE_SECRET_KEY
+#    secret: STRIPE_SECRET_KEY
+#    availability:
+#      - RUNTIME
+#  - variable: STRIPE_WEBHOOK_SECRET
+#    secret: STRIPE_WEBHOOK_SECRET
+#    availability:
+#      - RUNTIME
   - variable: SMTP_HOST
     value: smtp.hostinger.com
     availability:
@@ -112,10 +139,10 @@ env:
     value: info@ticketroyality.com
     availability:
       - RUNTIME
-  - variable: SMTP_PASSWORD
-    secret: SMTP_PASSWORD
-    availability:
-      - RUNTIME
+#  - variable: SMTP_PASSWORD
+#    secret: SMTP_PASSWORD
+#    availability:
+#      - RUNTIME
   - variable: EMAIL_FROM
     value: TicketRoyality <info@ticketroyality.com>
     availability:
@@ -125,11 +152,11 @@ env:
     value: https://bitripay.com/pay/sandbox/api/v1
     availability:
       - RUNTIME
-  - variable: BITRIPAY_CLIENT_ID
-    secret: BITRIPAY_CLIENT_ID
-    availability:
-      - RUNTIME
-  - variable: BITRIPAY_SECRET_ID
-    secret: BITRIPAY_SECRET_ID
-    availability:
-      - RUNTIME
+#  - variable: BITRIPAY_CLIENT_ID
+#    secret: BITRIPAY_CLIENT_ID
+#    availability:
+#      - RUNTIME
+#  - variable: BITRIPAY_SECRET_ID
+#    secret: BITRIPAY_SECRET_ID
+#    availability:
+#      - RUNTIME
