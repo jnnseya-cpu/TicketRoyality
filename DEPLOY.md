@@ -14,7 +14,7 @@ Four vendors. Nothing else is used, and nothing else is needed.
 | **Hostinger** | Domain, DNS, and the `info@ticketroyality.com` mailbox that sends every ticket email over SMTP | You already own the domain. The mailbox comes with it, which is what keeps email off a separate email API. |
 | **Firebase / Google Cloud** | The Next.js app (App Hosting → Cloud Run), Firestore, Auth, Storage, Cloud Functions, Scheduler, App Check, Maps, Gemini | One project, one region, one bill. Cloud Functions must live here regardless — they are Firestore triggers. |
 | **Vercel** | Nothing today. Available as a fallback host for the app. | See below. |
-| **AI providers** | Gemini today; Claude and OpenAI approved but **not wired** — see `/STATUS.md` | Called over HTTPS from the app. Nothing is deployed to them. |
+| **AI providers** | Gemini, Claude and OpenAI — all three wired, tried in that order | Called over HTTPS from the app. Nothing is deployed to them. |
 
 **There is no separate frontend and backend deployment.** `src/frontend`, `src/backend`
 and `src/shared` are folders inside **one** Next.js application. The separation is a
@@ -25,7 +25,7 @@ So there are exactly **three deployable artefacts**:
 
 | # | Artefact | Goes to | Shipped by |
 | --- | --- | --- | --- |
-| 1 | The Next.js app — every page, every `/api/*` route, both webhooks, i.e. frontend **and** backend | **Firebase App Hosting** → Cloud Run, `europe-west2` | Git push (automatic) |
+| 1 | The Next.js app — every page, every `/api/*` route, both webhooks, i.e. frontend **and** backend | **Firebase App Hosting** → Cloud Run, `europe-west4` | Git push (automatic) |
 | 2 | `functions/` — ticket issuance, refunds, email delivery, reconciliation, audits | **Cloud Functions v2**, `europe-west2` | `firebase deploy --only functions` |
 | 3 | `firestore.rules`, `firestore.indexes.json`, `storage.rules` | **Firestore + Storage** | `firebase deploy --only firestore:rules,firestore:indexes,storage` |
 
@@ -44,10 +44,10 @@ So there are exactly **three deployable artefacts**:
    │  └──────────────┬────────────────┘          ▼             │
    │                 │ writes           ┌──────────────────┐   │
    │                 ▼  payment_events  │  AI PROVIDERS    │   │
-   │  ┌───────────────────────────────┐ │  Gemini (wired)  │   │
-   │  │ Cloud Functions v2            │ │  Claude, OpenAI  │   │
-   │  │ issuance · refunds · email ───┼─┤  (approved, not  │   │
-   │  │ reconciliation · audits       │ │   yet wired)     │   │
+   │  ┌───────────────────────────────┐ │  Gemini  ──┐     │   │
+   │  │ Cloud Functions v2            │ │  Claude  ──┤ any │   │
+   │  │ issuance · refunds · email ───┼─┤  OpenAI  ──┘ one │   │
+   │  │ reconciliation · audits       │ │  fallback chain  │   │
    │  └──────────────┬────────────────┘ └──────────────────┘   │
    │                 ▼                                         │
    │  ┌───────────────────────────────┐                        │
@@ -98,7 +98,7 @@ npm ci
 npm run typecheck      # app + the functions contract guard
 npm run lint
 npm run build
-npm test               # 20 tests: issuance (emulator) + delivery (real SMTP)
+npm test               # 30 tests: issuance (emulator) + delivery (SMTP) + AI gateway
 npm run check:links
 cd functions && npm ci && npm run build && cd ..
 ```
@@ -120,8 +120,8 @@ port and it looks like a slow boot.
 ```bash
 npm i -g firebase-tools
 firebase login
-firebase projects:create ticketroyality-prod     # or create it in the console
-firebase use ticketroyality-prod
+firebase projects:create ticketroyality     # or create it in the console
+firebase use ticketroyality
 ```
 
 In [console.firebase.google.com](https://console.firebase.google.com):
@@ -134,9 +134,16 @@ In [console.firebase.google.com](https://console.firebase.google.com):
 - **Authentication → Sign-in method → Email/Password → Enable.**
 - **Storage → Get started → same region.**
 
-Everything must be `europe-west2`: Firestore, Storage, App Hosting and Functions. A
-function in a different region from Firestore pays a cross-region round trip on every
-transaction read, which is the slowest part of issuance.
+Keep Firestore, Storage and Functions together in `europe-west2`. A function in a
+different region from Firestore pays a cross-region round trip on every transaction
+read, which is the slowest part of issuance.
+
+**App Hosting is the exception, and it is already deployed in `europe-west4`.** App
+Hosting is not offered in every region, and the running backend is there now. That is
+fine: it is a stateless HTTP frontend, so the hop it pays is Cloud Run to Firestore
+within the same continent, not inside the ticket-issuance transaction. Do not move it
+to "tidy up" — recreating a backend means re-doing the GitHub connection, the domain
+and every secret grant.
 
 ## Step 2 — Rules and indexes (1 min)
 
@@ -149,34 +156,54 @@ for users rather than for you. This deploy also creates the locks on `payment_ev
 and `issued_payments` — a forged payment event would mint free tickets, so the app must
 never reach a database where those collections are writable.
 
-## Step 3 — Secrets (5 min)
+## Step 3 — Secrets
+
+**The Firebase web config is already in `apphosting.yaml` as plain values.** There is
+nothing to do for it, and it should not be moved into Secret Manager: every
+`NEXT_PUBLIC_*` variable is inlined into the JavaScript bundle at build time, so all six
+are already readable by anyone who opens the site. Storing a published value as a secret
+adds six ways to break a deploy and protects nothing. What protects the data is
+`firestore.rules`.
+
+Everything else is off by default. Nothing below is required to be live — the app
+degrades honestly without any of it, and `/api/health` names exactly which dependency is
+missing.
+
+### The three-command pattern
+
+Every secret takes the same three steps, and skipping the middle one is the most common
+way to break a rollout:
 
 ```bash
-firebase apphosting:secrets:set NEXT_PUBLIC_FIREBASE_API_KEY
-firebase apphosting:secrets:set NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-firebase apphosting:secrets:set NEXT_PUBLIC_FIREBASE_PROJECT_ID
-firebase apphosting:secrets:set NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-firebase apphosting:secrets:set NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-firebase apphosting:secrets:set NEXT_PUBLIC_FIREBASE_APP_ID
+# 1. create it (prompts for the value; it is never typed on the command line)
+firebase apphosting:secrets:set STRIPE_SECRET_KEY --project ticketroyality
+
+# 2. let the backend's service account read it
+firebase apphosting:secrets:grantaccess STRIPE_SECRET_KEY \
+  --backend ticketroyality --project ticketroyality
+
+# 3. uncomment that variable's block in apphosting.yaml, commit, push
 ```
 
-Values come from **Project settings → Your apps → Web app → SDK setup**.
+**Create before you uncomment, always.** App Hosting fails the *entire* rollout when
+`apphosting.yaml` names a secret that is not in Secret Manager — that takes down the
+catalogue, the blog and every page needing no keys at all, not just the one feature.
+This is why every secret block in that file ships commented out.
 
-That is enough to publish. Payments, AI and email can follow — the app degrades
-honestly without them (`/api/health` reports which dependency is missing, checkout says
-Stripe is not configured, AI features say so).
+Without step 2 the deploy succeeds and the container fails to start with a permission
+error, which is a much more confusing failure than a missing secret.
 
 ## Step 4 — Deploy the app (5 min)
 
 ```bash
-firebase apphosting:backends:create --project ticketroyality-prod
+firebase apphosting:backends:create --project ticketroyality
 ```
 
-Connect the GitHub repo, pick the branch, choose `europe-west2`. It builds in roughly
+Connect the GitHub repo, pick the branch, choose `europe-west4`. It builds in roughly
 four minutes and gives you a live URL:
 
 ```
-https://ticketroyality-prod--<backend>.europe-west2.hosted.app
+https://ticketroyality--ticketroyality.europe-west4.hosted.app
 ```
 
 **The site is live at this point.** Frontend and backend both — they are the same
@@ -206,20 +233,64 @@ Five functions should appear:
 
 ## Step 6 — Your domain (10 min + DNS propagation)
 
-Firebase console → **App Hosting → Add custom domain → `ticketroyality.com`.**
-It gives you records. Add them in **Hostinger → Domains → DNS**:
+Firebase console → **App Hosting → your `ticketroyality` backend → Add custom domain →
+`ticketroyality.com`.** Firebase shows the exact records. Add them in **Hostinger →
+Domains → `ticketroyality.com` → DNS / Nameservers**:
 
-| Type | Name | Value |
-| --- | --- | --- |
-| `A` | `@` | (the IP Firebase shows) |
-| `TXT` | `@` | (the verification token Firebase shows) |
-| `CNAME` | `www` | (the target Firebase shows) |
+| Type | Name | Value | Notes |
+| --- | --- | --- | --- |
+| `TXT` | `@` | the verification token Firebase shows | Proves you own the domain. Add it first. |
+| `A` | `@` | the IPv4 address Firebase shows | Usually two `A` records — add **both**. |
+| `CNAME` | `www` | the target Firebase shows | So `www.ticketroyality.com` works too. |
 
-**Do not touch the `MX` records.** Mail stays with Hostinger — and the ticket emails
-are sent through that same Hostinger mailbox, so breaking `MX` breaks ticket delivery
-as well as your inbox.
+Three things go wrong here, in order of how often:
 
-Certificates issue automatically once verification passes: minutes to a few hours.
+1. **A parked-domain record already exists.** Hostinger points a new domain at its own
+   landing page with an `A` record on `@`. Delete that one — do not add a second `A` on
+   `@` beside it, or DNS will round-robin between Firebase and a parking page and the
+   site will look broken to roughly half of visitors.
+2. **`@` written as the full domain.** Hostinger's DNS editor wants `@` for the root.
+   Entering `ticketroyality.com` creates `ticketroyality.com.ticketroyality.com`.
+3. **Waiting on the wrong thing.** Verification is usually minutes; the TLS certificate
+   can take up to 24 hours. A "not secure" warning in that window is normal and needs no
+   action.
+
+**Do not touch the `MX` records.** Mail stays with Hostinger — and ticket emails are
+sent through that same `info@ticketroyality.com` mailbox, so breaking `MX` breaks ticket
+delivery as well as your inbox. The same applies to any `TXT` record holding SPF
+(`v=spf1 …`) or DKIM: leave them exactly as they are, and *add* the Firebase
+verification `TXT` alongside rather than replacing anything.
+
+Check propagation from outside your own network — your machine may have the old answer
+cached for hours:
+
+```bash
+dig +short ticketroyality.com @8.8.8.8
+dig +short TXT ticketroyality.com @8.8.8.8
+```
+
+### After the certificate issues
+
+`NEXT_PUBLIC_SITE_URL` in `apphosting.yaml` is already `https://ticketroyality.com`, so
+`sitemap.xml`, `robots.txt` and every canonical URL point at the real domain the moment
+DNS resolves. Nothing to change.
+
+But two registrations still carry the old `*.hosted.app` URL if you set them up earlier,
+and both fail **silently** rather than loudly:
+
+- **Stripe** → Developers → Webhooks → set the endpoint to
+  `https://ticketroyality.com/api/stripe-webhook`.
+- **KODA** → the registered endpoint must become
+  `https://ticketroyality.com/webhooks/koda`.
+
+A stale webhook URL means the customer pays, the provider posts to an address that
+404s, retries for 24 hours, gives up — and the first symptom is somebody saying they
+paid and got no ticket.
+
+Also worth doing once the domain is live: restrict the Firebase browser API key to it
+(Google Cloud console → APIs & Services → Credentials → HTTP referrers →
+`ticketroyality.com/*`), so the key in your bundle cannot be used to bill quota from
+someone else's site.
 
 ---
 
@@ -256,22 +327,54 @@ change** without re-registering with KODA first. A moved webhook URL fails silen
 KODA keeps posting to the old path, gets a 404, retries for 24 hours, and the first
 symptom is a customer saying they paid and got nothing.
 
-### AI features
+### AI features — all three vendors
+
+The gateway (`src/backend/ai/gateway.ts`) tries **Gemini → Claude → OpenAI** and moves
+on when one is down, rate-limited, or returns something that fails the task's schema.
 
 ```bash
-firebase apphosting:secrets:set GEMINI_API_KEY
+for KEY in GEMINI_API_KEY ANTHROPIC_API_KEY OPENAI_API_KEY; do
+  firebase apphosting:secrets:set "$KEY" --project ticketroyality
+  firebase apphosting:secrets:grantaccess "$KEY" \
+    --backend ticketroyality --project ticketroyality
+done
 ```
 
-That is the whole list, and it is deliberately short: **the AI gateway calls Gemini
-only.** Claude and OpenAI are approved vendors and are not wired — no client, no
-fallback chain. `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` were removed from
-`apphosting.yaml` because App Hosting fails a rollout when a declared secret does not
-exist in Secret Manager, so demanding keys for an unwired feature blocks the deploy for
-nothing.
+Then uncomment those three blocks in `apphosting.yaml` and push.
 
-The consequence worth knowing before launch: a Gemini outage takes every AI feature
-down with it. Ticketing, checkout, the door and delivery are unaffected — AI is an
-accelerant here, not a dependency. Tracked in `/STATUS.md`.
+| Key | Where it comes from |
+| --- | --- |
+| `GEMINI_API_KEY` | https://aistudio.google.com/apikey |
+| `ANTHROPIC_API_KEY` | https://console.anthropic.com/settings/keys |
+| `OPENAI_API_KEY` | https://platform.openai.com/api-keys |
+
+**Any one key runs every AI feature.** Start with Gemini — at the configured models it
+is roughly forty times cheaper per output token than Claude, so it should answer the
+ordinary request. The other two are not redundancy for its own sake: with one key, a
+single vendor incident takes AI Studio, recommendations and similar-events down
+together, which is exactly the failure the chain exists to prevent.
+
+Billing follows whichever vendor actually answered — cost is read from that provider's
+own reported token counts, not a fixed estimate, so a fallback to Claude charges Claude
+prices rather than quietly selling below cost. The `/api/ai` response names the
+provider, so a fallback firing on every request is visible long before the invoice.
+
+`/api/health` reports `ai:gemini`, `ai:anthropic` and `ai:openai` separately, so one key
+present never reads as healthy while the chain has no depth left.
+
+### Google Maps
+
+Not a new vendor — the same Google Cloud project. Without it, event pages fall back to a
+text address panel, which is a deliberate degradation rather than an error.
+
+This one is **not** a Secret Manager secret. It is `NEXT_PUBLIC_`, so it ships inside the
+JavaScript bundle whatever you do; paste it as a plain `value:` in the
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` block in `apphosting.yaml`.
+
+Restrict it before you use it, or anyone can lift it from the bundle and bill Maps usage
+to this project: **Google Cloud console → APIs & Services → Credentials → the key →
+Application restrictions → HTTP referrers**, then add `ticketroyality.com/*` and
+`*.hosted.app/*`.
 
 ### Ticket delivery email
 
