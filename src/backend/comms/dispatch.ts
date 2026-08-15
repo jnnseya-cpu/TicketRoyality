@@ -36,7 +36,10 @@ function providerFor(channel: Channel): string {
       return 'smtp';
     case 'sms':
     case 'whatsapp':
-      return 'twilio';
+      // No approved provider. These channels are declared in the catalogue as part of
+      // the specification, but delivering them needs a vendor outside the approved
+      // set (CLAUDE.md §1), so they record and never send.
+      return 'none';
     case 'push':
       return 'fcm';
     case 'inapp':
@@ -50,7 +53,7 @@ function configured(channel: Channel): boolean {
       return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
     case 'sms':
     case 'whatsapp':
-      return Boolean(process.env.TWILIO_ACCOUNT_SID);
+      return false;
     case 'push':
       return Boolean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
     case 'inapp':

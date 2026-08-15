@@ -13,12 +13,26 @@ Standing rules for any AI agent working in this repository. These are not sugges
 
 ## 1. Vendor constraint — hard
 
-Five vendors only: **Hostinger** (domain, mail), **Firebase/GCP** (hosting, auth,
-Firestore, storage, functions, scheduler, FCM, App Check), **Stripe**, **BitriPay/KODA**,
-**AI providers** (Anthropic, Google, OpenAI).
+The accounts that exist. Nothing outside this list may be introduced.
 
-Adding a sixth is an escalation, not a decision. A *library* is not a vendor; a service
-with its own account, contract or invoice is.
+| Layer | Vendor | Used for |
+| --- | --- | --- |
+| Infrastructure | **Hostinger** | Domain, DNS, the `info@` mailbox that sends ticket email. A VPS is available and **not used** — App Hosting removes the need. |
+| Infrastructure | **Firebase / Google Cloud** | Hosting (App Hosting → Cloud Run), Auth, Firestore, Storage, Functions, Scheduler, FCM, App Check, Maps, Gemini, Cloud Logging |
+| Infrastructure | **Vercel** | Available, **currently unused**. The app is deployed on App Hosting. |
+| Payments | **Stripe** · **BitriPay / KODA** | Cards; mobile money |
+| AI | **Anthropic** · **Google** · **OpenAI** | The AI gateway |
+
+Adding anything else is an escalation, not a decision. A *library* is not a vendor; a
+service with its own account, contract or invoice is.
+
+Consequences that are already load-bearing:
+
+- Email is **SMTP through Hostinger**, never an email API.
+- Error tracking is **Google Cloud Error Reporting**, never Sentry.
+- **SMS and WhatsApp cannot be delivered.** They are declared in the comms catalogue
+  as specification; `dispatch()` records them and sends nothing.
+- KYC/AML has no provider. It is only needed if the platform ever holds funds.
 
 ## 2. Read before you write
 

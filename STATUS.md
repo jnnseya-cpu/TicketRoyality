@@ -79,6 +79,8 @@ is precisely what caused the confusion this file exists to end.
 | Atomic ACU ledger (**D2**) | Ledger entry and balance are not written in one transaction | `docs/13` D2 |
 | Venue map generation | Only a preview component exists | `docs/04` M23 |
 | Waitlist | Defined in the comms catalogue, no implementation | `docs/04` M6 |
+| SMS / WhatsApp delivery | **Blocked, not pending.** No approved provider exists inside the vendor list (`CLAUDE.md` §1). The channels are declared in the catalogue; `dispatch()` records and sends nothing. | `docs/04` M10 |
+| Error tracking | Not wired. Google Cloud Error Reporting is available in-project; Sentry would be a new vendor. | `docs/21` |
 
 ## Ordered by what actually blocks revenue
 

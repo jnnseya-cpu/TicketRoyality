@@ -25,6 +25,24 @@ There are exactly **three deployable artefacts**:
 Plus **Hostinger**, which keeps the domain and the mailbox. Nothing moves off it —
 you point DNS at Firebase and leave `MX` alone.
 
+### Vercel and the Hostinger VPS — available, deliberately unused
+
+Both are on the account and neither is needed.
+
+**Vercel** could host the Next.js app, but nothing is gained by moving it. Cloud
+Functions must stay on Firebase regardless — they are Firestore triggers and cannot run
+elsewhere — so a move puts the app on one platform and its issuance logic on another,
+recreating the split that `firebase.json` was just cleaned up to remove. `apphosting.yaml`
+already carries the runtime config, and App Hosting redeploys from the same git push.
+It stays a live fallback, not a plan.
+
+**The Hostinger VPS** would mean managing TLS certificates, deployments, scaling and
+OS patching by hand, for a service App Hosting already provides with autoscaling and
+automatic certificates. Keep it for something that genuinely needs a persistent box.
+
+Neither decision is precious. If either changes, the constraint that matters is that
+the app and the functions stay in the same cloud as Firestore.
+
 Why `functions/` is separate: `firebase deploy` uploads **only** that directory, so it
 is its own npm package with its own `package.json` and `node_modules`. It never ships
 inside the app bundle and the app never imports it at runtime.
