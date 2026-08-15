@@ -261,13 +261,16 @@ delivery as well as your inbox. The same applies to any `TXT` record holding SPF
 (`v=spf1 …`) or DKIM: leave them exactly as they are, and *add* the Firebase
 verification `TXT` alongside rather than replacing anything.
 
-Check propagation from outside your own network — your machine may have the old answer
-cached for hours:
+Check the whole picture — web records and mail records together — with:
 
 ```bash
-dig +short ticketroyality.com @8.8.8.8
-dig +short TXT ticketroyality.com @8.8.8.8
+npm run check:domain
 ```
+
+It reports the root `A`, `MX`, SPF, DKIM and `www`, and fails when the root still
+points at Hostinger or when a Hostinger `A` record has been left alongside Firebase's.
+Run it before the change to see the starting state, and after to confirm the cutover
+without having discovered by accident that mail stopped.
 
 ### After the certificate issues
 

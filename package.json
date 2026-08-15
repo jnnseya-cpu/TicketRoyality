@@ -19,7 +19,8 @@
     "test": "npm run test:issuance && npm run test:delivery && npm run test:ai && npm run test:comms",
     "grant:admin": "tsx scripts/grant-admin.ts",
     "test:ai": "tsx --conditions=react-server src/backend/ai/gateway.test.ts",
-    "test:comms": "tsx --conditions=react-server src/backend/comms/dispatch.test.ts"
+    "test:comms": "tsx --conditions=react-server src/backend/comms/dispatch.test.ts",
+    "check:domain": "node scripts/check-domain.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
