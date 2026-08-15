@@ -37,6 +37,7 @@ and read. If it says **Not built**, it was looked for and is absent.
 | Event pages | Server-rendered with `Event` JSON-LD | `src/app/events/[id]` |
 | Accounts | Register (customer/organiser), login, forgot password, three role dashboards | `src/app/register`, `/dashboard/*` |
 | Password reveal | Eye toggle on every password field, accessible, never submits the form | `ui/password-input.tsx` |
+| **Admin sign-in** | `/login/admin`, linked under the normal login panel. Verifies `userType == 'superuser'` after authenticating and sends anyone else to their own dashboard rather than into an admin shell that 403s on every read. A separate door, not a separate lock — one credential store, and the rules are the authority. | `src/app/login/admin` |
 | **Admin account** | Promotion via Admin SDK script — no self-serve admin signup exists by design. `--set-password` recovers an account offline, which `admin@ticketroyality.com` needs because it has **no inbox** and can never receive a reset email. | `scripts/grant-admin.ts` |
 | Bot gate (sign-up) | Honeypot + fill-timing + interaction, **scored server-side**; refuses before any account is created | `/api/signup-gate` |
 | Tiered ticketing | Multiple tiers, prices, quantities per event | `src/shared/types`, `CreateEventForm` |

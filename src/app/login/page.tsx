@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Info, Loader2, LogIn } from 'lucide-react';
+import { Info, Loader2, LogIn, ShieldCheck } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
 import { Button } from '@/frontend/components/ui/button';
@@ -141,11 +141,22 @@ export default function LoginPage() {
           </p>
 
           {/*
-            The "development test accounts" panel that used to sit here is gone. It
-            listed admin@ticketroyality.com on the public login page, which hands an
-            attacker the one address worth attacking — and the account it names has no
-            inbox, so it cannot even receive a breach-reset email.
+            The administrator door. Named, not hidden — this form signs in administrators
+            perfectly well, so a secret URL would buy nothing but a support question.
+            What keeps administration safe is that `userType` is granted server-side by
+            `npm run grant:admin` and `firestore.rules` refuses a self-write to it.
+
+            The panel replaced here was the opposite of this: it listed
+            admin@ticketroyality.com and its password in plain sight, handing an attacker
+            the one address worth attacking.
           */}
+          <Link
+            href="/login/admin"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-primary"
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Platform administrator sign-in
+          </Link>
         </CardFooter>
       </Card>
     </div>
