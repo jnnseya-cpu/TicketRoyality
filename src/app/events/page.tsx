@@ -24,7 +24,7 @@ export default async function EventsPage({
         </p>
       </div>
 
-      <EventList initialView={view === 'calendar' ? 'calendar' : 'grid'} />
+      <EventList initialView={view === 'calendar' ? 'calendar' : view === 'map' ? 'map' : 'grid'} />
     </div>
   );
 }

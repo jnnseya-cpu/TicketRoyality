@@ -56,6 +56,7 @@ and read. If it says **Not built**, it was looked for and is absent.
 | Blog | 14 published articles, 6 topic hubs, generated link graph | `npm run check:links` |
 | SEO | `robots.txt`, `sitemap.xml`, Article/FAQ/Breadcrumb schema | `src/app/sitemap.ts` |
 | Security headers | CSP-adjacent headers, HSTS, frame denial | `next.config.ts` |
+| **Maps & directions** | Live Google **Embed** API map on every event page with a venue, switching to route mode once a starting point is set. Origin from browser geolocation or a typed postcode; drive/transit/walk; Apple Maps link. A Map tab on `/events` centres on a chosen event. **Directions need no API key** — only the embedded map does. | `events/EventMap.tsx`, `events/EventsMapView.tsx` |
 | Styling | Tailwind scans `./src/**`. It previously scanned `./src/pages` and `./src/components`, **neither of which exists** — so every class used only in `src/frontend/**` was never generated and most of the UI rendered unstyled. | `tailwind.config.ts` |
 | Health | `/api/health` reports per-dependency status, fails closed | `src/app/api/health` |
 

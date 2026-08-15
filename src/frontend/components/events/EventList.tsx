@@ -6,7 +6,12 @@ import { CalendarX2 } from 'lucide-react';
 import { Calendar } from '@/frontend/components/ui/calendar';
 import { Card, CardContent } from '@/frontend/components/ui/card';
 import { EventCard, EventCardSkeleton } from '@/frontend/components/events/EventCard';
-import { EventFilters, type EventFilterState } from '@/frontend/components/events/EventFilters';
+import { EventsMapView } from '@/frontend/components/events/EventsMapView';
+import {
+  EventFilters,
+  type EventFilterState,
+  type EventView,
+} from '@/frontend/components/events/EventFilters';
 import { getEvents } from '@/shared/data/repositories';
 import { getDistanceInMiles } from '@/shared/utils';
 import { parseCategoryValue } from '@/shared/constants/categories';
@@ -23,11 +28,11 @@ const INITIAL_FILTERS: EventFilterState = {
   livestreamOnly: false,
 };
 
-export function EventList({ initialView = 'grid' }: { initialView?: 'grid' | 'calendar' }) {
+export function EventList({ initialView = 'grid' }: { initialView?: EventView }) {
   const [allEvents, setAllEvents] = React.useState<Event[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [filters, setFilters] = React.useState<EventFilterState>(INITIAL_FILTERS);
-  const [view, setView] = React.useState<'grid' | 'calendar'>(initialView);
+  const [view, setView] = React.useState<EventView>(initialView);
   const [selectedDay, setSelectedDay] = React.useState<Date | undefined>();
 
   const [coords, setCoords] = React.useState<{ lat: number; lng: number } | null>(null);
@@ -155,6 +160,8 @@ export function EventList({ initialView = 'grid' }: { initialView?: 'grid' | 'ca
             <EventCardSkeleton key={`list-skel-${i}`} />
           ))}
         </div>
+      ) : view === 'map' ? (
+        <EventsMapView events={visible} origin={coords} />
       ) : view === 'calendar' ? (
         <div className="grid gap-8 lg:grid-cols-[auto_1fr]">
           <Card className="w-fit">

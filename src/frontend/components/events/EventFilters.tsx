@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarRange, LayoutGrid, MapPin, Search } from 'lucide-react';
+import { CalendarRange, LayoutGrid, Map, MapPin, Search } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
 import { Checkbox } from '@/frontend/components/ui/checkbox';
@@ -17,6 +17,9 @@ import {
 } from '@/frontend/components/ui/select';
 import { CATEGORY_GROUPS, categoryValue } from '@/shared/constants/categories';
 
+/** List, calendar, or the venue map. Shared with EventList so the two agree. */
+export type EventView = 'grid' | 'calendar' | 'map';
+
 export interface EventFilterState {
   search: string;
   category: string;
@@ -28,8 +31,8 @@ export interface EventFilterState {
 interface EventFiltersProps {
   value: EventFilterState;
   onChange: (next: EventFilterState) => void;
-  view: 'grid' | 'calendar';
-  onViewChange: (view: 'grid' | 'calendar') => void;
+  view: EventView;
+  onViewChange: (view: EventView) => void;
   locationStatus?: React.ReactNode;
   onUseLocation?: () => void;
   showLocationButton?: boolean;
@@ -101,6 +104,14 @@ export function EventFilters({
             onClick={() => onViewChange('calendar')}
           >
             <CalendarRange className="h-4 w-4" /> Calendar
+          </Button>
+          <Button
+            type="button"
+            variant={view === 'map' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => onViewChange('map')}
+          >
+            <Map className="h-4 w-4" /> Map
           </Button>
         </div>
       </div>

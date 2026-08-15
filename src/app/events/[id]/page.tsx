@@ -164,7 +164,14 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             </Card>
           )}
 
-          {event.eventType === 'physical' && (
+          {/*
+            Shown for anything with a real address, not just `physical`. A livestream is
+            produced from a venue and usually sells seats in the room as well, so gating
+            the map on `physical` hid the location from exactly the events whose
+            attendees were most likely to be unsure whether they had to travel.
+            Purely online events are the only ones with nowhere to go.
+          */}
+          {event.eventType !== 'online' && event.location.trim() !== '' && (
             <section>
               <h2 className="mb-3 font-headline text-xl font-semibold">Location</h2>
               <EventMap coordinates={event.coordinates} location={event.location} />

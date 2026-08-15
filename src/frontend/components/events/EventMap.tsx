@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import Image from 'next/image';
 import { Bus, Car, Check, Copy, ExternalLink, Footprints, LocateFixed, MapPin } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
@@ -15,25 +14,37 @@ interface EventMapProps {
 }
 
 /**
- * Venue location and directions.
+ * Venue location, a live map, and directions from wherever the visitor is.
  *
- * **None of the directions needs a Maps API key.** The `maps/dir/` deep link is a plain
- * URL: Google resolves the destination and uses the device's own location as the
- * starting point, opening the Maps app on a phone and the web app on a desktop. Only the
- * static map *image* is billed, so without a key this degrades to an address panel with
- * every directions feature still working — which is the right way round, because a
- * ticket-holder standing outside a venue needs directions, not a picture.
+ * Two Google Maps surfaces are in play and the difference matters commercially:
  *
- * It previously linked to `maps/search/`, which only drops a pin. That shows people
- * where the venue is and leaves them to start the journey themselves.
+ *   Maps **Embed** API   — the interactive iframe used here. Free, unmetered.
+ *   Maps **Static** API  — the flat picture this used to show. Billed per request.
+ *
+ * So the live map is both better and cheaper than the image it replaces. The embed has
+ * two modes and the component switches between them: `place` centres on the venue, and
+ * `directions` draws the actual route once a starting point exists — which is the thing
+ * a ticket-holder actually wants, rendered on the page rather than behind a link.
+ *
+ * **Everything except the embedded map works with no API key at all.** The `maps/dir/`
+ * deep links are plain URLs — Google resolves the destination and uses the device's own
+ * location as the origin, opening the Maps app on a phone. Without a key this degrades
+ * to the address panel with every directions control still live, which is the right way
+ * round: someone standing outside a venue needs the route, not a picture.
  */
 
 type TravelMode = 'driving' | 'transit' | 'walking';
 
-const MODES: Array<{ id: TravelMode; label: string; icon: typeof Car; apple: string }> = [
-  { id: 'driving', label: 'Drive', icon: Car, apple: 'd' },
-  { id: 'transit', label: 'Transit', icon: Bus, apple: 'r' },
-  { id: 'walking', label: 'Walk', icon: Footprints, apple: 'w' },
+const MODES: Array<{
+  id: TravelMode;
+  label: string;
+  icon: typeof Car;
+  apple: string;
+  embed: string;
+}> = [
+  { id: 'driving', label: 'Drive', icon: Car, apple: 'd', embed: 'driving' },
+  { id: 'transit', label: 'Transit', icon: Bus, apple: 'r', embed: 'transit' },
+  { id: 'walking', label: 'Walk', icon: Footprints, apple: 'w', embed: 'walking' },
 ];
 
 export function EventMap({ coordinates, location }: EventMapProps) {
@@ -47,15 +58,38 @@ export function EventMap({ coordinates, location }: EventMapProps) {
   const [here, setHere] = React.useState<Coordinates | null>(null);
   const [copied, setCopied] = React.useState(false);
 
-  // Coordinates are exact; the address string is what a geocoder has to guess at. Prefer
-  // them when the organiser supplied them.
+  // Coordinates are exact; the address string is what a geocoder has to guess at.
   const destination = coordinates ? `${coordinates.lat},${coordinates.lng}` : location;
+
+  /**
+   * The embed URL. `directions` the moment an origin exists, `place` before that.
+   *
+   * The key is a build-time public value, so it is visible in the page source either
+   * way — an HTTP-referrer restriction in the Google Cloud console is what actually
+   * protects it, not secrecy.
+   */
+  const embedUrl = React.useMemo(() => {
+    if (!apiKey) return null;
+    const modeParam = MODES.find((m) => m.id === mode)?.embed ?? 'driving';
+
+    if (origin) {
+      const params = new URLSearchParams({
+        key: apiKey,
+        origin,
+        destination,
+        mode: modeParam,
+      });
+      return `https://www.google.com/maps/embed/v1/directions?${params.toString()}`;
+    }
+
+    const params = new URLSearchParams({ key: apiKey, q: destination, zoom: '14' });
+    return `https://www.google.com/maps/embed/v1/place?${params.toString()}`;
+  }, [apiKey, origin, destination, mode]);
 
   const directionsUrl = React.useMemo(() => {
     const params = new URLSearchParams({ api: '1', destination, travelmode: mode });
     // Omitted deliberately when empty: Google then uses the device's current location,
-    // which is more accurate than anything we could pass and needs no permission prompt
-    // from us.
+    // which beats anything we could pass and needs no permission prompt from us.
     if (origin) params.set('origin', origin);
     return `https://www.google.com/maps/dir/?${params.toString()}`;
   }, [destination, mode, origin]);
@@ -66,8 +100,6 @@ export function EventMap({ coordinates, location }: EventMapProps) {
     if (origin) params.set('saddr', origin);
     return `https://maps.apple.com/?${params.toString()}`;
   }, [destination, mode, origin]);
-
-  const viewUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}`;
 
   /** Only ever on an explicit click — an unprompted permission dialog is a dark pattern. */
   const useMyLocation = React.useCallback(() => {
@@ -86,8 +118,8 @@ export function EventMap({ coordinates, location }: EventMapProps) {
         setLocating(false);
       },
       () => {
-        // A refusal is a valid choice, not an error. Directions still work — Google just
-        // resolves the starting point itself.
+        // A refusal is a valid choice, not an error. Directions still work — Google
+        // resolves the starting point itself when we send none.
         setLocating(false);
         setNotice('Location not shared. Directions will start from wherever you are.');
       },
@@ -102,6 +134,13 @@ export function EventMap({ coordinates, location }: EventMapProps) {
     setNotice(value ? null : 'Starting point cleared.');
   }, [typedOrigin]);
 
+  const clearOrigin = React.useCallback(() => {
+    setOrigin('');
+    setTypedOrigin('');
+    setHere(null);
+    setNotice(null);
+  }, []);
+
   const copyAddress = React.useCallback(async () => {
     try {
       await navigator.clipboard.writeText(location);
@@ -112,31 +151,24 @@ export function EventMap({ coordinates, location }: EventMapProps) {
     }
   }, [location]);
 
-  const milesAway =
-    here && coordinates ? getDistanceInMiles(here, coordinates) : null;
-
-  const staticMapUrl =
-    apiKey && coordinates
-      ? `https://maps.googleapis.com/maps/api/staticmap?center=${coordinates.lat},${coordinates.lng}` +
-        `&zoom=14&size=800x400&scale=2&maptype=roadmap` +
-        `&markers=color:0xE0A82E%7C${coordinates.lat},${coordinates.lng}&key=${apiKey}`
-      : null;
+  const milesAway = here && coordinates ? getDistanceInMiles(here, coordinates) : null;
 
   return (
     <div className="overflow-hidden rounded-lg border border-border">
-      {staticMapUrl ? (
-        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="block">
-          <div className="relative aspect-[2/1] bg-muted">
-            <Image
-              src={staticMapUrl}
-              alt={`Map showing ${location}`}
-              fill
-              sizes="(max-width: 1024px) 100vw, 66vw"
-              className="object-cover"
-              unoptimized
-            />
-          </div>
-        </a>
+      {embedUrl ? (
+        <iframe
+          key={embedUrl}
+          src={embedUrl}
+          title={origin ? `Route to ${location}` : `Map showing ${location}`}
+          className="aspect-[16/10] w-full border-0 sm:aspect-[2/1]"
+          loading="lazy"
+          // The map is decorative relative to the address and controls below it, which
+          // carry the same information in text. Keeping it out of the tab order stops
+          // keyboard users being trapped panning a map they cannot escape.
+          tabIndex={-1}
+          referrerPolicy="no-referrer-when-downgrade"
+          allowFullScreen
+        />
       ) : null}
 
       <div className="space-y-4 bg-card p-4">
@@ -148,6 +180,11 @@ export function EventMap({ coordinates, location }: EventMapProps) {
               <p className="text-xs text-muted-foreground">
                 About {milesAway < 10 ? milesAway.toFixed(1) : Math.round(milesAway)} miles
                 away in a straight line
+              </p>
+            )}
+            {!embedUrl && (
+              <p className="text-xs text-muted-foreground">
+                Open the route in Google Maps or Apple Maps below.
               </p>
             )}
           </div>
@@ -179,9 +216,20 @@ export function EventMap({ coordinates, location }: EventMapProps) {
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="journey-origin" className="text-xs font-medium text-muted-foreground">
-            Starting from
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="journey-origin" className="text-xs font-medium text-muted-foreground">
+              Starting from
+            </label>
+            {origin && (
+              <button
+                type="button"
+                onClick={clearOrigin}
+                className="text-xs text-muted-foreground underline-offset-2 hover:text-primary hover:underline"
+              >
+                Clear
+              </button>
+            )}
+          </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               id="journey-origin"
@@ -194,7 +242,9 @@ export function EventMap({ coordinates, location }: EventMapProps) {
                   applyTypedOrigin();
                 }
               }}
-              placeholder={here ? 'Using your current location' : 'Your postcode or address (optional)'}
+              placeholder={
+                here ? 'Using your current location' : 'Your postcode or address (optional)'
+              }
               autoComplete="street-address"
             />
             <Button
