@@ -71,6 +71,18 @@ function adminApp(): App {
   return app;
 }
 
+/**
+ * The initialised Admin app, for SDK surfaces other than Firestore.
+ *
+ * Exported so `firebase-admin/auth` can verify ID tokens against the same credentials
+ * and the same single initialisation. Calling `initializeApp` a second time elsewhere
+ * would throw on the duplicate app name, and passing no app would re-resolve
+ * credentials independently of the branch logic above.
+ */
+export function getAdminApp(): App {
+  return adminApp();
+}
+
 let firestore: Firestore | undefined;
 
 export function getAdminDb(): Firestore {

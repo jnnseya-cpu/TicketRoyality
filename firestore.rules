@@ -203,6 +203,22 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    /* ---------------------------------------------------------------- */
+    /* comms_deliveries — the notification log                           */
+    /* ---------------------------------------------------------------- */
+
+    match /comms_deliveries/{deliveryId} {
+      // Admins only, and not the recipients themselves. Each document names an address
+      // and what was sent to it, so the collection as a whole is a map of who the
+      // platform's customers are — exactly the thing the organiser directory was
+      // narrowed to avoid publishing.
+      allow get, list: if isSuperuser();
+
+      // Written only by the Admin SDK from `dispatch()`. A client that could forge a
+      // delivery record could fake evidence that a ticket email was sent.
+      allow create, update, delete: if false;
+    }
+
     /* Deny everything not explicitly matched above. */
     match /{document=**} {
       allow read, write: if false;

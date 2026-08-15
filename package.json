@@ -16,9 +16,10 @@
     "report:links": "tsx scripts/link-report.ts",
     "test:issuance": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx functions/src/issuance.test.ts\"",
     "test:delivery": "tsx functions/src/delivery.test.ts",
-    "test": "npm run test:issuance && npm run test:delivery && npm run test:ai",
+    "test": "npm run test:issuance && npm run test:delivery && npm run test:ai && npm run test:comms",
     "grant:admin": "tsx scripts/grant-admin.ts",
-    "test:ai": "tsx --conditions=react-server src/backend/ai/gateway.test.ts"
+    "test:ai": "tsx --conditions=react-server src/backend/ai/gateway.test.ts",
+    "test:comms": "tsx --conditions=react-server src/backend/comms/dispatch.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -52,6 +53,7 @@
     "lucide-react": "^0.475.0",
     "next": "^15.5.22",
     "next-themes": "^0.4.6",
+    "nodemailer": "^6.10.1",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-day-picker": "^9.14.0",
@@ -67,6 +69,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
     "@types/node": "^22.13.1",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "autoprefixer": "^10.4.20",

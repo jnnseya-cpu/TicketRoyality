@@ -8,6 +8,8 @@ import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import { Input } from '@/frontend/components/ui/input';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { DeliveryLog } from '@/frontend/components/dashboard/DeliveryLog';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { COMMS_CATALOGUE, CHANNELS, catalogueStats, render } from '@/shared/comms';
 import type { Channel, CommsEvent, Severity } from '@/shared/comms/types';
 
@@ -48,6 +50,8 @@ function Console() {
   const [selected, setSelected] = React.useState<CommsEvent | null>(null);
   const [email, setEmail] = React.useState('');
   const [sending, setSending] = React.useState(false);
+  const [live, setLive] = React.useState(false);
+  const [logKey, setLogKey] = React.useState(0);
   const [result, setResult] = React.useState<TestResult | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -57,14 +61,17 @@ function Console() {
     setError(null);
     setResult(null);
     try {
-      const response = await fetch('/api/comms/test', {
+      const response = await authedFetch('/api/comms/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventKey: event.key, email: email || undefined }),
+        body: JSON.stringify({ eventKey: event.key, email: email || undefined, live }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Dispatch failed');
       setResult(data as TestResult);
+      // Nudge the log to refetch so a send appears immediately rather than on the next
+      // manual refresh — the whole point of the log is answering "did that go out?".
+      setLogKey((k) => k + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Dispatch failed');
     } finally {
@@ -99,6 +106,8 @@ function Console() {
         ))}
       </div>
 
+      <DeliveryLog refreshToken={logKey} />
+
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>Channel coverage</CardTitle>
@@ -126,13 +135,36 @@ function Console() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Input
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="max-w-sm"
-          />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="max-w-sm"
+            />
+            {/*
+              Sandbox is the default and has to be turned off deliberately. The failure
+              mode of a test console that really sends is a test that reaches a customer.
+            */}
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={live ? 'destructive' : 'outline'}
+                onClick={() => setLive((value) => !value)}
+                aria-pressed={live}
+              >
+                {live ? 'Live send — really delivers' : 'Sandbox — records only'}
+              </Button>
+            </div>
+          </div>
+          {live && !email && (
+            <p className="flex items-center gap-2 text-xs text-destructive">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              A live send needs an address.
+            </p>
+          )}
           {selected && (
             <div className="rounded-lg border border-border bg-card/50 p-4">
               <p className="font-mono text-xs text-muted-foreground">{selected.key}</p>

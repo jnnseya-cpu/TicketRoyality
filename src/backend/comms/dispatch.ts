@@ -2,22 +2,40 @@ import 'server-only';
 
 import { findEvent, render, resolveChannels } from '@/shared/comms';
 import type { Channel, DeliveryRecord, DeliveryStatus } from '@/shared/comms/types';
+import { siteUrl } from '@/shared/site';
+
+import { isEmailConfigured, send } from './email';
+import { recordDeliveries, type StoredDelivery } from './log';
+import { catalogueEmail } from './template';
 
 /**
  * The single door every notification passes through.
  *
  * Nothing in the application sends an email, SMS or push directly. One door means one
  * place where consent is checked, one place where delivery is recorded, and one place
- * to look when a customer says a ticket never arrived — which, on a ticketing
- * platform, is the support question that matters most.
+ * to look when a customer says a ticket never arrived — which, on a ticketing platform,
+ * is the support question that matters most.
+ *
+ * This used to stop short of actually sending: it resolved channels, built a record
+ * marked `queued`, and called no provider. Every catalogue event except the ticket
+ * itself was therefore a message the platform believed it had sent and had not. Email
+ * now goes out over the same SMTP mailbox the ticket uses.
+ *
+ * The other channels still do not send, and the reason is a constraint rather than a
+ * gap: SMS and WhatsApp have no approved provider inside the vendor list (CLAUDE.md
+ * §1). They are recorded as `suppressed` with the reason attached, so the log tells the
+ * truth about what left the building.
  */
 export interface DispatchRequest {
   eventKey: string;
   recipient: { email?: string; phone?: string; pushToken?: string; userId?: string };
   vars?: Record<string, string | number>;
+  /** Body paragraphs. Falls back to the subject when a caller supplies none. */
+  body?: string[];
+  action?: { label: string; url: string };
   /** Channel opt-outs. Ignored entirely when the event is mandatory. */
   preferences?: Partial<Record<Channel, boolean>>;
-  /** Sandbox records the attempt without calling a provider. */
+  /** Rehearsal: resolve and record everything, call no provider. */
   sandbox?: boolean;
 }
 
@@ -36,28 +54,11 @@ function providerFor(channel: Channel): string {
       return 'smtp';
     case 'sms':
     case 'whatsapp':
-      // No approved provider. These channels are declared in the catalogue as part of
-      // the specification, but delivering them needs a vendor outside the approved
-      // set (CLAUDE.md §1), so they record and never send.
       return 'none';
     case 'push':
       return 'fcm';
     case 'inapp':
       return 'firestore';
-  }
-}
-
-function configured(channel: Channel): boolean {
-  switch (channel) {
-    case 'email':
-      return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
-    case 'sms':
-    case 'whatsapp':
-      return false;
-    case 'push':
-      return Boolean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID);
-    case 'inapp':
-      return true; // Always available — it is a Firestore write, not a vendor call.
   }
 }
 
@@ -75,18 +76,12 @@ function addressFor(channel: Channel, recipient: DispatchRequest['recipient']) {
   }
 }
 
-let sequence = 0;
-function nextId() {
-  sequence += 1;
-  return `dlv_${sequence.toString(36)}`;
-}
-
 /**
- * Resolves the event, applies consent, and records an outcome per channel.
+ * Resolves the event, applies consent, delivers what it can, and records every outcome.
  *
- * Never throws on a provider failure. A ticket confirmation that fails on SMS must
- * still go by email — treating the whole dispatch as atomic would mean one unreachable
- * channel suppresses every other one.
+ * Never throws on a provider failure. A ticket confirmation that fails on one channel
+ * must still go by the others — treating the dispatch as atomic would let a single
+ * unreachable channel suppress every one that works.
  */
 export async function dispatch(request: DispatchRequest): Promise<DispatchResult> {
   const event = findEvent(request.eventKey);
@@ -100,26 +95,53 @@ export async function dispatch(request: DispatchRequest): Promise<DispatchResult
   const allowed = resolveChannels(event, request.preferences);
   const suppressed = event.channels.filter((c) => !allowed.includes(c));
   const records: DeliveryRecord[] = [];
+  const stored: StoredDelivery[] = [];
   const at = new Date().toISOString();
 
   for (const channel of allowed) {
     const address = addressFor(channel, request.recipient);
-    let status: DeliveryStatus;
+    let status: DeliveryStatus = 'suppressed';
     let error: string | undefined;
+    let messageId: string | undefined;
 
     if (!address) {
-      status = 'suppressed';
       error = `No ${channel} address for recipient`;
-    } else if (request.sandbox || !configured(channel)) {
-      // Sandbox is not a failure. Recording the attempt means the flow is testable
-      // before a single provider key exists, which is what keeps QA honest.
+    } else if (request.sandbox) {
+      // A rehearsal is not a failure. Recording it means a template can be proven
+      // before a single provider key exists.
       status = 'logged';
+    } else if (channel === 'email') {
+      if (!isEmailConfigured()) {
+        status = 'suppressed';
+        error = 'SMTP is not configured';
+      } else {
+        const rendered = catalogueEmail({
+          event,
+          subject,
+          body: request.body?.length ? request.body.map((line) => render(line, request.vars)) : [subject],
+          action: request.action,
+          siteUrl: siteUrl(),
+        });
+        const outcome = await send({ to: address, ...rendered });
+        status = outcome.status === 'sent' ? 'sent' : outcome.status === 'failed' ? 'failed' : 'suppressed';
+        if (outcome.status === 'sent') messageId = outcome.messageId;
+        else error = outcome.reason;
+      }
+    } else if (channel === 'sms' || channel === 'whatsapp') {
+      // Declared in the catalogue as specification, undeliverable in practice. Recorded
+      // as suppressed with the reason rather than `queued`, because `queued` claims
+      // something is going to happen and nothing is.
+      status = 'suppressed';
+      error = 'No approved provider for this channel (CLAUDE.md §1)';
     } else {
-      status = 'queued';
+      // push (FCM) and inapp (Firestore) are not wired yet. Honest state, not a lie
+      // about a queue that does not exist.
+      status = 'suppressed';
+      error = `${channel} delivery is not implemented`;
     }
 
-    records.push({
-      id: nextId(),
+    const record: DeliveryRecord = {
+      id: '',
       eventKey: event.key,
       channel,
       recipient: address ?? 'unknown',
@@ -127,8 +149,20 @@ export async function dispatch(request: DispatchRequest): Promise<DispatchResult
       provider: providerFor(channel),
       at,
       error,
+    };
+    records.push(record);
+    stored.push({
+      ...record,
+      severity: event.severity,
+      sandbox: Boolean(request.sandbox),
+      ...(messageId ? { messageId } : {}),
     });
   }
+
+  // Awaited rather than fired and forgotten: on Cloud Run the instance can be frozen
+  // the moment the response is returned, and a floating promise is a log entry that
+  // sometimes exists.
+  await recordDeliveries(stored);
 
   return { eventKey: event.key, subject, attempted: allowed, suppressed, records };
 }

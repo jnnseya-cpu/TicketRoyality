@@ -54,6 +54,9 @@ and read. If it says **Not built**, it was looked for and is absent.
 | Video ad carousel | Homepage component | `VideoAds.tsx` |
 | ACU billing | Credit constants, ledger entry builder, balance guard | `src/backend/services/acu-ledger.ts` |
 | **Ticket delivery** | **SMTP email on issuance — one email per purchase, retried, outcome recorded** | `functions/src/email.ts` — 10 tests |
+| **Comms dispatch** | **`dispatch()` now really sends email** over the same Hostinger mailbox, for all 104 catalogue events. Output recorded per channel in `comms_deliveries`. Channels with no approved provider record `suppressed` **with the reason**, never `queued`. | `backend/comms/dispatch.ts` — 10 tests, real SMTP |
+| **Admin comms console** | Catalogue browser, delivery log with status filters, and a template test that is **sandbox by default**. | `/dashboard/superuser/comms` |
+| **Privileged API auth** | `requireAdmin()` verifies the Firebase ID token server-side (`checkRevoked`) *and* re-reads `userType` from Firestore, so admin status has one source of truth. Fails closed. | `backend/auth/require-admin.ts` |
 | Blog | 14 published articles, 6 topic hubs, generated link graph | `npm run check:links` |
 | SEO | `robots.txt`, `sitemap.xml`, Article/FAQ/Breadcrumb schema | `src/app/sitemap.ts` |
 | Security headers | CSP-adjacent headers, HSTS, frame denial | `next.config.ts` |
@@ -76,7 +79,8 @@ is precisely what caused the confusion this file exists to end.
 
 | Gap | Consequence if you launch without it | Spec |
 | --- | --- | --- |
-| Message delivery **beyond the ticket** | Ticket emails send. Every *other* catalogue event — payment failed, event postponed, venue changed, payout sent, refund processed — still records `queued` and calls no provider. `dispatch()` in the app is not yet wired to the SMTP sender. | `docs/04` M10 |
+| Comms **callers** | `dispatch()` sends, but most of the platform still does not call it. Refunds, approvals and payouts complete without notifying anyone — the engine works, the wiring into each business action is the remaining task. | `docs/04` M10 |
+| In-app and push delivery | `inapp` and `push` are declared on many catalogue events and neither is implemented. Both record `suppressed` with the reason rather than claiming a queue. | `docs/04` M10 |
 | **Checkout inventory holds** | Two buyers can both reach checkout for the last ticket. Issuance stops the oversell, but the loser is charged and flagged for refund. `release-holds` returns `implemented: false`. | `docs/08` §8.8 |
 | Ticket transfer | The wallet cannot send a ticket to someone else | `docs/04` M3 |
 | QR rotation + signing | QR is static, unsigned JSON. `QR_SIGNING_KEY` is configured but read nowhere. A screenshot is a working ticket. | `docs/04` M3 |
@@ -108,9 +112,9 @@ is precisely what caused the confusion this file exists to end.
    manual refund.
 2. **QR signing.** Without it a screenshot is a valid ticket, and the fraud is the
    buyer's loss, not yours.
-3. **The rest of the comms catalogue.** Ticket delivery is wired; cancellations, venue
-   changes and refund confirmations are not. Point `dispatch()` at the same SMTP sender
-   rather than building a second one.
+3. **Calling `dispatch()` from the business actions.** The engine sends now. What is
+   missing is the call site: a refund completes and nobody is told. Each is a few lines
+   at the point the action succeeds.
 4. **Ticket transfer.** The most-requested consumer feature in ticketing.
 5. **Referral / influencer.** The only acquisition mechanism that works without waiting
    months for SEO — and the one currently sold on `/growth` without existing.
@@ -135,9 +139,10 @@ npm run typecheck      # app + the functions contract guard
 npm run lint
 npm run check:links    # link graph + publishing gate
 npm run report:links   # inline link density
-npm test               # issuance + delivery + AI gateway
+npm test               # issuance + delivery + AI gateway + comms
 npm run test:issuance  # 10 tests, Firestore emulator, real transactions
 npm run test:delivery  # 10 tests, real SMTP conversation
 npm run test:ai        # 10 tests, real HTTP servers speaking each vendor's shape
+npm run test:comms     # 10 tests, real SMTP conversation through dispatch()
 cd functions && npm run build
 ```
