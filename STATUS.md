@@ -34,7 +34,10 @@ and read. If it says **Not built**, it was looked for and is absent.
 | --- | --- | --- |
 | Catalogue | Events, search, filters, calendar, map, organiser directory | `src/app/events`, `/organisers` |
 | Event pages | Server-rendered with `Event` JSON-LD | `src/app/events/[id]` |
-| Accounts | Register, login, three role dashboards | `src/app/register`, `/dashboard/*` |
+| Accounts | Register (customer/organiser), login, forgot password, three role dashboards | `src/app/register`, `/dashboard/*` |
+| Password reveal | Eye toggle on every password field, accessible, never submits the form | `ui/password-input.tsx` |
+| **Admin account** | Promotion via Admin SDK script — no self-serve admin signup exists by design | `scripts/grant-admin.ts` |
+| Bot gate (sign-up) | Honeypot + fill-timing + interaction, **scored server-side**; refuses before any account is created | `/api/signup-gate` |
 | Tiered ticketing | Multiple tiers, prices, quantities per event | `src/shared/types`, `CreateEventForm` |
 | Seat map | **Preview/display only** — no editor, no generator | `SeatMapPreview.tsx` |
 | Checkout | Stripe session creation, 303 redirect, honest failure | `src/app/api/checkout` |
@@ -74,7 +77,8 @@ is precisely what caused the confusion this file exists to end.
 | Analytics | Reports page has no charts, velocity or forecasting | `docs/04` M9 |
 | Ticket recommendations | Nothing renders on the ticket | `docs/04` M3a |
 | Public API + sandbox | No developer API. `/developers` is a marketing page. | `docs/04` M13 |
-| App Check enforcement | `appcheck.ts` and `humanity.ts` exist, wired into no route | `docs/11` |
+| App Check enforcement | `appcheck.ts` exists and is wired into no route. The sign-up gate stops naive automation, but a script can call Firebase Auth directly and never touch it — App Check is the layer that closes that, and it needs a reCAPTCHA Enterprise site key from the console. | `docs/11` |
+| Bot gate on **login** | Only sign-up is gated. Credential-stuffing against `/login` is unthrottled. | `docs/11` |
 | Sentinel telemetry | `sentinel.ts` reads no real signal | `docs/03` §3.6 |
 | Atomic ACU ledger (**D2**) | Ledger entry and balance are not written in one transaction | `docs/13` D2 |
 | Venue map generation | Only a preview component exists | `docs/04` M23 |

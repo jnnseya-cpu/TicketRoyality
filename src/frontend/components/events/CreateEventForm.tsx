@@ -21,6 +21,7 @@ import {
   FormMessage,
 } from '@/frontend/components/ui/form';
 import { Input } from '@/frontend/components/ui/input';
+import { PasswordInput } from '@/frontend/components/ui/password-input';
 import { Label } from '@/frontend/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/frontend/components/ui/popover';
 import {
@@ -579,7 +580,7 @@ export function CreateEventForm({
                     <FormItem>
                       <FormLabel>Stream key</FormLabel>
                       <FormControl>
-                        <Input type="password" {...field} />
+                        <PasswordInput {...field} />
                       </FormControl>
                       <FormDescription>Kept private, never shown to attendees.</FormDescription>
                       <FormMessage />

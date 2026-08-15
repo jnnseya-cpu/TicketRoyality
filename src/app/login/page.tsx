@@ -27,6 +27,7 @@ import {
   FormMessage,
 } from '@/frontend/components/ui/form';
 import { Input } from '@/frontend/components/ui/input';
+import { PasswordInput } from '@/frontend/components/ui/password-input';
 import { Logo } from '@/frontend/components/common/Logo';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { dashboardPathFor, useAuth } from '@/frontend/hooks/use-auth';
@@ -126,7 +127,7 @@ export default function LoginPage() {
                       </Link>
                     </div>
                     <FormControl>
-                      <Input type="password" autoComplete="current-password" {...field} />
+                      <PasswordInput autoComplete="current-password" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

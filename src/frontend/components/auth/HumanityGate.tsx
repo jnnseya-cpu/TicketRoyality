@@ -1,0 +1,105 @@
+'use client';
+
+import * as React from 'react';
+
+/**
+ * Signal collection for the sign-up humanity gate (docs/11).
+ *
+ * Everything gathered here is a hint, and every hint is scored on the server. Nothing
+ * in this file decides anything — a client that judged its own humanity would always
+ * acquit itself.
+ */
+
+export interface HumanitySignals {
+  fillMillis: number;
+  humanInteraction: boolean;
+  honeypot: string;
+}
+
+export function useHumanityGate() {
+  // Set once at mount rather than on first render, so a re-render never restarts the
+  // clock and makes a slow human look instantaneous.
+  const mountedAt = React.useRef(Date.now());
+  const interacted = React.useRef(false);
+  const honeypot = React.useRef('');
+
+  const markInteraction = React.useCallback(() => {
+    interacted.current = true;
+  }, []);
+
+  const collect = React.useCallback(
+    (): HumanitySignals => ({
+      fillMillis: Date.now() - mountedAt.current,
+      humanInteraction: interacted.current,
+      honeypot: honeypot.current,
+    }),
+    []
+  );
+
+  /**
+   * Spread onto the <form>. Capture-phase listeners so a keystroke anywhere inside
+   * counts, including in fields that stop propagation.
+   */
+  const formProps = {
+    onKeyDownCapture: markInteraction,
+    onPointerDownCapture: markInteraction,
+    onFocusCapture: markInteraction,
+  };
+
+  const setHoneypot = React.useCallback((value: string) => {
+    honeypot.current = value;
+  }, []);
+
+  return { collect, formProps, setHoneypot };
+}
+
+/**
+ * The honeypot.
+ *
+ * A field a person never sees and never fills, which form-filling automation
+ * completes because it reads the DOM rather than the screen.
+ *
+ * Hidden with an off-screen position rather than `display: none` or `type="hidden"`:
+ * the crude bots skip both of those, so hiding it the obvious way defeats the point.
+ * `aria-hidden` and `tabIndex={-1}` keep it away from screen readers and the tab
+ * order, so it stays invisible to people using assistive technology too — a honeypot
+ * that traps blind users is a bug, not a defence.
+ */
+export function Honeypot({ onChange }: { onChange: (value: string) => void }) {
+  return (
+    <div aria-hidden="true" className="absolute left-[-9999px] top-auto h-px w-px overflow-hidden">
+      <label htmlFor="company-website-url">Leave this field empty</label>
+      <input
+        id="company-website-url"
+        // Named like something a form-filler wants to complete.
+        name="company_website_url"
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}
+
+/** Calls the server gate. Never throws — a gate outage must not block real sign-ups. */
+export async function checkHumanity(
+  email: string,
+  signals: HumanitySignals
+): Promise<{ allowed: boolean; message?: string }> {
+  try {
+    const response = await fetch('/api/signup-gate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, ...signals }),
+    });
+
+    if (!response.ok) return { allowed: true };
+    return (await response.json()) as { allowed: boolean; message?: string };
+  } catch {
+    // Fail open, deliberately. The cost of a wrong refusal is a real customer who
+    // cannot create an account and will not try twice; the cost of a wrong allow is
+    // one spam account an admin can suspend. App Check is the layer that fails closed.
+    return { allowed: true };
+  }
+}

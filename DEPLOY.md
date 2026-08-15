@@ -294,6 +294,31 @@ it there and redeploy the functions.
 
 ---
 
+## Create your admin account
+
+There is **no self-serve admin signup**, deliberately: registration produces a
+`customer` or an `organiser` and nothing else, and `firestore.rules` grants every
+privileged operation on `userType == 'superuser'`. A public route to that would be a
+permanent unauthenticated door into the highest privilege on the platform.
+
+So the first administrator is made from outside the app, by you, holding Google Cloud
+credentials:
+
+```bash
+# 1. Sign up normally on the live site as a customer, with your real email.
+# 2. Authenticate locally for the project (once):
+gcloud auth application-default login
+
+# 3. Promote the account:
+npm run grant:admin -- you@example.com --project <your-project-id>
+```
+
+Sign out and back in, then open `/dashboard/superuser`.
+
+To remove admin rights from an account, add `--revoke`. The script only ever updates
+`userType` — it never overwrites the document, so the wallet balance and profile
+survive.
+
 ## Verify it actually works
 
 Do these in order. Each one catches a different failure.

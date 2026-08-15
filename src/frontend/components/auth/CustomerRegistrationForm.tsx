@@ -21,6 +21,8 @@ import {
   FormMessage,
 } from '@/frontend/components/ui/form';
 import { Input } from '@/frontend/components/ui/input';
+import { PasswordInput } from '@/frontend/components/ui/password-input';
+import { Honeypot, checkHumanity, useHumanityGate } from '@/frontend/components/auth/HumanityGate';
 import { Popover, PopoverContent, PopoverTrigger } from '@/frontend/components/ui/popover';
 import {
   Select,
@@ -89,9 +91,24 @@ export function CustomerRegistrationForm() {
     },
   });
 
+  const humanity = useHumanityGate();
+
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
+      // Scored on the server before an account exists. A refusal here means no
+      // Firebase user is created at all, rather than one created and then cleaned up.
+      const verdict = await checkHumanity(values.email, humanity.collect());
+      if (!verdict.allowed) {
+        toast({
+          variant: 'destructive',
+          title: 'We could not verify this sign-up',
+          description: verdict.message,
+        });
+        setSubmitting(false);
+        return;
+      }
+
       await register({
         email: values.email,
         password: values.password,
@@ -138,7 +155,12 @@ export function CustomerRegistrationForm() {
 
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+          <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="relative space-y-5"
+              {...humanity.formProps}
+            >
+              <Honeypot onChange={humanity.setHoneypot} />
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
@@ -173,7 +195,7 @@ export function CustomerRegistrationForm() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" autoComplete="new-password" {...field} />
+                      <PasswordInput autoComplete="new-password" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -186,7 +208,7 @@ export function CustomerRegistrationForm() {
                   <FormItem>
                     <FormLabel>Confirm password</FormLabel>
                     <FormControl>
-                      <Input type="password" autoComplete="new-password" {...field} />
+                      <PasswordInput autoComplete="new-password" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
