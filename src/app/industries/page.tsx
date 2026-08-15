@@ -6,8 +6,10 @@ import {
   Church,
   Clapperboard,
   Crown,
+  Heart,
   HeartHandshake,
   Music,
+  PartyPopper,
   Presentation,
   Tent,
   Trophy,
@@ -21,13 +23,13 @@ import { Card, CardContent } from '@/frontend/components/ui/card';
 export const metadata: Metadata = {
   title: 'Industries',
   description:
-    'One inventory model across stadiums, festivals, theatres, conferences, nightclubs, sports clubs, places of worship, charity and corporate events — plus VIP hospitality.',
+    'One inventory model across stadiums, festivals, theatres, conferences, nightclubs, sports clubs, weddings, birthdays and every kind of party, places of worship, charity and corporate events — plus VIP hospitality.',
 };
 
 /**
- * The nine segments the platform is built for, plus hospitality as a tenth that runs
- * across all of them. Each names the capability that generic ticketing does not give
- * them — the point of the page is the gap, not the list.
+ * The segments the platform is built for, plus hospitality that runs across all of
+ * them. Each names the capability that generic ticketing does not give them — the point
+ * of the page is the gap, not the list.
  */
 const SEGMENTS = [
   {
@@ -84,7 +86,7 @@ const SEGMENTS = [
     name: 'Places of worship',
     need: 'Free and donation entry, capacity management',
     detail:
-      'Free tickets carry no commission. Donation tiers let attendees give what they can, and capacity limits stay enforced either way.',
+      'Donation tiers let attendees give what they can, or nothing at all, and capacity limits stay enforced either way.',
   },
   {
     icon: HeartHandshake,
@@ -100,6 +102,20 @@ const SEGMENTS = [
     detail:
       'Hidden and invite-only ticket types with access codes, staff and press passes, and attendee lists that never leave your organisation.',
   },
+  {
+    icon: PartyPopper,
+    name: 'Parties & celebrations',
+    need: 'Birthdays, private hire, a guest count you control',
+    detail:
+      'Birthday parties, graduations, hen and stag nights, house, day and boat parties. Sell paid entry or issue free places, cap the guest list so a venue is never oversold, and check people in from a phone at the door.',
+  },
+  {
+    icon: Heart,
+    name: 'Weddings',
+    need: 'Guest lists that are not ticket sales',
+    detail:
+      'Issue free places to a guest list, or let guests contribute towards the day with donation tiers. Capacity stays enforced either way, and every guest gets a QR pass that scans at the door in seconds.',
+  },
 ];
 
 export default function IndustriesPage() {
@@ -110,7 +126,7 @@ export default function IndustriesPage() {
           Segment coverage
         </Badge>
         <h1 className="font-headline text-3xl font-bold sm:text-5xl">
-          Ten segments. One inventory model.
+          Twelve segments. One inventory model.
         </h1>
         <p className="mt-4 text-lg text-muted-foreground">
           A VIP package, a general-admission ticket and a livestream pass are the same

@@ -98,6 +98,7 @@ is precisely what caused the confusion this file exists to end.
 | SMS / WhatsApp delivery | **Blocked, not pending.** No approved provider exists inside the vendor list (`CLAUDE.md` §1). The channels are declared in the catalogue; `dispatch()` records and sends nothing. | `docs/04` M10 |
 | Error tracking | Not wired. Google Cloud Error Reporting is available in-project; Sentry would be a new vendor. | `docs/21` |
 | Google Maps key | No key is set, so event pages fall back to a text address panel instead of a map. Not a new vendor — the same Google Cloud project. Needs an HTTP-referrer restriction before it goes in, or the key can be lifted and billed to this project. | `docs/07` |
+| **Free tickets are charged the 50p admin fee** | `settle()` computes `adminFee * lines.length` with no price check, so a £0 ticket still costs the organiser 50p. Percentage commission on £0 is correctly £0. The industries page promised "free tickets carry no commission" — that copy has been corrected to match the code, **not** the other way round, because which one is right is a commercial decision. It matters most for places of worship, charity and weddings, where a 300-guest free list currently costs £150. | `src/shared/pricing.ts` |
 
 ## Ordered by what actually blocks revenue
 

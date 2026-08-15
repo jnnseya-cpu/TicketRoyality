@@ -45,17 +45,32 @@ const NO_MORE = [
 ];
 
 /**
- * Headline platform metrics.
+ * Headline facts.
  *
- * These are marketing claims, not values read from the database. Keep them here as a
- * single named constant so they are easy to find, verify against real figures, and
- * replace with live counts once the platform has traded.
+ * Every one of these is checkable against the code, and that is the whole rule for this
+ * block: **nothing here may be a number we cannot stand behind** (CLAUDE.md §6).
+ *
+ * It previously read "10M+ Tickets Issued · 25K+ Events Powered · 2M+ Happy Fans ·
+ * 99.99% Uptime" on a platform that had issued no tickets, run no events and had no
+ * uptime history to measure. Invented traffic numbers are the easiest claim to
+ * disprove and the most expensive to be caught on — and on this page they sit beside
+ * FAQ structured data, which search engines quote to users as fact.
+ *
+ * Volume claims belong here only when they are read from the database. Until then
+ * these describe how the platform works, which is true on day one and still true at
+ * ten million tickets.
  */
 const HEADLINE_STATS = [
-  { value: '10M+', label: 'Tickets Issued' },
-  { value: '25K+', label: 'Events Powered' },
-  { value: '2M+', label: 'Happy Fans' },
-  { value: '99.99%', label: 'Uptime & Security' },
+  // src/shared/constants/billing.ts — DEFAULT_COMMISSION_PERCENT, DEFAULT_ADMIN_FEE.
+  { value: '5% + 50p', label: 'Platform fee per ticket, published' },
+  // firestore.rules only permits valid -> redeemed, on the status field alone, so a
+  // ticket cannot be reset and reused even by the organiser who owns the event.
+  { value: '1', label: 'Scan per ticket, enforced in the database' },
+  // functions/src/issuance.ts checks sold + quantity against the tier inside a
+  // Firestore transaction. Covered by 10 emulator tests against real transactions.
+  { value: '0', label: 'Oversold tickets, by construction' },
+  // src/backend/ai/gateway.ts — Gemini, Claude, OpenAI, in that order.
+  { value: '3', label: 'AI providers, with automatic failover' },
 ];
 
 const CORE_FEATURES = [
