@@ -8,6 +8,11 @@ dist
 .env.local
 .env*.local
 
+# Non-secret Cloud Functions runtime config. Must be committed — it is uploaded with
+# the functions source and is the only way they receive non-secret env at runtime.
+# Secrets never go here; they are bound with defineSecret() in functions/src/index.ts.
+!functions/.env
+
 *.log
 npm-debug.log*
 .DS_Store

@@ -1,48 +1,125 @@
-# Deploy — publish today
+# Go live — step by step
 
-> **Read `/STATUS.md` first.** It lists what is actually built and what is not.
+> Read `/STATUS.md` first. It lists what is actually built and what is not.
 > This file tells you how to deploy; that file tells you what you are deploying.
-
-`frontend/`, `backend/` and `shared/` are **folders in one Next.js application**, not
-three deployable services. They ship together in a single build. The layer separation
-is a compile-time boundary enforced by lint (`docs/14`), not a runtime one.
-
-**One command deploys all three.**
 
 ---
 
-## The 20-minute path
+## Where everything goes
 
-### 1 — Firebase project (5 min)
+This is the question that keeps coming back, so it is answered first.
+
+**There is no separate frontend and backend deployment.** `src/frontend`,
+`src/backend` and `src/shared` are folders inside **one** Next.js application. The
+separation is a compile-time boundary enforced by lint rules (`docs/14`), not a runtime
+one. They build together and deploy together, as one thing.
+
+There are exactly **three deployable artefacts**:
+
+| # | Artefact | Goes to | Deployed by | Contains |
+| --- | --- | --- | --- | --- |
+| 1 | The Next.js app | **Firebase App Hosting** → Cloud Run, `europe-west2` | Git push (auto) | Every page, every `/api/*` route, both webhooks — i.e. frontend **and** backend |
+| 2 | `functions/` | **Cloud Functions v2**, `europe-west2` | `firebase deploy --only functions` | Ticket issuance, refunds, email delivery, reconciliation, audits |
+| 3 | Rules & indexes | **Firestore + Storage** | `firebase deploy --only firestore:rules,firestore:indexes,storage` | `firestore.rules`, `firestore.indexes.json`, `storage.rules` |
+
+Plus **Hostinger**, which keeps the domain and the mailbox. Nothing moves off it —
+you point DNS at Firebase and leave `MX` alone.
+
+Why `functions/` is separate: `firebase deploy` uploads **only** that directory, so it
+is its own npm package with its own `package.json` and `node_modules`. It never ships
+inside the app bundle and the app never imports it at runtime.
+
+Why the app is on App Hosting rather than Firebase Hosting: App Hosting runs a real
+Node server on Cloud Run with the `runConfig` in `apphosting.yaml` (CPU, memory,
+`minInstances`, concurrency, 300 s timeout for AI calls) and pulls secrets from Secret
+Manager. `firebase.json` deliberately has **no** `hosting` block — having one would
+build and deploy the same app a second way on a plain `firebase deploy`, ignoring
+`apphosting.yaml` entirely.
+
+```
+                    ticketroyality.com  (Hostinger DNS, Hostinger MX)
+                              │
+                              ▼
+              ┌─────────────────────────────────┐
+              │  Firebase App Hosting           │  ← artefact 1
+              │  Cloud Run · europe-west2       │
+              │  Next.js: frontend + backend    │
+              └───────────────┬─────────────────┘
+                              │ writes payment_events
+                              ▼
+              ┌─────────────────────────────────┐
+              │  Cloud Functions v2             │  ← artefact 2
+              │  issuance · refunds · email     │
+              └───────────────┬─────────────────┘
+                              ▼
+              ┌─────────────────────────────────┐
+              │  Firestore + Storage            │  ← artefact 3 (rules)
+              └─────────────────────────────────┘
+```
+
+---
+
+## Before you start
+
+Run this locally. Everything must pass; all of it passes on this branch today.
+
+```bash
+npm ci
+npm run typecheck      # app + the functions contract guard
+npm run lint
+npm run build
+npm test               # 20 tests: issuance (emulator) + delivery (real SMTP)
+npm run check:links
+cd functions && npm ci && npm run build && cd ..
+```
+
+Then serve the real production artefact and walk the pages a buyer walks:
+
+```bash
+npm run start          # node .next/standalone/server.js — what Cloud Run executes
+```
+
+`npm run start` is **not** `next start`. `next start` refuses to serve an
+`output: 'standalone'` build: it prints "Ready" and exits, so nothing listens on the
+port and it looks like a slow boot.
+
+---
+
+## Step 1 — Firebase project (5 min)
 
 ```bash
 npm i -g firebase-tools
 firebase login
-firebase projects:create ticketroyality-prod    # or use the console
+firebase projects:create ticketroyality-prod     # or create it in the console
 firebase use ticketroyality-prod
 ```
 
-In the console (console.firebase.google.com):
+In [console.firebase.google.com](https://console.firebase.google.com):
 
-- **Upgrade to Blaze.** Required for App Hosting. Bills nothing inside the free tiers.
-- **Set a budget alert at £20** while you are there. Do not skip this.
+- **Upgrade to Blaze.** Required for App Hosting and Cloud Functions. Free tiers still
+  apply — Blaze is a billing account, not a charge.
+- **Set a budget alert at £20.** Do not skip this.
 - **Firestore → Create database → Production mode → `europe-west2`.**
-  This region is permanent — changing it later means export and re-import.
+  This region is permanent. Changing it later means export and re-import.
 - **Authentication → Sign-in method → Email/Password → Enable.**
 - **Storage → Get started → same region.**
 
-### 2 — Rules and indexes (1 min)
+Everything must be `europe-west2`: Firestore, Storage, App Hosting and Functions. A
+function in a different region from Firestore pays a cross-region round trip on every
+transaction read, which is the slowest part of issuance.
+
+## Step 2 — Rules and indexes (1 min)
 
 ```bash
 firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 
-Rules go up **before** the app. A query without its index fails at runtime, for users
-rather than for you.
+**Rules go up before the app, not after.** A query without its index fails at runtime,
+for users rather than for you. This deploy also creates the locks on `payment_events`
+and `issued_payments` — a forged payment event would mint free tickets, so the app must
+never reach a database where those collections are writable.
 
-### 3 — Secrets (5 min)
-
-Only these are needed to publish. Everything else has a working fallback.
+## Step 3 — Secrets (5 min)
 
 ```bash
 firebase apphosting:secrets:set NEXT_PUBLIC_FIREBASE_API_KEY
@@ -55,32 +132,52 @@ firebase apphosting:secrets:set NEXT_PUBLIC_FIREBASE_APP_ID
 
 Values come from **Project settings → Your apps → Web app → SDK setup**.
 
-Payments and AI can wait — the app runs without them and degrades honestly:
-`/api/health` reports `degraded`, AI features say so, checkout says Stripe is not
-configured.
+That is enough to publish. Payments, AI and email can follow — the app degrades
+honestly without them (`/api/health` reports which dependency is missing, checkout says
+Stripe is not configured, AI features say so).
 
-### 4 — Deploy (5 min)
+## Step 4 — Deploy the app (5 min)
 
 ```bash
 firebase apphosting:backends:create --project ticketroyality-prod
 ```
 
-Connect the GitHub repo, pick the branch, and it builds. Roughly four minutes. You get
-a live URL immediately:
+Connect the GitHub repo, pick the branch, choose `europe-west2`. It builds in roughly
+four minutes and gives you a live URL:
 
 ```
 https://ticketroyality-prod--<backend>.europe-west2.hosted.app
 ```
 
-**You are published at this point.** The domain is step 5 and is not required to be
-live.
+**The site is live at this point.** Frontend and backend both — they are the same
+deployment. Every later push to that branch redeploys automatically.
 
-Every later push to that branch redeploys automatically.
+## Step 5 — Deploy the functions (5 min)
 
-### 5 — Your domain (10 min + DNS propagation)
+Separate artefact, separate command. The app does not carry them.
+
+```bash
+cd functions && npm ci && npm run build && cd ..
+firebase deploy --only functions
+```
+
+The first run prompts to enable the **Cloud Scheduler API** — accept it, or
+`reconcilePayments`, `auditInventory` and `expireStalePayments` deploy but never fire.
+
+Five functions should appear:
+
+| Function | Trigger | Job |
+| --- | --- | --- |
+| `onPaymentEvent` | `payment_events` created | Issue tickets, or reverse a refund |
+| `onTicketsIssued` | `issued_payments` created | Email the buyer their tickets |
+| `reconcilePayments` | every 10 min | Catch dropped triggers |
+| `auditInventory` | daily 03:00 | Report tier counter drift |
+| `expireStalePayments` | daily 04:00 | Archive failed payment events |
+
+## Step 6 — Your domain (10 min + DNS propagation)
 
 Firebase console → **App Hosting → Add custom domain → `ticketroyality.com`.**
-It gives you records. Add them in Hostinger → Domains → DNS:
+It gives you records. Add them in **Hostinger → Domains → DNS**:
 
 | Type | Name | Value |
 | --- | --- | --- |
@@ -88,150 +185,144 @@ It gives you records. Add them in Hostinger → Domains → DNS:
 | `TXT` | `@` | (the verification token Firebase shows) |
 | `CNAME` | `www` | (the target Firebase shows) |
 
-**Do not touch the `MX` records.** Mail stays with Hostinger; only web traffic moves.
+**Do not touch the `MX` records.** Mail stays with Hostinger — and the ticket emails
+are sent through that same Hostinger mailbox, so breaking `MX` breaks ticket delivery
+as well as your inbox.
 
-Certificates issue automatically once verification passes — minutes to a few hours.
+Certificates issue automatically once verification passes: minutes to a few hours.
 
 ---
 
-## Before you push the button
+## Turning on the money
+
+Everything above publishes the site. This makes it sell.
+
+### Stripe
 
 ```bash
-npm run build          # must pass
-npx tsc --noEmit       # must pass
-npx eslint src --max-warnings=0
+firebase apphosting:secrets:set STRIPE_SECRET_KEY
+firebase apphosting:secrets:set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+firebase apphosting:secrets:set STRIPE_WEBHOOK_SECRET
 ```
 
-All three pass on the current branch.
+In the Stripe dashboard, add the webhook endpoint:
 
-### Then run it, and look at it
+```
+https://ticketroyality.com/api/stripe-webhook
+```
 
-A green build is not a working app. Serve the real production artefact locally and
-walk the pages a buyer will walk:
+Subscribe it to `checkout.session.completed` and `charge.refunded`. Take the signing
+secret it shows and set it as `STRIPE_WEBHOOK_SECRET` above.
+
+### KODA / mobile money
 
 ```bash
-npm run start          # serves .next/standalone on :3000
-curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/
+firebase apphosting:secrets:set KODA_SECRET_KEY
+firebase apphosting:secrets:set KODA_WEBHOOK_SECRET
 ```
 
-`npm run start` runs `node .next/standalone/server.js`, **not** `next start`. This is
-not a stylistic choice: `next start` refuses to serve a `output: 'standalone'` build
-and exits after printing "Ready", so it looks like it worked and then nothing is
-listening on the port. The standalone server is also exactly what Cloud Run executes,
-so this is the deployed runtime rather than an approximation of it.
+The registered endpoint is `https://ticketroyality.com/webhooks/koda` and **must not
+change** without re-registering with KODA first. A moved webhook URL fails silently:
+KODA keeps posting to the old path, gets a 404, retries for 24 hours, and the first
+symptom is a customer saying they paid and got nothing.
 
-`npm run build` triggers `postbuild`, which copies `.next/static` (and `public/` if it
-exists) into the standalone tree. Next leaves these out because the canonical
-deployment puts a CDN in front. There is no CDN here — the Node process serves
-everything — so without the copy every page returns HTML whose stylesheets and scripts
-all 404, and the site renders unstyled and inert.
+### Ticket delivery email
 
-Verified on the current branch, against the standalone server:
+The functions read non-secret mail settings from `functions/.env` (committed —
+host, port, user, from address). Only the password is a secret, and it belongs to
+Cloud Functions, **not** App Hosting:
 
-| Check | Result |
-| --- | --- |
-| Every page route (46 + 37 blog) | 200 |
-| Every internal `href` (23) | 200 — no broken links |
-| `/_next/static` CSS and JS | 200 — assets served |
-| `/webhooks/koda` unsigned + bad signature | 401 |
-| `/api/cron/*` without `CRON_SECRET` | 401 |
-| `/api/checkout` unconfigured | 303 → `/checkout/cancel`, no session created |
-| `/api/ai`, `/api/stripe-webhook` unconfigured | 503 — fails closed |
-| `/api/health` with no env | 503, `datastore: configured=false` |
+```bash
+firebase functions:secrets:set SMTP_PASSWORD          # for the functions
+firebase apphosting:secrets:set SMTP_PASSWORD          # for the app
+firebase deploy --only functions                       # re-deploy to bind it
+```
 
-The two 503s and the health failure are correct behaviour for a machine with no
-secrets, not defects. They are the signal to check after deploying: once Secret
-Manager is populated, `/api/health` must return 200.
+Both are needed and they are separate stores: `apphosting:secrets` reaches the Next.js
+app, `functions:secrets` reaches the functions. The password is the mailbox password
+for `info@ticketroyality.com` in Hostinger.
+
+If `functions/.env` says `smtp.hostinger.com` and your mailbox lives elsewhere, change
+it there and redeploy the functions.
 
 ---
 
-## Cost today
+## Verify it actually works
 
-`apphosting.yaml` currently sets **`minInstances: 1`**, which keeps one instance warm
-at all times: no cold starts, and **about £25/month from the day you deploy**, before a
-single visitor.
+Do these in order. Each one catches a different failure.
 
-If you want the free-tier bill while you are still testing, change it to `0` before
-deploying. Everything then sits inside the free tiers at **roughly £0–5 for the first
-month** plus the domain, at the cost of a few seconds of cold start on the first
-request after an idle period.
+**1. The app is up and healthy.**
 
-Set it back to `1` on the day you have buyers waiting. Full model in `docs/21` §21.13.
+```bash
+curl -s https://ticketroyality.com/api/health | jq
+```
 
----
+Must be `200` with `"status": "healthy"`. A `503` with `datastore: configured=false`
+means the Firebase secrets did not reach the runtime.
 
-## What works the moment it is live
+**2. Pages render with styling.** Open the homepage. If it renders as unstyled text,
+`.next/static` did not ship — `npm run build` runs `postbuild` to copy it into the
+standalone tree, because Cloud Run has no CDN in front of it.
 
-- Full event catalogue, search, filters, calendar, map
-- Event pages with `Event` JSON-LD — eligible for Google's events carousel
-- Organiser directory and profiles
-- Registration, login, all three dashboards
-- Blog: 14 published articles across 6 topic hubs, with contextual inline links
-  generated from a registry (16 further articles are held as drafts because they
-  describe features that are not built — see `/STATUS.md`)
-- `robots.txt`, `sitemap.xml`, security headers
-- `/api/health`
+**3. A real purchase, end to end.** Use a Stripe test card (`4242 4242 4242 4242`) on a
+cheap live event. Then check, in order:
 
-## What needs a key you have not added yet
-
-| Feature | Needs | Behaviour without it |
+| Check | Where | Expected |
 | --- | --- | --- |
-| Card checkout | `STRIPE_SECRET_KEY` | Cancel page says Stripe is not configured |
-| Mobile money | `BITRIPAY_*` | Option hidden |
-| AI features | `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` | Deterministic fallbacks, labelled |
-| Maps | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Text address panel |
+| Webhook arrived | Stripe dashboard → webhook → recent deliveries | `200` |
+| Event recorded | Firestore → `payment_events` | one doc, `status: issued` |
+| Tickets minted | Firestore → `tickets` | one doc per ticket, `status: valid` |
+| Inventory consumed | Firestore → `events/{id}` | `ticketTiers[].sold` incremented |
+| Email sent | Firestore → `issued_payments/{id}` | `delivery: "sent"` |
+| Email received | the buyer's inbox | subject "Your ticket for …" |
+| Ticket visible | `/dashboard/customer/wallet` | the ticket with its QR |
 
-None of these block publishing. Add them and redeploy when you have them.
+If `delivery` is `skipped`, SMTP is unconfigured — the password did not reach the
+functions. If it starts `failed:`, the reason is on the document.
 
-## Taking real money
+**4. Refund it.** Refund the payment in Stripe. The ticket should become `refunded` and
+the tier's `sold` count should go back down.
 
-Server-side ticket issuance is wired. A confirmed payment now mints tickets through a
-Cloud Function using the Admin SDK, inside a transaction that also consumes inventory.
+---
 
-The flow:
+## Watch these after launch
 
-```
-provider ──webhook──▶ signature verified ──▶ payment_events/{providerEventId}
-                                                      │  Firestore trigger
-                                                      ▼
-                                        transaction: write tickets
-                                                     consume tier inventory
-                                                     write issued_payments marker
-```
+| Signal | Meaning | Action |
+| --- | --- | --- |
+| `/api/health` ≠ 200 | A dependency is unconfigured | Check which; `datastore` false means nothing works |
+| `payment_events.status == 'oversold'` | Someone paid, no ticket can be issued | **Refund them.** Not automatic |
+| `payment_events.status == 'failed'` | Issuance gave up after 5 attempts | A person must look |
+| `payment_events` stuck `pending` > 10 min | The reconciliation sweep is not running | Check Cloud Scheduler is enabled |
+| `issued_payments.delivery` starts `failed:` | Tickets issued, email did not send | Check SMTP credentials |
+| Function log `inventory drift` | A tier counter disagrees with issued tickets | Investigate before trusting capacity |
 
-Deploy the functions alongside the app — they are a **separate deploy** and the app
-does not carry them:
+---
+
+## Cost
+
+`apphosting.yaml` sets **`minInstances: 1`** — one instance warm at all times, no cold
+starts, **about £25/month from the day you deploy**, before a single visitor.
+
+Change it to `0` while testing and everything sits in the free tiers at roughly
+**£0–5 for the first month** plus the domain, at the cost of a few seconds of cold
+start after an idle period. Set it back to `1` on the day you have buyers waiting.
+
+Cloud Functions and Firestore stay inside the free tier at launch volume. Full model in
+`docs/21` §21.13.
+
+---
+
+## Rollback
+
+App Hosting keeps every build. Console → **App Hosting → Rollouts → the previous
+build → Rollback.** Takes about a minute.
+
+Functions do not roll back through the console — redeploy from a known-good commit:
 
 ```bash
-cd functions && npm install && npm run build && cd ..
-firebase deploy --only functions
-firebase deploy --only firestore:rules      # payment_events + issued_payments are new
+git checkout <good-sha> -- functions/
+cd functions && npm run build && cd .. && firebase deploy --only functions
 ```
 
-Cloud Scheduler is used by the reconciliation and audit jobs. The first
-`firebase deploy --only functions` will prompt to enable the Cloud Scheduler API if it
-is not already on; accept it, or the scheduled functions deploy but never fire.
-
-### Verify it before you trust it
-
-```bash
-npm run test:issuance
-```
-
-Ten tests against the Firestore emulator — real transactions, not mocks, because every
-failure worth catching here is an atomicity or concurrency failure and a mock has
-neither property. They cover: issuance and inventory consumption, replayed webhooks
-issuing nothing further, two concurrent buyers racing for the last two tickets with
-exactly one winning, oversell refusal, missing event and missing tier as terminal
-rather than retried, refunds returning inventory, double refunds not double-returning
-it, and a redeemed ticket never being silently reversed.
-
-All ten pass on the current branch.
-
-### What is deliberately not automatic
-
-A payment that confirms after its tier has sold out records `status: 'oversold'` and
-issues nothing. Money has moved and no ticket can legally be issued, so it needs a
-refund and a person — the function logs it as an error rather than resolving it
-quietly. Watch for `oversold` and `failed` in `payment_events`; both mean somebody paid
-and is holding nothing.
+**Never roll back `firestore.rules` to a version that predates `payment_events`.**
+Those rules are what stop a client forging a payment event and minting free tickets.

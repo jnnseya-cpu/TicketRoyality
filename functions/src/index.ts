@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2';
+import { defineSecret } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
 
 import type { PaymentEventDoc, PaymentEventStatus, TicketDoc } from './domain';
@@ -22,6 +23,17 @@ initializeApp();
 // cross-region round trip on every transaction read, which is the slowest part of
 // issuance.
 setGlobalOptions({ region: 'europe-west2', maxInstances: 10 });
+
+/**
+ * The SMTP password, from Cloud Secret Manager.
+ *
+ * Bound to the delivery function below, which is what injects it into `process.env` at
+ * runtime. Non-secret mail settings live in `functions/.env`; this is the only value
+ * that must never be in the repository.
+ *
+ *   firebase functions:secrets:set SMTP_PASSWORD
+ */
+const smtpPassword = defineSecret('SMTP_PASSWORD');
 
 const PENDING: PaymentEventStatus[] = ['pending', 'processing'];
 
@@ -171,7 +183,7 @@ export const onPaymentEvent = onDocumentCreated(
  * "did they get it?" is answerable without reading logs.
  */
 export const onTicketsIssued = onDocumentCreated(
-  { document: 'issued_payments/{providerEventId}', retry: true },
+  { document: 'issued_payments/{providerEventId}', retry: true, secrets: [smtpPassword] },
   async (event) => {
     const snap = event.data;
     if (!snap) return;
