@@ -44,7 +44,7 @@ and read. If it says **Not built**, it was looked for and is absent.
 | Commission | 5% + 50p, per ticket, wired into 6 surfaces | `src/shared/pricing.ts` |
 | Coupons | Organiser coupon management | `/dashboard/organiser/coupons` |
 | Door scanner | Per-event scan page, QR read, redeem | `/events/[id]/check-in` |
-| AI studio | Real generation call against the AI gateway | `/dashboard/organiser/ai-studio` |
+| AI studio | Real generation call — **Gemini only** (see gap below) | `/dashboard/organiser/ai-studio` |
 | Video ad carousel | Homepage component | `VideoAds.tsx` |
 | ACU billing | Credit constants, ledger entry builder, balance guard | `src/backend/services/acu-ledger.ts` |
 | **Ticket delivery** | **SMTP email on issuance — one email per purchase, retried, outcome recorded** | `functions/src/email.ts` — 10 tests |
@@ -81,6 +81,7 @@ is precisely what caused the confusion this file exists to end.
 | Waitlist | Defined in the comms catalogue, no implementation | `docs/04` M6 |
 | SMS / WhatsApp delivery | **Blocked, not pending.** No approved provider exists inside the vendor list (`CLAUDE.md` §1). The channels are declared in the catalogue; `dispatch()` records and sends nothing. | `docs/04` M10 |
 | Error tracking | Not wired. Google Cloud Error Reporting is available in-project; Sentry would be a new vendor. | `docs/21` |
+| **Multi-provider AI gateway** | `src/backend/ai/genkit.ts` calls **Gemini only**. Claude and OpenAI are approved vendors and are not wired, and there is no fallback chain — a Gemini outage takes every AI feature down with it. | `docs/03`, `docs/07` |
 
 ## Ordered by what actually blocks revenue
 

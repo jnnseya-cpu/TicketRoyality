@@ -70,11 +70,6 @@ env:
     availability:
       - BUILD
       - RUNTIME
-  - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    availability:
-      - BUILD
-      - RUNTIME
   - variable: NEXT_PUBLIC_SITE_URL
     value: https://ticketroyality.com
     availability:
@@ -82,24 +77,19 @@ env:
       - RUNTIME
 
   # Server-only secrets. RUNTIME only — these must never reach the client bundle.
+  #
+  # Only variables the code actually reads are declared here. App Hosting fails a
+  # rollout when a referenced secret is missing from Secret Manager, so declaring one
+  # for an unwired feature turns a future intention into a deploy blocker today.
+  # Removed until their feature lands: ANTHROPIC_API_KEY and OPENAI_API_KEY (the AI
+  # gateway calls Gemini only), QR_SIGNING_KEY (no signing implemented),
+  # NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (checkout redirects server-side).
   - variable: GEMINI_API_KEY
     secret: GEMINI_API_KEY
     availability:
       - RUNTIME
-  - variable: ANTHROPIC_API_KEY
-    secret: ANTHROPIC_API_KEY
-    availability:
-      - RUNTIME
-  - variable: OPENAI_API_KEY
-    secret: OPENAI_API_KEY
-    availability:
-      - RUNTIME
   - variable: CRON_SECRET
     secret: CRON_SECRET
-    availability:
-      - RUNTIME
-  - variable: QR_SIGNING_KEY
-    secret: QR_SIGNING_KEY
     availability:
       - RUNTIME
   - variable: STRIPE_SECRET_KEY

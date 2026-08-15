@@ -5,75 +5,87 @@
 
 ---
 
-## Where everything goes
+## The architecture, vendor by vendor
 
-This is the question that keeps coming back, so it is answered first.
+Four vendors. Nothing else is used, and nothing else is needed.
 
-**There is no separate frontend and backend deployment.** `src/frontend`,
-`src/backend` and `src/shared` are folders inside **one** Next.js application. The
-separation is a compile-time boundary enforced by lint rules (`docs/14`), not a runtime
-one. They build together and deploy together, as one thing.
+| Vendor | Runs | Why it and not the others |
+| --- | --- | --- |
+| **Hostinger** | Domain, DNS, and the `info@ticketroyality.com` mailbox that sends every ticket email over SMTP | You already own the domain. The mailbox comes with it, which is what keeps email off a separate email API. |
+| **Firebase / Google Cloud** | The Next.js app (App Hosting → Cloud Run), Firestore, Auth, Storage, Cloud Functions, Scheduler, App Check, Maps, Gemini | One project, one region, one bill. Cloud Functions must live here regardless — they are Firestore triggers. |
+| **Vercel** | Nothing today. Available as a fallback host for the app. | See below. |
+| **AI providers** | Gemini today; Claude and OpenAI approved but **not wired** — see `/STATUS.md` | Called over HTTPS from the app. Nothing is deployed to them. |
 
-There are exactly **three deployable artefacts**:
+**There is no separate frontend and backend deployment.** `src/frontend`, `src/backend`
+and `src/shared` are folders inside **one** Next.js application. The separation is a
+compile-time boundary enforced by lint rules (`docs/14`), not a runtime one. They build
+together and deploy together, as one thing.
 
-| # | Artefact | Goes to | Deployed by | Contains |
-| --- | --- | --- | --- | --- |
-| 1 | The Next.js app | **Firebase App Hosting** → Cloud Run, `europe-west2` | Git push (auto) | Every page, every `/api/*` route, both webhooks — i.e. frontend **and** backend |
-| 2 | `functions/` | **Cloud Functions v2**, `europe-west2` | `firebase deploy --only functions` | Ticket issuance, refunds, email delivery, reconciliation, audits |
-| 3 | Rules & indexes | **Firestore + Storage** | `firebase deploy --only firestore:rules,firestore:indexes,storage` | `firestore.rules`, `firestore.indexes.json`, `storage.rules` |
+So there are exactly **three deployable artefacts**:
 
-Plus **Hostinger**, which keeps the domain and the mailbox. Nothing moves off it —
-you point DNS at Firebase and leave `MX` alone.
+| # | Artefact | Goes to | Shipped by |
+| --- | --- | --- | --- |
+| 1 | The Next.js app — every page, every `/api/*` route, both webhooks, i.e. frontend **and** backend | **Firebase App Hosting** → Cloud Run, `europe-west2` | Git push (automatic) |
+| 2 | `functions/` — ticket issuance, refunds, email delivery, reconciliation, audits | **Cloud Functions v2**, `europe-west2` | `firebase deploy --only functions` |
+| 3 | `firestore.rules`, `firestore.indexes.json`, `storage.rules` | **Firestore + Storage** | `firebase deploy --only firestore:rules,firestore:indexes,storage` |
 
-### Vercel and the Hostinger VPS — available, deliberately unused
+```
+   ┌── HOSTINGER ──────────────────────────────────────────────┐
+   │  ticketroyality.com   DNS  ·  MX  ·  info@ mailbox (SMTP) │
+   └──────────┬──────────────────────────────────▲─────────────┘
+              │ A / CNAME                        │ ticket emails
+              ▼                                  │
+   ┌── FIREBASE / GOOGLE CLOUD ──────────────────┼─────────────┐
+   │                                             │             │
+   │  ┌───────────────────────────────┐          │             │
+   │  │ App Hosting → Cloud Run       │  artefact 1            │
+   │  │ Next.js: frontend + backend   │──────────┐             │
+   │  │ pages · /api/* · webhooks     │          │ HTTPS       │
+   │  └──────────────┬────────────────┘          ▼             │
+   │                 │ writes           ┌──────────────────┐   │
+   │                 ▼  payment_events  │  AI PROVIDERS    │   │
+   │  ┌───────────────────────────────┐ │  Gemini (wired)  │   │
+   │  │ Cloud Functions v2            │ │  Claude, OpenAI  │   │
+   │  │ issuance · refunds · email ───┼─┤  (approved, not  │   │
+   │  │ reconciliation · audits       │ │   yet wired)     │   │
+   │  └──────────────┬────────────────┘ └──────────────────┘   │
+   │                 ▼                                         │
+   │  ┌───────────────────────────────┐                        │
+   │  │ Firestore · Storage · Auth    │  artefact 3 = rules    │
+   │  └───────────────────────────────┘                        │
+   └───────────────────────────────────────────────────────────┘
 
-Both are on the account and neither is needed.
+   VERCEL — on the account, deployed to by nothing. Fallback only.
+```
 
-**Vercel** could host the Next.js app, but nothing is gained by moving it. Cloud
-Functions must stay on Firebase regardless — they are Firestore triggers and cannot run
-elsewhere — so a move puts the app on one platform and its issuance logic on another,
-recreating the split that `firebase.json` was just cleaned up to remove. `apphosting.yaml`
-already carries the runtime config, and App Hosting redeploys from the same git push.
-It stays a live fallback, not a plan.
-
-**The Hostinger VPS** would mean managing TLS certificates, deployments, scaling and
-OS patching by hand, for a service App Hosting already provides with autoscaling and
-automatic certificates. Keep it for something that genuinely needs a persistent box.
-
-Neither decision is precious. If either changes, the constraint that matters is that
-the app and the functions stay in the same cloud as Firestore.
-
-Why `functions/` is separate: `firebase deploy` uploads **only** that directory, so it
-is its own npm package with its own `package.json` and `node_modules`. It never ships
-inside the app bundle and the app never imports it at runtime.
+Why `functions/` is a separate artefact: `firebase deploy` uploads **only** that
+directory, so it is its own npm package with its own `package.json` and `node_modules`.
+It never ships inside the app bundle and the app never imports it at runtime.
 
 Why the app is on App Hosting rather than Firebase Hosting: App Hosting runs a real
 Node server on Cloud Run with the `runConfig` in `apphosting.yaml` (CPU, memory,
 `minInstances`, concurrency, 300 s timeout for AI calls) and pulls secrets from Secret
-Manager. `firebase.json` deliberately has **no** `hosting` block — having one would
-build and deploy the same app a second way on a plain `firebase deploy`, ignoring
+Manager. `firebase.json` deliberately has **no** `hosting` block — one would build and
+deploy the same app a second way on a plain `firebase deploy`, ignoring
 `apphosting.yaml` entirely.
 
-```
-                    ticketroyality.com  (Hostinger DNS, Hostinger MX)
-                              │
-                              ▼
-              ┌─────────────────────────────────┐
-              │  Firebase App Hosting           │  ← artefact 1
-              │  Cloud Run · europe-west2       │
-              │  Next.js: frontend + backend    │
-              └───────────────┬─────────────────┘
-                              │ writes payment_events
-                              ▼
-              ┌─────────────────────────────────┐
-              │  Cloud Functions v2             │  ← artefact 2
-              │  issuance · refunds · email     │
-              └───────────────┬─────────────────┘
-                              ▼
-              ┌─────────────────────────────────┐
-              │  Firestore + Storage            │  ← artefact 3 (rules)
-              └─────────────────────────────────┘
-```
+### Vercel and the Hostinger VPS — yours, and deliberately unused
+
+**Vercel** hosts Next.js natively and would work. It is not used because Cloud
+Functions are Firestore triggers and cannot leave Firebase: moving the app to Vercel
+puts the storefront on one platform and its ticket-issuance logic on another, and every
+request from app to database becomes a cross-cloud hop. There is also the reason you
+gave earlier — Vercel's function timeouts are the constraint that makes AI calls feel
+slow, and `apphosting.yaml` sets 300 s precisely because a full event build runs past
+sixty.
+
+Switching later costs about an hour: Vercel auto-detects Next.js, and the environment
+variables in `apphosting.yaml` map across one-for-one. The functions stay on Firebase
+either way.
+
+**The Hostinger VPS** would mean hand-managing TLS renewal, deploys, autoscaling and OS
+patching for what App Hosting already does. Keep it for something that genuinely needs
+a persistent box — a long-running worker, say. Nothing here needs one.
 
 ---
 
@@ -243,6 +255,23 @@ The registered endpoint is `https://ticketroyality.com/webhooks/koda` and **must
 change** without re-registering with KODA first. A moved webhook URL fails silently:
 KODA keeps posting to the old path, gets a 404, retries for 24 hours, and the first
 symptom is a customer saying they paid and got nothing.
+
+### AI features
+
+```bash
+firebase apphosting:secrets:set GEMINI_API_KEY
+```
+
+That is the whole list, and it is deliberately short: **the AI gateway calls Gemini
+only.** Claude and OpenAI are approved vendors and are not wired — no client, no
+fallback chain. `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` were removed from
+`apphosting.yaml` because App Hosting fails a rollout when a declared secret does not
+exist in Secret Manager, so demanding keys for an unwired feature blocks the deploy for
+nothing.
+
+The consequence worth knowing before launch: a Gemini outage takes every AI feature
+down with it. Ticketing, checkout, the door and delivery are unaffected — AI is an
+accelerant here, not a dependency. Tracked in `/STATUS.md`.
 
 ### Ticket delivery email
 
