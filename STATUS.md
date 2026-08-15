@@ -55,7 +55,16 @@ and read. If it says **Not built**, it was looked for and is absent.
 | Blog | 14 published articles, 6 topic hubs, generated link graph | `npm run check:links` |
 | SEO | `robots.txt`, `sitemap.xml`, Article/FAQ/Breadcrumb schema | `src/app/sitemap.ts` |
 | Security headers | CSP-adjacent headers, HSTS, frame denial | `next.config.ts` |
+| Styling | Tailwind scans `./src/**`. It previously scanned `./src/pages` and `./src/components`, **neither of which exists** — so every class used only in `src/frontend/**` was never generated and most of the UI rendered unstyled. | `tailwind.config.ts` |
 | Health | `/api/health` reports per-dependency status, fails closed | `src/app/api/health` |
+
+## Removed
+
+| What | Why |
+| --- | --- |
+| `/dev-access` | A public page offering to set the signed-in account's role to platform admin, plus the shared password for three named test accounts. The role change itself was already refused by `firestore.rules` (`noPrivilegedFields()` blocks a self-write to `userType`), so it was not an open escalation — but it published `admin@ticketroyality.com` and a working password on the live site, and told visitors the platform was mid-development. |
+| Test-account panel on `/login` | Listed `admin@ticketroyality.com` publicly. That account has **no inbox**, so if it is ever compromised it cannot receive a reset email — naming it on the login page was the worst possible place to advertise it. |
+| `localStorage` identity in `use-auth` | The auth hook synthesised a signed-in profile (including `userType: 'superuser'`) from a `localStorage` key when Firebase was unconfigured. Only `/dev-access` could write that key, so it went with it. |
 
 ## Not built
 

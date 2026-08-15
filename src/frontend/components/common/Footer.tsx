@@ -4,6 +4,13 @@ import { Activity, Linkedin, Twitter } from 'lucide-react';
 import { Logo, Wordmark } from '@/frontend/components/common/Logo';
 import { Separator } from '@/frontend/components/ui/separator';
 
+/**
+ * Public destinations only.
+ *
+ * `/dev-access` and `/dashboard/organiser` used to sit here and were removed: both
+ * redirect to a login, so as footer navigation they are two dead ends on every page of
+ * the site. Someone who needs a dashboard reaches it from the header once signed in.
+ */
 const COLUMNS = [
   {
     title: 'System Nodes',
@@ -12,7 +19,6 @@ const COLUMNS = [
       { label: 'Verified Organisers', href: '/organisers' },
       { label: 'Industries', href: '/industries' },
       { label: 'Blog', href: '/blog' },
-      { label: 'Dev Access Portal', href: '/dev-access' },
     ],
   },
   {
@@ -30,7 +36,6 @@ const COLUMNS = [
       { label: 'Get started', href: '/get-started' },
       { label: 'Growth & Influencers', href: '/growth' },
       { label: 'Launch your event', href: '/register/organiser' },
-      { label: 'Organiser dashboard', href: '/dashboard/organiser' },
     ],
   },
   {
@@ -46,9 +51,14 @@ const COLUMNS = [
 export function Footer() {
   return (
     <footer className="border-t border-border bg-card/40">
-      <div className="container py-14">
-        <div className="grid gap-10 lg:grid-cols-[1.5fr_repeat(4,1fr)]">
-          <div className="space-y-4">
+      <div className="container py-10">
+        {/*
+          Two columns on phones rather than four stacked blocks. Stacked, the four link
+          lists made the footer over 1100px tall — taller than the viewport it sits
+          under, so every page ended in a long scroll through navigation.
+        */}
+        <div className="grid grid-cols-2 gap-x-6 gap-y-8 lg:grid-cols-[1.5fr_repeat(4,1fr)] lg:gap-10">
+          <div className="col-span-2 space-y-3 lg:col-span-1">
             <Link href="/" className="flex items-center gap-2">
               <Logo />
               <Wordmark />
@@ -77,9 +87,9 @@ export function Footer() {
           </div>
 
           {COLUMNS.map((column) => (
-            <div key={column.title} className="space-y-3">
+            <div key={column.title} className="space-y-2">
               <h4 className="text-sm font-semibold">{column.title}</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
+              <ul className="space-y-1.5 text-sm text-muted-foreground">
                 {column.links.map((link) => (
                   <li key={link.href + link.label}>
                     <Link href={link.href} className="transition-colors hover:text-primary">
@@ -92,9 +102,9 @@ export function Footer() {
           ))}
         </div>
 
-        <Separator className="my-8" />
+        <Separator className="my-6" />
 
-        <div className="flex flex-col items-center justify-between gap-3 text-center sm:flex-row sm:text-left">
+        <div className="flex flex-col items-center justify-between gap-2 text-center sm:flex-row sm:text-left">
           <p className="font-headline text-sm font-semibold">Where Every Ticket Feels Royal.</p>
           <p className="text-xs uppercase tracking-wider text-muted-foreground">
             &copy; 2026 TicketRoyality · All rights reserved

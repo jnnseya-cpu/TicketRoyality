@@ -14,15 +14,12 @@ import {
 import { auth, isFirebaseConfigured } from '@/shared/firebase/client';
 import { createUserProfile, getUserProfile } from '@/shared/data/repositories';
 import type { UserProfile, UserType } from '@/shared/types';
-import { WELCOME_BONUS_ACU } from '@/shared/constants/billing';
-
-const DEMO_ROLE_KEY = 'tr:demo-role';
 
 interface AuthContextValue {
   user: User | null;
   userProfile: UserProfile | null;
   loading: boolean;
-  /** True when running without Firebase credentials — dashboards use the demo identity. */
+  /** True when the Firebase web config is absent, so sign-in cannot work at all. */
   demoMode: boolean;
   signIn: (email: string, password: string) => Promise<UserProfile | null>;
   register: (input: {
@@ -35,82 +32,24 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
-  /** Demo-mode role switcher used by /dev-access. */
-  setDemoRole: (role: UserType | null) => void;
 }
 
 const AuthContext = React.createContext<AuthContextValue | undefined>(undefined);
-
-function demoProfile(role: UserType): UserProfile {
-  const base = {
-    status: 'approved' as const,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    wallet: {
-      balanceAcu: WELCOME_BONUS_ACU,
-      lifetimeGrantedAcu: WELCOME_BONUS_ACU,
-      lifetimePurchasedAcu: 0,
-      lifetimeSpentAcu: 0,
-      lastUpdatedAt: '2026-01-01T00:00:00.000Z',
-    },
-    welcomeBonusGranted: true,
-  };
-
-  if (role === 'organiser') {
-    return {
-      ...base,
-      uid: 'org-midlands-collective',
-      email: 'organiser@ticketroyality.com',
-      fullName: 'Idris Kaur',
-      userType: 'organiser',
-      companyName: 'Midlands Event Collective',
-      website: 'https://midlands.example.com',
-      bio: 'Birmingham-based collective specialising in conferences, networking and cultural programming.',
-    };
-  }
-  if (role === 'superuser') {
-    return {
-      ...base,
-      uid: 'demo-superuser',
-      email: 'admin@ticketroyality.com',
-      fullName: 'Platform Administrator',
-      userType: 'superuser',
-    };
-  }
-  return {
-    ...base,
-    uid: 'demo-customer',
-    email: 'customer@ticketroyality.com',
-    fullName: 'Jordan Miles',
-    userType: 'customer',
-  };
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<User | null>(null);
   const [userProfile, setUserProfile] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
 
-  const applyDemoRole = React.useCallback((role: UserType | null) => {
-    if (!role) {
+  React.useEffect(() => {
+    // Without Firebase there is no identity at all. This used to read a role out of
+    // `localStorage` and synthesise a signed-in profile from it — a convenience for
+    // local development, and an identity source in the production auth hook that no
+    // server ever agreed to. It went with `/dev-access`, the only thing that could
+    // write the key.
+    if (!isFirebaseConfigured) {
       setUser(null);
       setUserProfile(null);
-      return;
-    }
-    const profile = demoProfile(role);
-    setUserProfile(profile);
-    // A minimal User-shaped object is enough for everything the UI reads.
-    setUser({
-      uid: profile.uid,
-      email: profile.email,
-      displayName: profile.fullName,
-    } as User);
-  }, []);
-
-  React.useEffect(() => {
-    if (!isFirebaseConfigured) {
-      // Demo mode: identity comes from localStorage, set via /dev-access.
-      const stored = window.localStorage.getItem(DEMO_ROLE_KEY) as UserType | null;
-      applyDemoRole(stored);
       setLoading(false);
       return;
     }
@@ -129,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
     return unsubscribe;
-  }, [applyDemoRole]);
+  }, []);
 
   const signIn = React.useCallback(async (email: string, password: string) => {
     const credential = await signInWithEmailAndPassword(auth, email, password);
@@ -163,13 +102,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = React.useCallback(async () => {
     if (!isFirebaseConfigured) {
-      window.localStorage.removeItem(DEMO_ROLE_KEY);
-      applyDemoRole(null);
+      setUser(null);
+      setUserProfile(null);
       return;
     }
     await signOut(auth);
     setUserProfile(null);
-  }, [applyDemoRole]);
+  }, []);
 
   const resetPassword = React.useCallback(async (email: string) => {
     await sendPasswordResetEmail(auth, email);
@@ -179,15 +118,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     setUserProfile(await getUserProfile(user.uid));
   }, [user]);
-
-  const setDemoRole = React.useCallback(
-    (role: UserType | null) => {
-      if (role) window.localStorage.setItem(DEMO_ROLE_KEY, role);
-      else window.localStorage.removeItem(DEMO_ROLE_KEY);
-      applyDemoRole(role);
-    },
-    [applyDemoRole]
-  );
 
   const value = React.useMemo(
     () => ({
@@ -200,9 +130,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       resetPassword,
       refreshProfile,
-      setDemoRole,
     }),
-    [user, userProfile, loading, signIn, register, logout, resetPassword, refreshProfile, setDemoRole]
+    [user, userProfile, loading, signIn, register, logout, resetPassword, refreshProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

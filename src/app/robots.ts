@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        // Authenticated surfaces, transactional dead-ends and the dev shortcut.
+        // Authenticated surfaces and transactional dead-ends.
         disallow: [
           '/api/',
           '/webhooks/',
@@ -16,7 +16,6 @@ export default function robots(): MetadataRoute.Robots {
           '/account',
           '/cart',
           '/checkout/',
-          '/dev-access',
           '/login',
           '/register',
           '/forgot-password',

@@ -40,12 +40,6 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-const TEST_ACCOUNTS = [
-  { role: 'Platform admin', email: 'admin@ticketroyality.com' },
-  { role: 'Event organiser', email: 'organiser@ticketroyality.com' },
-  { role: 'Customer', email: 'customer@ticketroyality.com' },
-];
-
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -86,12 +80,8 @@ export default function LoginPage() {
               <Info />
               <AlertTitle>Firebase is not configured</AlertTitle>
               <AlertDescription>
-                Real sign-in needs the <code>NEXT_PUBLIC_FIREBASE_*</code> variables. In the
-                meantime, use the{' '}
-                <Link href="/dev-access" className="font-medium text-primary hover:underline">
-                  developer access portal
-                </Link>{' '}
-                to explore every dashboard.
+                Sign-in needs the <code>NEXT_PUBLIC_FIREBASE_*</code> variables. Until they are
+                set, no account can be created or signed in to.
               </AlertDescription>
             </Alert>
           )}
@@ -150,26 +140,12 @@ export default function LoginPage() {
             </Link>
           </p>
 
-          <div className="w-full rounded-md border border-dashed border-border p-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Development test accounts
-            </p>
-            <ul className="space-y-1 text-xs text-muted-foreground">
-              {TEST_ACCOUNTS.map((account) => (
-                <li key={account.email} className="flex justify-between gap-2">
-                  <span>{account.role}</span>
-                  <span className="font-mono">{account.email}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Register each address once to create it in your Firebase project, then use{' '}
-              <Link href="/dev-access" className="text-primary hover:underline">
-                /dev-access
-              </Link>{' '}
-              to set its role.
-            </p>
-          </div>
+          {/*
+            The "development test accounts" panel that used to sit here is gone. It
+            listed admin@ticketroyality.com on the public login page, which hands an
+            attacker the one address worth attacking — and the account it names has no
+            inbox, so it cannot even receive a breach-reset email.
+          */}
         </CardFooter>
       </Card>
     </div>

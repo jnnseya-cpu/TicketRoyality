@@ -2,11 +2,22 @@ import type { Config } from 'tailwindcss';
 
 const config: Config = {
   darkMode: ['class'],
-  content: [
-    './src/pages/**/*.{ts,tsx}',
-    './src/components/**/*.{ts,tsx}',
-    './src/app/**/*.{ts,tsx}',
-  ],
+  // One glob over the whole of `src`, deliberately.
+  //
+  // This previously listed `./src/pages`, `./src/components` and `./src/app`. The first
+  // two do not exist in this codebase — the layers are `app` / `frontend` / `backend` /
+  // `shared` — so every Tailwind class used only inside `src/frontend/**` (68 component
+  // files, i.e. nearly all of the UI) was never scanned and never generated.
+  //
+  // The failure looked like anything except a build-config bug: colours, fonts and
+  // borders were fine because those classes also appear under `src/app/**`, while
+  // `lg:grid-cols-[1.5fr_repeat(4,1fr)]`, `gap-*` and the calendar's `h-9 w-9` silently
+  // vanished. The footer collapsed into one very long column, filter rows lost their
+  // spacing, and calendar dates rendered as "2627282930311".
+  //
+  // Enumerating layer directories here means a future layer is invisible until someone
+  // notices the CSS is wrong. Scanning `src` once cannot drift.
+  content: ['./src/**/*.{ts,tsx}'],
   theme: {
     container: {
       center: true,

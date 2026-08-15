@@ -7,7 +7,7 @@ import { Loader2, LockKeyhole } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
 import { Button } from '@/frontend/components/ui/button';
-import { useAuth } from '@/frontend/hooks/use-auth';
+import { dashboardPathFor, useAuth } from '@/frontend/hooks/use-auth';
 import type { UserProfile, UserType } from '@/shared/types';
 
 /**
@@ -22,11 +22,11 @@ export function RequireRole({
   children: (profile: UserProfile) => React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, userProfile, loading, demoMode } = useAuth();
+  const { user, userProfile, loading } = useAuth();
 
   React.useEffect(() => {
-    if (!loading && !user && !demoMode) router.replace('/login');
-  }, [loading, user, demoMode, router]);
+    if (!loading && !user) router.replace('/login');
+  }, [loading, user, router]);
 
   if (loading) {
     return (
@@ -49,7 +49,7 @@ export function RequireRole({
                 <Link href="/login">Log in</Link>
               </Button>
               <Button size="sm" variant="outline" asChild>
-                <Link href="/dev-access">Developer access</Link>
+                <Link href="/register">Create an account</Link>
               </Button>
             </div>
           </AlertDescription>
@@ -68,8 +68,14 @@ export function RequireRole({
             <p>
               This area is for {role} accounts. You are signed in as a {userProfile.userType}.
             </p>
+            {/*
+              No "switch role" button. Roles are granted server-side — organisers by
+              admin approval, admins by `npm run grant:admin`. Offering the change here
+              would only ever produce a permission error, because `firestore.rules`
+              refuses a self-write to `userType`.
+            */}
             <Button size="sm" variant="outline" asChild>
-              <Link href="/dev-access">Switch role (development)</Link>
+              <Link href={dashboardPathFor(userProfile.userType)}>Go to your dashboard</Link>
             </Button>
           </AlertDescription>
         </Alert>
