@@ -294,6 +294,36 @@ it there and redeploy the functions.
 
 ---
 
+## The two email addresses
+
+They are not interchangeable, and swapping them breaks things quietly.
+
+| Address | Inbox? | Used for |
+| --- | --- | --- |
+| `info@ticketroyality.com` | **Yes — receives everything** | SMTP authentication, the `From` on every ticket email, and therefore where customer replies and bounce notices land |
+| `admin@ticketroyality.com` | **No inbox** | Logging in to the platform as an administrator. Nothing is ever sent to it |
+
+Server settings, already in `functions/.env` and `.env.example`:
+
+```
+SMTP   smtp.hostinger.com : 465   (implicit TLS)
+IMAP   imap.hostinger.com : 993   — not used; the platform sends, it never reads mail
+```
+
+The `SMTP_PASSWORD` secret is the mailbox password for **`info@`**, not `admin@`.
+
+**The consequence to know before you rely on it:** `admin@` cannot use "forgot
+password". Firebase emails the reset link to an address with no inbox, so it lands
+nowhere. Recovery for that account is offline:
+
+```bash
+npm run grant:admin -- admin@ticketroyality.com --project <your-project-id> --set-password
+```
+
+It prompts for the password without echoing it — never pass one on the command line,
+where it enters your shell history and the process list. It also revokes existing
+sessions, which is what you want if you are resetting because something leaked.
+
 ## Create your admin account
 
 There is **no self-serve admin signup**, deliberately: registration produces a
@@ -305,7 +335,9 @@ So the first administrator is made from outside the app, by you, holding Google 
 credentials:
 
 ```bash
-# 1. Sign up normally on the live site as a customer, with your real email.
+# 1. Sign up normally on the live site — for the platform admin use
+#    admin@ticketroyality.com. No email is ever sent during signup, so the
+#    missing inbox does not matter here.
 # 2. Authenticate locally for the project (once):
 gcloud auth application-default login
 

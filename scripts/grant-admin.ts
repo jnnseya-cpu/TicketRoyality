@@ -20,7 +20,14 @@
  *
  *   npm run grant:admin -- you@example.com --project ticketroyality-prod
  *   npm run grant:admin -- you@example.com --project ticketroyality-prod --revoke
+ *   npm run grant:admin -- you@example.com --project ticketroyality-prod --set-password
+ *
+ * `--set-password` exists because of a real constraint on this platform:
+ * `admin@ticketroyality.com` is a login with **no inbox**. Firebase's password reset
+ * emails it and they land nowhere, so the ordinary "forgot password" flow can never
+ * recover that account. This is the recovery path for it.
  */
+import { createInterface } from 'node:readline';
 import { initializeApp, applicationDefault, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -28,6 +35,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 const args = process.argv.slice(2);
 const email = args.find((a) => !a.startsWith('--'));
 const revoke = args.includes('--revoke');
+const setPassword = args.includes('--set-password');
 
 function flag(name: string): string | undefined {
   const index = args.indexOf(`--${name}`);
@@ -43,10 +51,41 @@ function die(message: string): never {
 }
 
 if (!email) {
-  die('Usage: npm run grant:admin -- <email> --project <project-id> [--revoke]');
+  die('Usage: npm run grant:admin -- <email> --project <project-id> [--revoke] [--set-password]');
 }
 if (!projectId) {
   die('No project. Pass --project <project-id> or set GOOGLE_CLOUD_PROJECT.');
+}
+
+/**
+ * Reads a password without echoing it.
+ *
+ * Never taken from argv: a password on the command line is written to shell history
+ * and is visible in the process list to every other user on the machine.
+ */
+function promptPassword(label: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+
+  return new Promise((resolve) => {
+    const stdout = process.stdout as NodeJS.WriteStream & { muted?: boolean };
+    stdout.muted = false;
+
+    // @ts-expect-error _writeToOutput is internal to readline but is the only hook
+    // for suppressing echo without pulling in a dependency for one prompt.
+    rl._writeToOutput = function (chunk: string) {
+      if (stdout.muted) return;
+      stdout.write(chunk);
+    };
+
+    rl.question(label, (answer) => {
+      stdout.muted = false;
+      stdout.write('\n');
+      rl.close();
+      resolve(answer);
+    });
+
+    stdout.muted = true;
+  });
 }
 
 async function main() {
@@ -75,6 +114,26 @@ async function main() {
       `Auth user ${user.uid} exists but has no users/ document.\n` +
         '  Finish registration in the app before promoting the account.'
     );
+  }
+
+  if (setPassword) {
+    const password = await promptPassword(`New password for ${email}: `);
+    const confirm = await promptPassword('Confirm: ');
+
+    if (password !== confirm) die('Passwords do not match. Nothing changed.');
+    if (password.length < 12) {
+      die('Use at least 12 characters. This account holds every privilege on the platform.');
+    }
+
+    await auth.updateUser(user.uid, { password });
+    // Existing sessions keep working until their ID token expires unless they are
+    // revoked, which is the wrong behaviour if the reason for the reset is a
+    // compromise.
+    await auth.revokeRefreshTokens(user.uid);
+
+    console.log(`\n✓ Password updated for ${email}`);
+    console.log('  All existing sessions revoked. Sign in again.\n');
+    return;
   }
 
   const current = snap.data() as { userType?: string; fullName?: string };
