@@ -98,7 +98,7 @@ npm ci
 npm run typecheck      # app + the functions contract guard
 npm run lint
 npm run build
-npm test               # 30 tests: issuance (emulator) + delivery (SMTP) + AI gateway
+npm test               # 40 tests: issuance (emulator) + delivery + AI gateway + comms
 npm run check:links
 cd functions && npm ci && npm run build && cd ..
 ```
