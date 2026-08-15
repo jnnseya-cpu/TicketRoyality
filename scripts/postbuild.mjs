@@ -28,9 +28,20 @@ async function exists(path) {
   }
 }
 
+// Not fatal, deliberately.
+//
+// This script exists so `npm run start` can serve `.next/standalone` locally, which
+// is the only way to exercise the real Cloud Run artefact before deploying. Firebase
+// App Hosting does NOT use that path — its Next.js adapter runs its own build and
+// serves assets itself — so on a hosted build the directory legitimately may not
+// exist.
+//
+// An earlier version exited 1 here, which turned a missing convenience copy into a
+// failed deploy of the entire site. A postbuild helper must never be able to fail a
+// build it is not required by.
 if (!(await exists(standalone))) {
-  console.error('postbuild: .next/standalone is missing — did `next build` run?');
-  process.exit(1);
+  console.log('postbuild: no .next/standalone (framework adapter build) — nothing to copy');
+  process.exit(0);
 }
 
 await cp(join(root, '.next', 'static'), join(standalone, '.next', 'static'), {
