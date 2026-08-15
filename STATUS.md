@@ -48,7 +48,8 @@ and read. If it says **Not built**, it was looked for and is absent.
 | Commission | 5% + 50p, per ticket, wired into 6 surfaces | `src/shared/pricing.ts` |
 | Coupons | Organiser coupon management | `/dashboard/organiser/coupons` |
 | Door scanner | Per-event scan page, QR read, redeem | `/events/[id]/check-in` |
-| AI studio | Real generation call — **Gemini only** (see gap below) | `/dashboard/organiser/ai-studio` |
+| AI studio | Real generation call, through the gateway below | `/dashboard/organiser/ai-studio` |
+| **AI gateway** | **Gemini → Claude → OpenAI fallback chain.** One prompt per task shared by all three; output is only accepted once it parses *and* satisfies the task's zod schema, so prose or a wrong shape fails over rather than reaching the user. Billed from the answering provider's own token counts. | `src/backend/ai/gateway.ts` — 10 tests |
 | Video ad carousel | Homepage component | `VideoAds.tsx` |
 | ACU billing | Credit constants, ledger entry builder, balance guard | `src/backend/services/acu-ledger.ts` |
 | **Ticket delivery** | **SMTP email on issuance — one email per purchase, retried, outcome recorded** | `functions/src/email.ts` — 10 tests |
@@ -96,7 +97,7 @@ is precisely what caused the confusion this file exists to end.
 | Waitlist | Defined in the comms catalogue, no implementation | `docs/04` M6 |
 | SMS / WhatsApp delivery | **Blocked, not pending.** No approved provider exists inside the vendor list (`CLAUDE.md` §1). The channels are declared in the catalogue; `dispatch()` records and sends nothing. | `docs/04` M10 |
 | Error tracking | Not wired. Google Cloud Error Reporting is available in-project; Sentry would be a new vendor. | `docs/21` |
-| **Multi-provider AI gateway** | `src/backend/ai/genkit.ts` calls **Gemini only**. Claude and OpenAI are approved vendors and are not wired, and there is no fallback chain — a Gemini outage takes every AI feature down with it. | `docs/03`, `docs/07` |
+| Google Maps key | No key is set, so event pages fall back to a text address panel instead of a map. Not a new vendor — the same Google Cloud project. Needs an HTTP-referrer restriction before it goes in, or the key can be lifted and billed to this project. | `docs/07` |
 
 ## Ordered by what actually blocks revenue
 
@@ -131,8 +132,9 @@ npm run typecheck      # app + the functions contract guard
 npm run lint
 npm run check:links    # link graph + publishing gate
 npm run report:links   # inline link density
-npm test               # issuance + delivery
+npm test               # issuance + delivery + AI gateway
 npm run test:issuance  # 10 tests, Firestore emulator, real transactions
 npm run test:delivery  # 10 tests, real SMTP conversation
+npm run test:ai        # 10 tests, real HTTP servers speaking each vendor's shape
 cd functions && npm run build
 ```

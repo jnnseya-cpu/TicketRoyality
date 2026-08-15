@@ -25,11 +25,13 @@ export async function GET() {
     { name: 'stripe', configured: Boolean(process.env.STRIPE_SECRET_KEY), critical: false },
     { name: 'bitripay', configured: Boolean(process.env.BITRIPAY_CLIENT_ID), critical: false },
     { name: 'koda', configured: Boolean(process.env.KODA_SECRET_KEY), critical: false },
-    {
-      name: 'ai',
-      configured: Boolean(process.env.GEMINI_API_KEY ?? process.env.ANTHROPIC_API_KEY),
-      critical: false,
-    },
+    // Reported per vendor. `ai` alone would read as healthy on one key and hide that
+    // the fallback chain has no depth — the first outage would then take every AI
+    // feature down, which is the exact failure the chain exists to prevent.
+    { name: 'ai:gemini', configured: Boolean(process.env.GEMINI_API_KEY), critical: false },
+    { name: 'ai:anthropic', configured: Boolean(process.env.ANTHROPIC_API_KEY), critical: false },
+    { name: 'ai:openai', configured: Boolean(process.env.OPENAI_API_KEY), critical: false },
+    { name: 'smtp', configured: Boolean(process.env.SMTP_PASSWORD), critical: false },
     {
       name: 'maps',
       configured: Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY),

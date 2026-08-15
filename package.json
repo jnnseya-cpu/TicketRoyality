@@ -14,14 +14,13 @@
     "typecheck": "tsc --noEmit",
     "check:links": "tsx scripts/check-links.ts",
     "report:links": "tsx scripts/link-report.ts",
-    "genkit:dev": "genkit start -- tsx src/backend/ai/dev.ts",
     "test:issuance": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx functions/src/issuance.test.ts\"",
     "test:delivery": "tsx functions/src/delivery.test.ts",
-    "test": "npm run test:issuance && npm run test:delivery",
-    "grant:admin": "tsx scripts/grant-admin.ts"
+    "test": "npm run test:issuance && npm run test:delivery && npm run test:ai",
+    "grant:admin": "tsx scripts/grant-admin.ts",
+    "test:ai": "tsx --conditions=react-server src/backend/ai/gateway.test.ts"
   },
   "dependencies": {
-    "@genkit-ai/google-genai": "^1.40.1",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.3",
     "@radix-ui/react-alert-dialog": "^1.1.6",
@@ -49,7 +48,6 @@
     "embla-carousel-react": "^8.6.0",
     "firebase": "^11.3.0",
     "firebase-admin": "^13.10.0",
-    "genkit": "^1.40.1",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.475.0",
     "next": "^15.5.22",

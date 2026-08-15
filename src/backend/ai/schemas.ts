@@ -1,4 +1,4 @@
-import { z } from 'genkit';
+import { z } from 'zod';
 
 /**
  * Zod schemas live in their own module because files marked `'use server'` may only

@@ -89,36 +89,48 @@ env:
 
   # ── Server-only secrets ────────────────────────────────────────────────────
   #
-  # ALL COMMENTED OUT FOR THE FIRST ROLLOUT.
+  # RUNTIME only, always. A secret marked BUILD is inlined into the build and can
+  # reach the client bundle; none of these may.
   #
-  # App Hosting fails a rollout when a declared secret is missing from Secret
-  # Manager, so referencing a key that does not exist yet blocks the entire deploy
-  # — including the catalogue, the blog and everything that needs no keys at all.
+  # THE RULE THAT MATTERS: App Hosting fails the whole rollout when a declared
+  # secret is missing from Secret Manager. A name listed here that does not exist
+  # in Secret Manager takes down the catalogue, the blog and every page that needs
+  # no keys at all — not just the feature the key belongs to.
   #
-  # Re-enable one at a time as each key becomes available:
+  # So the order is always: create the secret first, then uncomment, then push.
   #
-  #   firebase apphosting:secrets:set <NAME>
-  #   (uncomment the block below, commit, push — App Hosting redeploys on push)
+  #   firebase apphosting:secrets:set STRIPE_SECRET_KEY --project ticketroyality
+  #   firebase apphosting:secrets:grantaccess STRIPE_SECRET_KEY \
+  #     --backend ticketroyality --project ticketroyality
   #
-  # What each one costs while it stays off is noted against it. None of them stop
-  # the site being live; they stop it taking money, sending mail or calling AI.
+  # The grant is not optional. Creating a secret the backend's service account
+  # cannot read produces a rollout that fails at container start with a permission
+  # error rather than at deploy time, which is a far more confusing failure.
   #
-  # Server-only. RUNTIME only — these must never reach the client bundle.
-  #
-  # Only variables the code actually reads are declared here. App Hosting fails a
-  # rollout when a referenced secret is missing from Secret Manager, so declaring one
-  # for an unwired feature turns a future intention into a deploy blocker today.
-  # Removed until their feature lands: ANTHROPIC_API_KEY and OPENAI_API_KEY (the AI
-  # gateway calls Gemini only), QR_SIGNING_KEY (no signing implemented),
-  # NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (checkout redirects server-side).
+  # Each block below notes what stays broken while it is commented out.
+
+  # AI gateway. Any ONE of these three is enough to run every AI feature — the
+  # gateway falls back Gemini -> Claude -> OpenAI (src/backend/ai/gateway.ts).
+  # Gemini leads on cost, so enable it first; the other two buy resilience, which
+  # is why all three are worth having rather than any single one.
+  # While all three are off: /api/ai returns 503 and AI Studio shows its error state.
 #  - variable: GEMINI_API_KEY
 #    secret: GEMINI_API_KEY
 #    availability:
 #      - RUNTIME
-#  - variable: CRON_SECRET
-#    secret: CRON_SECRET
+#  - variable: ANTHROPIC_API_KEY
+#    secret: ANTHROPIC_API_KEY
 #    availability:
 #      - RUNTIME
+#  - variable: OPENAI_API_KEY
+#    secret: OPENAI_API_KEY
+#    availability:
+#      - RUNTIME
+
+  # Cards. While off: checkout cannot create a Stripe session and card payment
+  # fails honestly at the button. STRIPE_WEBHOOK_SECRET is what makes the webhook
+  # trustworthy — without it a forged POST to /api/stripe-webhook would be taken at
+  # face value, so never enable the secret key without it.
 #  - variable: STRIPE_SECRET_KEY
 #    secret: STRIPE_SECRET_KEY
 #    availability:
@@ -127,6 +139,14 @@ env:
 #    secret: STRIPE_WEBHOOK_SECRET
 #    availability:
 #      - RUNTIME
+
+  # Scheduled sweeps (/api/cron/*). While off: the cron routes refuse every caller,
+  # so nothing releases stale checkout holds.
+#  - variable: CRON_SECRET
+#    secret: CRON_SECRET
+#    availability:
+#      - RUNTIME
+
   - variable: SMTP_HOST
     value: smtp.hostinger.com
     availability:
@@ -159,4 +179,51 @@ env:
 #  - variable: BITRIPAY_SECRET_ID
 #    secret: BITRIPAY_SECRET_ID
 #    availability:
+#      - RUNTIME
+
+  # ── KODA mobile money ──────────────────────────────────────────────────────
+  #
+  # These were absent from this file entirely, which meant setting them in Secret
+  # Manager would have changed nothing: App Hosting only injects what is declared
+  # here, so the running container never saw them and `isKodaConfigured()` stayed
+  # false however carefully the secrets were created.
+  #
+  # Use an sk_test_ key first. The sandbox references in src/backend/payments/koda.ts
+  # (TEST-OK-25000, TEST-LATE-90, TEST-REPLAY, TEST-SUFFIX) drive verified, late,
+  # replayed and mismatched outcomes deterministically, so the whole path can be
+  # exercised before real money moves.
+  - variable: KODA_BASE_URL
+    value: https://kodajnn.com/v1
+    availability:
+      - RUNTIME
+#  - variable: KODA_SECRET_KEY
+#    secret: KODA_SECRET_KEY
+#    availability:
+#      - RUNTIME
+  # Without this the webhook at /webhooks/koda rejects every delivery with a 401,
+  # because verifyWebhook() returns false when the secret is unset. That is the
+  # correct failure — an unverified payment webhook must never mint tickets — but it
+  # means mobile money silently issues nothing until this is set.
+#  - variable: KODA_WEBHOOK_SECRET
+#    secret: KODA_WEBHOOK_SECRET
+#    availability:
+#      - RUNTIME
+
+  # ── Google Maps ────────────────────────────────────────────────────────────
+  #
+  # NEXT_PUBLIC_, so it is a plain value and not a Secret Manager secret: the key
+  # ships inside the JavaScript bundle either way, and storing a published value in
+  # Secret Manager protects nothing while adding a way to break the deploy.
+  #
+  # What protects it is a referrer restriction. In the Google Cloud console:
+  # APIs & Services -> Credentials -> the key -> Application restrictions ->
+  # HTTP referrers -> ticketroyality.com/* and *.hosted.app/*. Without that,
+  # anyone can lift the key and bill Maps usage to this project.
+  #
+  # While unset the event page falls back to a text address panel, which is a
+  # deliberate degradation rather than an error.
+#  - variable: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+#    value: PASTE_THE_MAPS_KEY_HERE
+#    availability:
+#      - BUILD
 #      - RUNTIME
