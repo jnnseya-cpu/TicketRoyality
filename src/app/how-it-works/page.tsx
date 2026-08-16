@@ -23,7 +23,7 @@ import { Separator } from '@/frontend/components/ui/separator';
 import {
   DEFAULT_ADMIN_FEE,
   DEFAULT_COMMISSION_PERCENT,
-  MARKUP_MULTIPLIER,
+  TOPUP_PACKAGES_USD,
   OFFLINE_SERVICE_FEE_PERCENT,
   WELCOME_BONUS_ACU,
 } from '@/shared/constants/billing';
@@ -185,11 +185,18 @@ export default function HowItWorksPage() {
               <Wallet className="mb-3 h-5 w-5 text-primary" />
               <h3 className="font-headline text-base font-semibold">AI credit (ACU)</h3>
               <p className="mt-2 font-headline text-2xl font-bold text-primary">
-                Cost × {MARKUP_MULTIPLIER}
+                {WELCOME_BONUS_ACU} ACU free
               </p>
+              {/*
+                The headline used to read "Cost × 4" — the internal markup, on a public
+                pricing page. It answered a question nobody asked and invited a worse
+                one. What a customer is buying is priced in ACU and shown before they
+                spend any, so that is what this says.
+              */}
               <p className="mt-1 text-sm text-muted-foreground">
-                Every account starts with {WELCOME_BONUS_ACU} ACU free. Top up in $3, $6 or $9
-                packages.
+                Every account starts with {WELCOME_BONUS_ACU} ACU free. Top up in{' '}
+                {TOPUP_PACKAGES_USD.map((amount) => `$${amount}`).join(', ')} packages. Every AI
+                action shows its ACU price before it runs.
               </p>
             </CardContent>
           </Card>

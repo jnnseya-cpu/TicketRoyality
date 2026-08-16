@@ -20,7 +20,7 @@ import {
 import { Textarea } from '@/frontend/components/ui/textarea';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { useToast } from '@/frontend/hooks/use-toast';
-import { MARKUP_MULTIPLIER, acuToUsd } from '@/shared/constants/billing';
+import { acuToUsd } from '@/shared/constants/billing';
 import type { UserProfile } from '@/shared/types';
 
 interface AdCopy {
@@ -28,7 +28,8 @@ interface AdCopy {
   body: string;
   callToAction: string;
   hashtags: string[];
-  billing?: { acu: number; providerCostUsd: number; userChargeUsd: number };
+  // Only what /api/ai returns now. The provider cost and the markup stay server-side.
+  billing?: { acu: number; usd: number };
 }
 
 function AiStudio({ profile }: { profile: UserProfile }) {
@@ -103,8 +104,8 @@ function AiStudio({ profile }: { profile: UserProfile }) {
           <AlertTitle>Out of AI credit</AlertTitle>
           <AlertDescription className="space-y-2">
             <p>
-              AI features stop when your ACU balance reaches zero. Calls are billed at the provider
-              cost multiplied by {MARKUP_MULTIPLIER}.
+              AI features stop when your ACU balance reaches zero. Every action shows its ACU price
+              before it runs, so nothing is ever charged silently.
             </p>
             <Button size="sm" variant="outline" asChild>
               <Link href="/dashboard/customer/wallet">Top up credit</Link>
@@ -240,8 +241,7 @@ function AiStudio({ profile }: { profile: UserProfile }) {
                 </div>
                 {result.billing && (
                   <p className="border-t border-border pt-3 text-xs text-muted-foreground">
-                    Billed {result.billing.acu} ACU · provider cost $
-                    {result.billing.providerCostUsd.toFixed(5)} × {MARKUP_MULTIPLIER}
+                    Billed {result.billing.acu} ACU (${result.billing.usd.toFixed(2)})
                   </p>
                 )}
               </>

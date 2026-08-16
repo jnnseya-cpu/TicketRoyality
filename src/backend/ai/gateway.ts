@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { chargeForProviderCost } from '@/shared/constants/billing';
+import { chargeForProviderCost, publicCharge, type PublicCharge } from '@/shared/constants/billing';
 
 import {
   ProviderError,
@@ -28,7 +28,13 @@ export interface GatewayResult<O> {
   output: O;
   provider: ProviderName;
   model: string;
+  /**
+   * Internal breakdown — provider cost and markup. For the ACU ledger and the admin
+   * console only; never serialise this to a client.
+   */
   billing: ReturnType<typeof chargeForProviderCost>;
+  /** Safe to return over the API: the ACU price, and nothing about how it was reached. */
+  publicBilling: PublicCharge;
   /** Providers tried and rejected before this one answered. */
   attempts: Array<{ provider: ProviderName; error: string }>;
 }
@@ -93,6 +99,9 @@ export async function runTask<I, O>(task: AiTask<I, O>, input: I): Promise<Gatew
         provider: result.provider,
         model: result.model,
         billing: chargeForProviderCost(
+          costUsd(result.provider, result.inputTokens, result.outputTokens)
+        ),
+        publicBilling: publicCharge(
           costUsd(result.provider, result.inputTokens, result.outputTokens)
         ),
         attempts,

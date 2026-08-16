@@ -63,21 +63,37 @@ export async function POST(request: Request) {
     const task = TASKS[payload.task] as Parameters<typeof runTask>[0];
     const result = await runTask(task, parsedInput.data as never);
 
+    // Which vendor answered, what it cost us and the markup are all internal. They are
+    // logged for the fallback-visibility reason below, not returned: a client that can
+    // read the provider cost can read the margin, and a client that can read the model
+    // name learns the routing without needing it.
+    if (result.attempts.length > 0) {
+      console.info('[ai] served after fallback', {
+        task: payload.task,
+        provider: result.provider,
+        skipped: result.attempts.map((attempt) => attempt.provider),
+      });
+    }
+
     return NextResponse.json({
       ...(result.output as object),
-      billing: result.billing,
-      // Which vendor actually answered. Worth returning: without it, a fallback that
-      // fires on every request is invisible until the Anthropic invoice arrives.
-      provider: result.provider,
-      model: result.model,
-      ...(result.attempts.length > 0 && { fallbackFrom: result.attempts }),
+      billing: result.publicBilling,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown AI error';
 
     // Every provider failed. That is a 503 — the request was fine, the vendors were not.
+    //
+    // The per-provider detail is logged, not returned: `attempts` names each vendor and
+    // quotes its error, which tells a caller exactly which AI suppliers the platform
+    // uses and what state they are in. The person on the other end needs to know to try
+    // again, not which of three APIs was down.
     if (error instanceof NoProviderAvailableError) {
-      return NextResponse.json({ error: message, attempts: error.attempts }, { status: 503 });
+      console.error('[ai] every provider failed', { task: payload.task, attempts: error.attempts });
+      return NextResponse.json(
+        { error: 'AI is temporarily unavailable. Please try again shortly.' },
+        { status: 503 }
+      );
     }
 
     const overloaded = /503|overload|unavailable|quota|rate/i.test(message);

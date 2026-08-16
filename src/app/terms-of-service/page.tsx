@@ -5,7 +5,7 @@ import { Separator } from '@/frontend/components/ui/separator';
 import {
   DEFAULT_ADMIN_FEE,
   DEFAULT_COMMISSION_PERCENT,
-  MARKUP_MULTIPLIER,
+  ACU_USD_RATE,
   OFFLINE_SERVICE_FEE_PERCENT,
 } from '@/shared/constants/billing';
 import { formatCurrency } from '@/shared/utils';
@@ -84,7 +84,7 @@ const SECTIONS: Array<{ heading: string; paragraphs: string[] }> = [
   {
     heading: '9. AI features and credit (ACU)',
     paragraphs: [
-      `AI features are billed in Access Credit Units. Each call costs the underlying provider price multiplied by ${MARKUP_MULTIPLIER}, converted to ACU and rounded up. When your balance is exhausted, AI features stop until you top up. Your balance can never go negative.`,
+      `AI features are billed in Access Credit Units. 1 ACU = $${ACU_USD_RATE.toFixed(2)}. Each AI action shows its ACU price before it runs, and the amount charged is rounded up to the next whole ACU. When your balance is exhausted, AI features stop until you top up. Your balance can never go negative.`,
       'AI output is generated text and may be inaccurate. You are responsible for reviewing anything you publish. Do not submit personal data about third parties into AI features.',
       'Credits are non-refundable and non-transferable, and carry no cash value except as required by law.',
     ],

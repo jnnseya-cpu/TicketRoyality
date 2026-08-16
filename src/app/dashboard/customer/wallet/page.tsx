@@ -19,7 +19,6 @@ import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { getLedgerEntries } from '@/shared/data/repositories';
 import {
   ACU_USD_RATE,
-  MARKUP_MULTIPLIER,
   TOPUP_PACKAGES_USD,
   acuToUsd,
   usdToAcu,
@@ -60,9 +59,9 @@ function WalletView({ profile }: { profile: UserProfile }) {
 
       <h1 className="font-headline text-3xl font-bold">AI credit wallet</h1>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-        AI features are billed in ACU. 1 ACU = ${ACU_USD_RATE.toFixed(2)}. Each AI call costs the
-        real provider price multiplied by {MARKUP_MULTIPLIER}, rounded up to the next ACU. When your
-        balance runs out, AI features stop until you top up — nothing is ever charged silently.
+        AI features are billed in ACU. 1 ACU = ${ACU_USD_RATE.toFixed(2)}. Every AI action shows
+        its price before it runs, rounded up to the next whole ACU. When your balance runs out, AI
+        features stop until you top up — nothing is ever charged silently.
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-4">
