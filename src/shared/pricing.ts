@@ -36,6 +36,25 @@ export interface Settlement {
   net: number;
 }
 
+/**
+ * A free ticket carries no platform charge.
+ *
+ * This is the rule both functions below are built on, and it was previously broken:
+ * `adminFee` was applied per line with no price check, so a £0 ticket cost the
+ * organiser 50p. Percentage commission on £0 was already £0, which is what made it easy
+ * to miss — the number was small and only wrong in one direction.
+ *
+ * It is not small at volume. A place of worship, a charity or a wedding issuing a
+ * 300-place free guest list was charged £150 to give tickets away, and the industries
+ * page promised the opposite in as many words. Those are exactly the segments a free
+ * tier exists to reach.
+ *
+ * A donation tier priced above zero is a paid ticket and is charged normally.
+ */
+function isFree(price: number): boolean {
+  return price <= 0;
+}
+
 /** Splits gross sales into the platform's cut and the organiser's payout. */
 export function settle(
   lines: Array<{ price: number }>,
@@ -43,7 +62,10 @@ export function settle(
 ): Settlement {
   const gross = lines.reduce((sum, line) => sum + line.price, 0);
   const commission = (gross * terms.percent) / 100;
-  const adminFees = terms.adminFee * lines.length;
+  // Counted over paid lines only, so this stays the sum of `platformCutForTicket`
+  // across the same lines. Two ways of computing one number is how a settlement report
+  // and a payout end up disagreeing by pennies that nobody can account for.
+  const adminFees = terms.adminFee * lines.filter((line) => !isFree(line.price)).length;
   const platformTotal = commission + adminFees;
   return {
     gross,
@@ -54,8 +76,9 @@ export function settle(
   };
 }
 
-/** What the platform keeps on a single ticket. */
+/** What the platform keeps on a single ticket. Zero on a free one. */
 export function platformCutForTicket(price: number, terms: CommissionTerms) {
+  if (isFree(price)) return 0;
   return (price * terms.percent) / 100 + terms.adminFee;
 }
 

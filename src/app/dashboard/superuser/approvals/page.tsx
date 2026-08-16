@@ -16,7 +16,8 @@ import {
 } from '@/frontend/components/ui/table';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { useToast } from '@/frontend/hooks/use-toast';
-import { getOrganisers, updateUserProfile } from '@/shared/data/repositories';
+import { getOrganisers } from '@/shared/data/repositories';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
 import type { UserProfile } from '@/shared/types';
 
 function Approvals() {
@@ -38,10 +39,25 @@ function Approvals() {
   const decide = async (uid: string, decision: 'approved' | 'suspended') => {
     setWorking(uid);
     try {
-      await updateUserProfile(uid, { status: decision });
+      // Server-side rather than a direct client write. `dispatch()` holds the SMTP
+      // credentials and cannot run in the browser, so the decision and the email that
+      // tells the applicant about it have to happen in the same place.
+      const response = await authedFetch('/api/admin/organiser-decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid, decision }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? 'Could not update the application');
+
       setPending((current) => current.filter((p) => p.uid !== uid));
       toast({
         title: decision === 'approved' ? 'Organiser approved' : 'Application denied',
+        // Stated rather than assumed. An approval the applicant was never told about
+        // looks to them exactly like no decision at all.
+        description: data.notified
+          ? 'They have been emailed.'
+          : 'Saved, but the email did not send — check the delivery log.',
       });
     } catch (error) {
       toast({

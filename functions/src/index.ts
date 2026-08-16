@@ -8,7 +8,7 @@ import { logger } from 'firebase-functions';
 
 import type { PaymentEventDoc, PaymentEventStatus, TicketDoc } from './domain';
 import { isEmailConfigured, send } from './email';
-import { ticketIssuedEmail } from './templates';
+import { issuanceFailedEmail, refundProcessedEmail, ticketIssuedEmail } from './templates';
 import {
   PermanentIssuanceError,
   TransientIssuanceError,
@@ -35,6 +35,11 @@ setGlobalOptions({ region: 'europe-west2', maxInstances: 10 });
  */
 const smtpPassword = defineSecret('SMTP_PASSWORD');
 
+/** The canonical origin, for links in outbound mail. */
+function siteUrl(): string {
+  return process.env.NEXT_PUBLIC_SITE_URL ?? 'https://ticketroyality.com';
+}
+
 const PENDING: PaymentEventStatus[] = ['pending', 'processing'];
 
 /** Attempts before a payment stops being retried and is escalated instead. */
@@ -57,6 +62,41 @@ async function findIssuedPaymentByRef(ref: string | undefined): Promise<string |
     .get();
 
   return match.empty ? undefined : match.docs[0].id;
+}
+
+/**
+ * Sends a one-off notice and records the outcome on the payment event.
+ *
+ * Never throws. A refund that succeeded must not be reported as failed because the
+ * email bounced — the money has already moved, and turning a completed reversal into a
+ * retryable error would put it through the whole path again.
+ */
+async function notify(
+  ref: FirebaseFirestore.DocumentReference,
+  to: string | undefined,
+  email: { subject: string; text: string; html: string } | null
+): Promise<void> {
+  if (!email) return;
+
+  if (!to || !to.includes('@')) {
+    await ref.update({ notice: 'skipped:no-address' }).catch(() => {});
+    return;
+  }
+  if (!isEmailConfigured()) {
+    await ref.update({ notice: 'skipped:smtp-unconfigured' }).catch(() => {});
+    return;
+  }
+
+  const outcome = await send({ to, ...email });
+  if (outcome.status === 'sent') {
+    logger.info('notice sent', { to, subject: email.subject });
+    await ref.update({ notice: 'sent', noticeAt: new Date().toISOString() }).catch(() => {});
+  } else {
+    // Recorded rather than thrown. `notice` starting with `failed:` is the signal to
+    // watch — a customer who was refunded and never told will contact support.
+    logger.error('notice delivery failed', { to, subject: email.subject, reason: outcome.reason });
+    await ref.update({ notice: `failed: ${outcome.reason}` }).catch(() => {});
+  }
 }
 
 /**
@@ -109,8 +149,20 @@ async function processPaymentEvent(providerEventId: string): Promise<PaymentEven
         return finish('failed', { reason: 'no matching issuance for refund' });
       }
 
-      const { refunded } = await refundTickets(firestore, originalId, 'provider refund');
+      const { refunded, tickets } = await refundTickets(firestore, originalId, 'provider refund');
       logger.info('refund processed', { providerEventId, originalId, refunded });
+
+      // `order.refund.processed` in the comms catalogue, and mandatory there: the
+      // customer's money moved. Sent only when something was actually reversed, so a
+      // replayed refund webhook does not email twice about one refund.
+      if (refunded > 0) {
+        await notify(
+          ref,
+          tickets[0]?.attendeeEmail ?? payment.attendeeEmail,
+          refundProcessedEmail(tickets, siteUrl())
+        );
+      }
+
       return finish('refunded', { ticketsRefunded: refunded, reversed: originalId });
     }
 
@@ -135,6 +187,24 @@ async function processPaymentEvent(providerEventId: string): Promise<PaymentEven
         userId: payment.userId,
         eventId: payment.eventId,
       });
+
+      // `order.failed` / the oversold case. Money has moved and no ticket exists, which
+      // from the buyer's side is indistinguishable from being defrauded. Silence here
+      // is the single worst outcome on the platform, so they are told before they have
+      // to ask.
+      await notify(
+        ref,
+        payment.attendeeEmail,
+        issuanceFailedEmail(
+          {
+            eventTitle: payment.eventId,
+            quantity: payment.quantity,
+            oversold: error.status === 'oversold',
+          },
+          siteUrl()
+        )
+      );
+
       return finish(error.status, { reason: error.message });
     }
 
@@ -164,7 +234,12 @@ async function processPaymentEvent(providerEventId: string): Promise<PaymentEven
  * this does the work with retries behind it.
  */
 export const onPaymentEvent = onDocumentCreated(
-  { document: 'payment_events/{providerEventId}', retry: true },
+  // SMTP_PASSWORD is bound here as well as on the delivery trigger: this function now
+  // emails refund confirmations and issuance failures, and without the secret those
+  // sends would silently record `skipped:smtp-unconfigured` — the customer whose
+  // payment produced no ticket would be told nothing, which is the exact failure the
+  // notice exists to prevent.
+  { document: 'payment_events/{providerEventId}', retry: true, secrets: [smtpPassword] },
   async (event) => {
     await processPaymentEvent(event.params.providerEventId);
   }
@@ -221,8 +296,7 @@ export const onTicketsIssued = onDocumentCreated(
       return;
     }
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://ticketroyality.com';
-    const email = ticketIssuedEmail(tickets, siteUrl);
+    const email = ticketIssuedEmail(tickets, siteUrl());
     const outcome = await send({ to: recipient, ...email });
 
     if (outcome.status === 'failed') {
@@ -261,7 +335,9 @@ export const onTicketsIssued = onDocumentCreated(
  * complain. Runs often enough that the worst case is minutes rather than the event.
  */
 export const reconcilePayments = onSchedule(
-  { schedule: 'every 10 minutes', timeoutSeconds: 300 },
+  // Same secret, same reason: the sweep runs processPaymentEvent, so it can reach the
+  // same notice paths as the trigger.
+  { schedule: 'every 10 minutes', timeoutSeconds: 300, secrets: [smtpPassword] },
   async () => {
     const firestore = db();
 

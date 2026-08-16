@@ -150,3 +150,56 @@
     display: none !important;
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Installed-app fit                                                          */
+/*                                                                            */
+/* `viewport-fit=cover` in layout.tsx hands the page every pixel including the */
+/* area behind the notch and the home indicator. That is what makes an install */
+/* full-screen, and it is also what would put the header under the clock and   */
+/* the footer under the home bar if nothing accounted for it.                  */
+/*                                                                            */
+/* `env(safe-area-inset-*)` is 0 in a normal browser tab, so these rules cost  */
+/* nothing on desktop and only engage where there is a physical intrusion.     */
+/* -------------------------------------------------------------------------- */
+
+@supports (padding: max(0px)) {
+  body {
+    /* Horizontal insets matter in landscape, where the notch eats one edge. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* The sticky header sits behind the status bar under black-translucent, so it
+     carries the top inset itself rather than pushing the whole page down. */
+  header[data-app-header] {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  footer {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Anything pinned to the bottom — the door scanner's controls, the cart bar —
+     must clear the home indicator or it cannot be tapped. */
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* In the installed app there is no browser chrome to overscroll against, so the
+   rubber-band bounce reveals the page background behind the header and reads as a
+   rendering bug. */
+@media (display-mode: standalone) {
+  html {
+    overscroll-behavior-y: none;
+  }
+
+  /* A long-press on a link in a standalone app offers "copy link", which is
+     meaningless when there is no address bar. Text selection stays on everywhere it
+     is genuinely useful — a ticket reference is the obvious one. */
+  header[data-app-header],
+  nav {
+    -webkit-touch-callout: none;
+  }
+}

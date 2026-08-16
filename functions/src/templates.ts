@@ -156,3 +156,125 @@ export function ticketIssuedEmail(tickets: TicketDoc[], siteUrl: string): Ticket
 
   return { subject, text, html };
 }
+
+/* -------------------------------------------------------------------------- */
+/* Notices — refund processed, and a payment that produced no ticket           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A plain notice email.
+ *
+ * These correspond to `order.refund.processed` and `order.failed` / `oversold` in the
+ * shared comms catalogue. They live here rather than going through the app's
+ * `dispatch()` because `firebase deploy` uploads only this directory — the functions
+ * package cannot import from `src/`, and refunds are settled here, in the same
+ * transaction that returns the inventory.
+ *
+ * Same constraints as the ticket email: table layout, inline styles, no images, full
+ * plain-text alternative. A notice that renders as a blank box is the same failure as
+ * not sending it.
+ */
+function noticeEmail(
+  subject: string,
+  heading: string,
+  paragraphs: string[],
+  accent: string,
+  siteUrl: string
+): TicketEmail {
+  const text = [subject, '', ...paragraphs, '', '—', 'TicketRoyality', siteUrl].join('\n');
+
+  const body = paragraphs
+    .map(
+      (line) =>
+        `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#2b2b30">${escapeHtml(line)}</p>`
+    )
+    .join('');
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(subject)}</title></head>
+<body style="margin:0;padding:0;background:#f4f4f6">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f6;padding:24px 12px">
+<tr><td align="center">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:10px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+    <tr><td style="height:4px;background:${accent};font-size:0;line-height:0">&nbsp;</td></tr>
+    <tr><td style="padding:24px 28px 8px">
+      <p style="margin:0;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#111116">
+        Ticket<span style="color:#F5A524">Royality</span>
+      </p>
+    </td></tr>
+    <tr><td style="padding:8px 28px 4px">
+      <h1 style="margin:0 0 14px;font-size:19px;line-height:1.35;color:#111116">${escapeHtml(heading)}</h1>
+      ${body}
+    </td></tr>
+    <tr><td style="padding:18px 28px 26px">
+      <hr style="border:none;border-top:1px solid #e6e6ea;margin:0 0 14px">
+      <p style="margin:0;font-size:12px;line-height:1.6;color:#8b8b93">
+        This is a service message about your order and cannot be turned off.<br>
+        <a href="${escapeHtml(siteUrl)}" style="color:#8b8b93">${escapeHtml(siteUrl.replace(/^https?:\/\//, ''))}</a>
+      </p>
+    </td></tr>
+  </table>
+</td></tr></table>
+</body></html>`;
+
+  return { subject, text, html };
+}
+
+/** `order.refund.processed`. Mandatory — the customer's money moved. */
+export function refundProcessedEmail(
+  tickets: TicketDoc[],
+  siteUrl: string
+): TicketEmail | null {
+  const first = tickets[0];
+  if (!first) return null;
+
+  const total = tickets.reduce((sum, ticket) => sum + ticket.price, 0);
+  const money = formatMoney(total, first.currency);
+
+  return noticeEmail(
+    `Your refund of ${money} is on its way`,
+    `Refund confirmed — ${first.eventTitle}`,
+    [
+      `We have refunded ${money} for ${tickets.length} ticket${tickets.length === 1 ? '' : 's'} to ${first.eventTitle}.`,
+      // Said explicitly because "refunded" and "in my account" are not the same day,
+      // and the gap between them is the most common support message a refund creates.
+      'Refunds return to the card or account you paid from. Your bank usually shows it within five to ten working days.',
+      tickets.length === 1
+        ? `The ticket ${first.reference} is no longer valid for entry.`
+        : `Those tickets are no longer valid for entry.`,
+    ],
+    '#2e7d32',
+    siteUrl
+  );
+}
+
+/**
+ * `order.failed` / the oversold case.
+ *
+ * Sent when money has moved and no ticket can be issued. The catalogue note on
+ * `ticket.issued` says delivery failure is indistinguishable from fraud; silence here
+ * is exactly that, so this says plainly that a refund is coming and that no action is
+ * needed. It never promises a ticket.
+ */
+export function issuanceFailedEmail(
+  details: { eventTitle: string; quantity: number; oversold: boolean },
+  siteUrl: string
+): TicketEmail {
+  const reason = details.oversold
+    ? 'The last tickets in that tier sold while your payment was completing, so we could not issue yours.'
+    : 'We could not issue your tickets because of a problem on our side.';
+
+  return noticeEmail(
+    'We could not issue your tickets — a refund is on its way',
+    `About your order for ${details.eventTitle}`,
+    [
+      reason,
+      'You have not been charged for tickets you did not receive: we are refunding your payment in full. There is nothing you need to do.',
+      'Refunds usually appear within five to ten working days. If yours has not arrived by then, reply to this email and we will chase it.',
+    ],
+    '#c62828',
+    siteUrl
+  );
+}

@@ -58,7 +58,12 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/80 backdrop-blur-xl">
+    // data-app-header is the hook globals.css uses to add the status-bar inset in an
+    // installed app, where the page renders behind the clock.
+    <header
+      data-app-header
+      className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/80 backdrop-blur-xl"
+    >
       <div className="container flex h-16 items-center gap-4">
         <Link href="/" className="flex items-center gap-2">
           <Logo />

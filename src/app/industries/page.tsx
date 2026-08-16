@@ -86,7 +86,7 @@ const SEGMENTS = [
     name: 'Places of worship',
     need: 'Free and donation entry, capacity management',
     detail:
-      'Donation tiers let attendees give what they can, or nothing at all, and capacity limits stay enforced either way.',
+      'Free tickets carry no commission at all. Donation tiers let attendees give what they can, and capacity limits stay enforced either way.',
   },
   {
     icon: HeartHandshake,
@@ -114,7 +114,7 @@ const SEGMENTS = [
     name: 'Weddings',
     need: 'Guest lists that are not ticket sales',
     detail:
-      'Issue free places to a guest list, or let guests contribute towards the day with donation tiers. Capacity stays enforced either way, and every guest gets a QR pass that scans at the door in seconds.',
+      'Issue free places to a guest list at no cost to you — free tickets carry no commission. Or let guests contribute towards the day with donation tiers. Every guest gets a QR pass that scans at the door in seconds.',
   },
 ];
 

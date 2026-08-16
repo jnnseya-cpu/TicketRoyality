@@ -16,11 +16,12 @@
     "report:links": "tsx scripts/link-report.ts",
     "test:issuance": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx functions/src/issuance.test.ts\"",
     "test:delivery": "tsx functions/src/delivery.test.ts",
-    "test": "npm run test:issuance && npm run test:delivery && npm run test:ai && npm run test:comms",
+    "test": "npm run test:pricing && npm run test:issuance && npm run test:delivery && npm run test:ai && npm run test:comms",
     "grant:admin": "tsx scripts/grant-admin.ts",
     "test:ai": "tsx --conditions=react-server src/backend/ai/gateway.test.ts",
     "test:comms": "tsx --conditions=react-server src/backend/comms/dispatch.test.ts",
-    "check:domain": "node scripts/check-domain.mjs"
+    "check:domain": "node scripts/check-domain.mjs",
+    "test:pricing": "tsx src/shared/pricing.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

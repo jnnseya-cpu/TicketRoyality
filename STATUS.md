@@ -46,7 +46,7 @@ and read. If it says **Not built**, it was looked for and is absent.
 | Mobile money | KODA client, intents, HMAC webhook verification | `src/backend/payments/koda.ts` |
 | **Ticket issuance** | **Cloud Function, transactional, idempotent, oversell-proof** | `functions/src/issuance.ts` — 10 emulator tests |
 | Refunds | Reversal via payment intent, inventory returned, redeemed tickets protected | same |
-| Commission | 5% + 50p, per ticket, wired into 6 surfaces | `src/shared/pricing.ts` |
+| Commission | 5% + 50p per **paid** ticket. **Free tickets carry no charge at all** — the admin fee used to apply per line with no price check, so a 300-place free guest list cost £150. | `src/shared/pricing.ts` — 12 tests |
 | Coupons | Organiser coupon management | `/dashboard/organiser/coupons` |
 | Door scanner | Per-event scan page, QR read, redeem | `/events/[id]/check-in` |
 | AI studio | Real generation call, through the gateway below | `/dashboard/organiser/ai-studio` |
@@ -55,11 +55,13 @@ and read. If it says **Not built**, it was looked for and is absent.
 | ACU billing | Credit constants, ledger entry builder, balance guard | `src/backend/services/acu-ledger.ts` |
 | **Ticket delivery** | **SMTP email on issuance — one email per purchase, retried, outcome recorded** | `functions/src/email.ts` — 10 tests |
 | **Comms dispatch** | **`dispatch()` now really sends email** over the same Hostinger mailbox, for all 104 catalogue events. Output recorded per channel in `comms_deliveries`. Channels with no approved provider record `suppressed` **with the reason**, never `queued`. | `backend/comms/dispatch.ts` — 10 tests, real SMTP |
+| **Notifications wired** | Refund processed and issuance-failed/oversold email from the payment function; organiser approved/declined emails from `/api/admin/organiser-decision`. All idempotent — a replayed refund webhook cannot email twice. | `functions/src/index.ts`, `api/admin/organiser-decision` |
 | **Admin comms console** | Catalogue browser, delivery log with status filters, and a template test that is **sandbox by default**. | `/dashboard/superuser/comms` |
 | **Privileged API auth** | `requireAdmin()` verifies the Firebase ID token server-side (`checkRevoked`) *and* re-reads `userType` from Firestore, so admin status has one source of truth. Fails closed. | `backend/auth/require-admin.ts` |
 | Blog | 14 published articles, 6 topic hubs, generated link graph | `npm run check:links` |
 | SEO | `robots.txt`, `sitemap.xml`, Article/FAQ/Breadcrumb schema | `src/app/sitemap.ts` |
 | Security headers | CSP-adjacent headers, HSTS, frame denial | `next.config.ts` |
+| **PWA** | Installable, `display: standalone`, `viewport-fit=cover` with `env(safe-area-inset-*)` so the app fills the screen and still clears the notch and home indicator. Service worker: network-first documents, cache-first immutable assets, and **`/api`, `/dashboard`, `/account`, `/cart`, `/checkout`, auth routes are never cached**. Offline fallback page; install prompt suppressed for 90 days after a dismissal. | `app/manifest.ts`, `public/sw.js` |
 | **Maps & directions** | Live Google **Embed** API map on every event page with a venue, switching to route mode once a starting point is set. Origin from browser geolocation or a typed postcode; drive/transit/walk; Apple Maps link. A Map tab on `/events` centres on a chosen event. **Directions need no API key** — only the embedded map does. | `events/EventMap.tsx`, `events/EventsMapView.tsx` |
 | Styling | Tailwind scans `./src/**`. It previously scanned `./src/pages` and `./src/components`, **neither of which exists** — so every class used only in `src/frontend/**` was never generated and most of the UI rendered unstyled. | `tailwind.config.ts` |
 | Health | `/api/health` reports per-dependency status, fails closed | `src/app/api/health` |
@@ -79,7 +81,7 @@ is precisely what caused the confusion this file exists to end.
 
 | Gap | Consequence if you launch without it | Spec |
 | --- | --- | --- |
-| Comms **callers** | `dispatch()` sends, but most of the platform still does not call it. Refunds, approvals and payouts complete without notifying anyone — the engine works, the wiring into each business action is the remaining task. | `docs/04` M10 |
+| Comms **callers** — the rest | The revenue-critical three are wired (refund processed, issuance failed/oversold, organiser approved/declined). Payouts, event changes, cancellations and waitlists still complete without telling anyone. | `docs/04` M10 |
 | In-app and push delivery | `inapp` and `push` are declared on many catalogue events and neither is implemented. Both record `suppressed` with the reason rather than claiming a queue. | `docs/04` M10 |
 | **Checkout inventory holds** | Two buyers can both reach checkout for the last ticket. Issuance stops the oversell, but the loser is charged and flagged for refund. `release-holds` returns `implemented: false`. | `docs/08` §8.8 |
 | Ticket transfer | The wallet cannot send a ticket to someone else | `docs/04` M3 |
@@ -112,9 +114,8 @@ is precisely what caused the confusion this file exists to end.
    manual refund.
 2. **QR signing.** Without it a screenshot is a valid ticket, and the fraud is the
    buyer's loss, not yours.
-3. **Calling `dispatch()` from the business actions.** The engine sends now. What is
-   missing is the call site: a refund completes and nobody is told. Each is a few lines
-   at the point the action succeeds.
+3. **The remaining `dispatch()` call sites.** Refunds, failed issuance and organiser
+   decisions now notify. Payouts, event changes and cancellations still do not.
 4. **Ticket transfer.** The most-requested consumer feature in ticketing.
 5. **Referral / influencer.** The only acquisition mechanism that works without waiting
    months for SEO — and the one currently sold on `/growth` without existing.
@@ -139,7 +140,8 @@ npm run typecheck      # app + the functions contract guard
 npm run lint
 npm run check:links    # link graph + publishing gate
 npm run report:links   # inline link density
-npm test               # issuance + delivery + AI gateway + comms
+npm test               # pricing + issuance + delivery + AI gateway + comms
+npm run test:pricing   # 12 tests, the money rules
 npm run test:issuance  # 10 tests, Firestore emulator, real transactions
 npm run test:delivery  # 10 tests, real SMTP conversation
 npm run test:ai        # 10 tests, real HTTP servers speaking each vendor's shape

@@ -192,12 +192,12 @@ export async function refundTickets(
   db: Firestore,
   providerEventId: string,
   reason: string
-): Promise<{ refunded: number }> {
+): Promise<{ refunded: number; tickets: TicketDoc[] }> {
   const markerRef = db.collection('issued_payments').doc(providerEventId);
 
   return db.runTransaction(async (tx: Transaction) => {
     const marker = await tx.get(markerRef);
-    if (!marker.exists) return { refunded: 0 };
+    if (!marker.exists) return { refunded: 0, tickets: [] };
 
     const data = marker.data() as {
       ticketIds?: string[];
@@ -206,7 +206,9 @@ export async function refundTickets(
       refundedAt?: string;
     };
 
-    if (data.refundedAt) return { refunded: 0 };
+    // Already reversed. Returning no tickets is what stops a replayed refund webhook
+    // emailing the customer a second time about money that moved once.
+    if (data.refundedAt) return { refunded: 0, tickets: [] };
 
     const ticketIds = data.ticketIds ?? [];
     const ticketRefs = ticketIds.map((id) => db.collection('tickets').doc(id));
@@ -222,11 +224,16 @@ export async function refundTickets(
     // silently would corrupt the door numbers and the organiser's settlement. It needs
     // a human decision, so it is left alone and reported.
     let reversible = 0;
+    // Collected so the caller can tell the customer what was refunded. Read inside the
+    // transaction because these documents are about to be mutated — fetching them
+    // afterwards would describe the post-refund state, not what was reversed.
+    const refundedTickets: TicketDoc[] = [];
     for (const snap of ticketSnaps) {
       if (!snap.exists) continue;
-      const status = (snap.data() as { status?: string }).status;
-      if (status !== 'valid') continue;
+      const ticket = snap.data() as TicketDoc;
+      if (ticket.status !== 'valid') continue;
       tx.update(snap.ref, { status: 'refunded', refundedAt: new Date().toISOString() });
+      refundedTickets.push(ticket);
       reversible += 1;
     }
 
@@ -246,7 +253,7 @@ export async function refundTickets(
 
     tx.update(markerRef, { refundedAt: new Date().toISOString(), refundReason: reason });
 
-    return { refunded: reversible };
+    return { refunded: reversible, tickets: refundedTickets };
   });
 }
 
