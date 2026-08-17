@@ -24,6 +24,7 @@ import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent } from '@/frontend/components/ui/card';
 import { Separator } from '@/frontend/components/ui/separator';
+import { cn } from '@/shared/utils';
 import VideoAds from '@/frontend/components/home/VideoAds';
 import { FeaturedEvents, UpcomingSample } from '@/frontend/components/home/FeaturedEvents';
 import { QuickDiscovery } from '@/frontend/components/home/QuickDiscovery';
@@ -94,12 +95,19 @@ const CORE_FEATURES = [
   {
     icon: ShieldCheck,
     title: 'Fraud Protection',
-    body: 'Duplicate, copied or already-used tickets are rejected in real time by our verification engine.',
+    // Accurate and now stronger than it was: the code rotates every 30 seconds, and
+    // redemption runs in one transaction so two doors cannot both admit one ticket.
+    // Deliberately no longer claims a "verification engine" — there is no fraud model
+    // behind this, and there does not need to be for what it does.
+    body: 'Every ticket scans once. The code refreshes every 30 seconds so a forwarded screenshot is stale, and a redeemed ticket cannot be reset and reused.',
   },
   {
     icon: Crown,
-    title: 'VIP & Premium Sections',
-    body: 'Sell premium seats, hospitality packages, VIP lounges, tables, and exclusive experiences.',
+    title: 'VIP & Premium Tiers',
+    // Was "hospitality packages, VIP lounges, tables". None of that exists — STATUS.md
+    // lists hospitality under Not built, and there are no tables, packages or guest
+    // allocation in the code. Priced tiers are real and are what this describes.
+    body: 'Price the room in tiers — general, premium, VIP — each with its own capacity, sold from one event and reconciled in one report.',
   },
   {
     icon: BarChart3,
@@ -108,13 +116,19 @@ const CORE_FEATURES = [
   },
   {
     icon: LayoutGrid,
-    title: 'Seat & Zone Control',
-    body: 'Manage general admission, numbered seats, VIP zones, and restricted infrastructure sections.',
+    title: 'Sections & Capacity',
+    // Was "VIP zones, and restricted infrastructure sections". Venue zones are Not built:
+    // there is no per-zone capacity, no zone scanner and no re-entry rule. Colour-coded
+    // sections with lettered rows are real, as display and pricing.
+    body: 'General admission or colour-coded sections with lettered rows and per-tier capacity that issuance enforces — a tier cannot be oversold, even under a simultaneous rush.',
   },
   {
     icon: Handshake,
-    title: 'Promoter & Partner Access',
-    body: 'Give controlled access to promoters and venue managers to monitor their specific operational nodes.',
+    title: 'Door Staff Access',
+    // Was promoter and venue-manager access to "operational nodes". There is no promoter
+    // model — STATUS.md lists affiliate/promoter attribution as Not built. What exists is
+    // a per-event check-in page, which is genuinely useful and genuinely all there is.
+    body: 'A per-event check-in page your staff can open on any phone. It validates that event only, and the server proves the scanner owns the event before a ticket moves.',
   },
 ];
 
@@ -134,14 +148,18 @@ const EXPERIENCE_STEPS = [
 ];
 
 const REVENUE_TOOLS = [
-  'Standard Tickets',
-  'VIP Packages',
-  'Hospitality Access',
-  'Add-ons',
-  'Food & Drink',
-  'Merchandise',
-  'Parking',
-  'Sponsor Visibility',
+  { name: 'Standard tickets', live: true },
+  { name: 'VIP and premium tiers', live: true },
+  { name: 'Free and guest-list places', live: true },
+  { name: 'Discount codes', live: true },
+  // Everything below is specified and absent. Listed rather than hidden, because an
+  // organiser choosing a platform is entitled to know what is coming — but marked,
+  // because the block previously read "Eight ways to earn" when four of the eight had
+  // no code behind them at all.
+  { name: 'Hospitality and tables', live: false },
+  { name: 'Merchandise and add-ons', live: false },
+  { name: 'Parking and food', live: false },
+  { name: 'Sponsor visibility', live: false },
 ];
 
 /** Small uppercase kicker above each section heading. */
@@ -353,15 +371,19 @@ export default async function HomePage() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-6">
+              {/* Was "Hospitality Orchestration — manage exclusive access points with
+                  real-time capacity monitoring". Hospitality is Not built: no tables, no
+                  packages, no guest allocation, no capacity monitoring beyond a tier's
+                  own count. This describes the premium tier, which is real. */}
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-                VIP Lounge · Premium Node
+                Premium tiers
               </p>
               <p className="mt-1 font-headline text-lg font-semibold text-white">
-                Hospitality Orchestration
+                Sell the best seats as their own inventory
               </p>
               <p className="mt-1 text-sm text-white/75">
-                Manage exclusive access points for high-value attendees with real-time capacity
-                monitoring.
+                A VIP tier is priced, capped and reconciled exactly like general admission —
+                one event, one report, and an organiser who keeps 100% of both.
               </p>
             </div>
           </div>
@@ -395,21 +417,32 @@ export default async function HomePage() {
           <Eyebrow>Monetization</Eyebrow>
           <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">Revenue Tools</h2>
           <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-            One infrastructure. Multiple income streams.
+            One infrastructure. Multiple income streams — and an honest list of which ones
+            you can sell today.
           </p>
           <Badge variant="gold" className="mt-4 gap-1">
-            <Store className="h-3 w-3" /> Eight ways to earn from the same audience
+            <Store className="h-3 w-3" />
+            {REVENUE_TOOLS.filter((t) => t.live).length} live today ·{' '}
+            {REVENUE_TOOLS.filter((t) => !t.live).length} on the roadmap
           </Badge>
         </div>
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {REVENUE_TOOLS.map((tool) => (
             <div
-              key={tool}
-              className="flex items-center gap-3 rounded-lg border border-border/70 bg-card/40 px-4 py-3.5 text-sm transition-colors hover:border-primary/40"
+              key={tool.name}
+              className={cn(
+                'flex items-center gap-3 rounded-lg border px-4 py-3.5 text-sm transition-colors',
+                tool.live
+                  ? 'border-border/70 bg-card/40 hover:border-primary/40'
+                  : 'border-dashed border-border/50 text-muted-foreground'
+              )}
             >
-              <Zap className="h-4 w-4 shrink-0 text-primary" />
-              {tool}
+              <Zap
+                className={cn('h-4 w-4 shrink-0', tool.live ? 'text-primary' : 'text-muted-foreground/60')}
+              />
+              <span className="flex-1">{tool.name}</span>
+              {!tool.live && <span className="text-xs">soon</span>}
             </div>
           ))}
         </div>
