@@ -7,13 +7,22 @@ import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/al
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
+import type { VenueZone } from '@/shared/types';
+import { cn } from '@/shared/utils';
 import { decodeTicketQr } from '@/shared/tickets/qr';
 
 type ScanOutcome =
   | { kind: 'valid'; reference: string; attendee: string }
   | { kind: 'already-used'; reference: string; redeemedAt?: string }
   | { kind: 'wrong-event'; reference: string }
-  | { kind: 'invalid'; detail: string };
+  | { kind: 'invalid'; detail: string }
+  | {
+      kind: 'zone';
+      zoneName: string;
+      direction: 'in' | 'out';
+      occupancy: number;
+      capacity: number | null;
+    };
 
 const SCANNER_ELEMENT_ID = 'tr-qr-reader';
 
@@ -25,7 +34,23 @@ const SCANNER_ELEMENT_ID = 'tr-qr-reader';
  * contents change once camera permission resolves — so it cannot cause a hydration
  * mismatch.
  */
-export function TicketScanner({ eventId, eventTitle }: { eventId: string; eventTitle: string }) {
+export function TicketScanner({
+  eventId,
+  eventTitle,
+  zones = [],
+}: {
+  eventId: string;
+  eventTitle: string;
+  zones?: VenueZone[];
+}) {
+  /*
+   * Which door this phone is. Defaults to the main gate — the one that redeems — because
+   * that is what most events have, and a scanner that silently defaulted to a zone would
+   * let people in without ever using their ticket up.
+   */
+  const [zoneId, setZoneId] = React.useState('');
+  const [direction, setDirection] = React.useState<'in' | 'out'>('in');
+
   const [scanning, setScanning] = React.useState(false);
   const [starting, setStarting] = React.useState(false);
   const [outcome, setOutcome] = React.useState<ScanOutcome | null>(null);
@@ -60,16 +85,28 @@ export function TicketScanner({ eventId, eventTitle }: { eventId: string; eventT
         const response = await authedFetch('/api/tickets/redeem', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ raw, eventId }),
+          body: JSON.stringify({ raw, eventId, zoneId: zoneId || undefined, direction }),
         });
         const body = await response.json();
 
         if (response.ok) {
-          setOutcome({
-            kind: 'valid',
-            reference: body.reference,
-            attendee: body.attendee ?? 'Attendee',
-          });
+          // A zone scan reports the room rather than the person: the door staff need to
+          // know how full it is, and the ticket has not been used up.
+          setOutcome(
+            body.zone
+              ? {
+                  kind: 'zone',
+                  zoneName: body.zone.zoneName,
+                  direction: body.zone.direction,
+                  occupancy: body.zone.occupancy,
+                  capacity: body.zone.capacity,
+                }
+              : {
+                  kind: 'valid',
+                  reference: body.reference,
+                  attendee: body.attendee ?? 'Attendee',
+                }
+          );
           return;
         }
 
@@ -99,7 +136,11 @@ export function TicketScanner({ eventId, eventTitle }: { eventId: string; eventT
         }, 1500);
       }
     },
-    [eventId]
+    // zoneId and direction belong here. Without them the callback captures whichever
+    // door was selected when it was created, so switching from the main gate to the VIP
+    // lounge mid-event would keep scanning the gate — silently, and only discovered when
+    // the occupancy count never moved.
+    [eventId, zoneId, direction]
   );
 
   const start = React.useCallback(async () => {
@@ -170,6 +211,78 @@ export function TicketScanner({ eventId, eventTitle }: { eventId: string; eventT
           </p>
         )}
 
+        {zones.length > 0 && (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Which door is this phone?
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {/* The main gate is first and selected by default. It is the one that
+                  redeems, and a scanner silently defaulting to a zone would let people
+                  in without ever using their ticket. */}
+              <button
+                type="button"
+                onClick={() => setZoneId('')}
+                className={cn(
+                  'rounded-full border px-3 py-1 text-xs transition-colors',
+                  zoneId === ''
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border text-muted-foreground'
+                )}
+              >
+                Main gate
+              </button>
+              {zones.map((zone) => (
+                <button
+                  key={zone.id}
+                  type="button"
+                  onClick={() => setZoneId(zone.id)}
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-xs transition-colors',
+                    zoneId === zone.id
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground'
+                  )}
+                >
+                  {zone.name}
+                  {zone.capacity !== null && (
+                    <span className="ml-1 opacity-70">
+                      {zone.occupancy ?? 0}/{zone.capacity}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {zoneId && (
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-xs text-muted-foreground">Scanning people</span>
+                {(['in', 'out'] as const).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDirection(d)}
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs transition-colors',
+                      direction === d
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground'
+                    )}
+                  >
+                    {d === 'in' ? 'in' : 'out'}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              {zoneId
+                ? 'A zone scan checks the ticket may be in this room. It does not use the ticket up.'
+                : 'The main gate redeems the ticket. Each ticket can pass it once.'}
+            </p>
+          </div>
+        )}
+
         {cameraError && (
           <Alert variant="destructive">
             <ShieldAlert />
@@ -178,6 +291,20 @@ export function TicketScanner({ eventId, eventTitle }: { eventId: string; eventT
           </Alert>
         )}
 
+        {outcome?.kind === 'zone' && (
+          <Alert variant="success">
+            <CheckCircle2 />
+            <AlertTitle>
+              {outcome.direction === 'in' ? 'Admit' : 'Exit'} — {outcome.zoneName}
+            </AlertTitle>
+            <AlertDescription>
+              {outcome.capacity === null
+                ? `${outcome.occupancy} inside.`
+                : `${outcome.occupancy} of ${outcome.capacity} inside.`}{' '}
+              The ticket has not been used up.
+            </AlertDescription>
+          </Alert>
+        )}
         {outcome?.kind === 'valid' && (
           <Alert variant="success">
             <CheckCircle2 />

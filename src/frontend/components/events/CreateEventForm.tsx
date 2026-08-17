@@ -37,6 +37,8 @@ import { Separator } from '@/frontend/components/ui/separator';
 import { Textarea } from '@/frontend/components/ui/textarea';
 import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
 import { TierEconomics } from '@/frontend/components/pricing/TierEconomics';
+import { Switch } from '@/frontend/components/ui/switch';
+import { cn } from '@/shared/utils';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { createEvent, updateEvent } from '@/shared/data/repositories';
 import { CATEGORY_GROUPS, categoryValue, parseCategoryValue } from '@/shared/constants/categories';
@@ -64,6 +66,21 @@ const seatingSchema = z.object({
   seatsPerRow: z.coerce.number().int().min(1).max(60),
 });
 
+/**
+ * A zone is a door, not a price band.
+ *
+ * `capacity` is a string in the form because an empty field must mean "uncapped" rather
+ * than zero — a main gate with capacity 0 would refuse everybody, and that is exactly the
+ * mistake a numeric input with a blank default invites.
+ */
+const zoneSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1, 'Name this zone.'),
+  allowedTierIds: z.array(z.string()),
+  capacity: z.string().optional(),
+  reEntry: z.boolean(),
+});
+
 const speakerSchema = z.object({
   name: z.string().min(1, 'Enter a name.'),
   title: z.string().min(1, 'Enter a title.'),
@@ -89,6 +106,7 @@ const schema = z
     currency: z.string().min(3),
     ticketTiers: z.array(ticketTierSchema).min(1, 'Add at least one ticket tier.'),
     seating: z.array(seatingSchema),
+    zones: z.array(zoneSchema),
     speakers: z.array(speakerSchema),
     isRecurring: z.boolean(),
     recurrenceFrequency: z.enum(['weekly', 'monthly']).optional(),
@@ -153,6 +171,7 @@ function defaultsFor(event?: Event): FormValues {
         { id: 'general', name: 'General Admission', description: '', price: 25, quantity: 200 },
       ],
       seating: [],
+      zones: [],
       speakers: [],
       isRecurring: false,
       featured: false,
@@ -185,6 +204,14 @@ function defaultsFor(event?: Event): FormValues {
       quantity: tier.quantity,
     })),
     seating: event.seating ?? [],
+    zones: (event.zones ?? []).map((z) => ({
+      id: z.id,
+      name: z.name,
+      allowedTierIds: z.allowedTierIds,
+      // Back to a string, and `null` becomes empty rather than "null".
+      capacity: z.capacity === null || z.capacity === undefined ? '' : String(z.capacity),
+      reEntry: z.reEntry,
+    })),
     speakers: (event.speakers ?? []).map((s) => ({ ...s, photoUrl: s.photoUrl ?? '' })),
     isRecurring: Boolean(event.recurrence),
     recurrenceFrequency: event.recurrence?.frequency,
@@ -213,11 +240,14 @@ export function CreateEventForm({
 
   const tiers = useFieldArray({ control: form.control, name: 'ticketTiers' });
   const seating = useFieldArray({ control: form.control, name: 'seating' });
+  const zones = useFieldArray({ control: form.control, name: 'zones' });
   const speakers = useFieldArray({ control: form.control, name: 'speakers' });
 
   const eventType = form.watch('eventType');
   const isRecurring = form.watch('isRecurring');
   const watchedSeating = form.watch('seating');
+  const watchedZones = form.watch('zones');
+  const watchedTiers = form.watch('ticketTiers');
   const currency = form.watch('currency');
 
   const onSubmit = async (values: FormValues) => {
@@ -264,6 +294,18 @@ export function CreateEventForm({
           sold: 0,
         })),
         seating: values.seating.length > 0 ? values.seating : undefined,
+        zones:
+          values.zones.length > 0
+            ? values.zones.map((z) => ({
+                id: z.id,
+                name: z.name,
+                allowedTierIds: z.allowedTierIds,
+                // Empty means uncapped. Occupancy is owned by the door and is never
+                // written from here — sending it would reset a live count mid-event.
+                capacity: z.capacity?.trim() ? Number(z.capacity) : null,
+                reEntry: z.reEntry,
+              }))
+            : undefined,
         capacity: values.ticketTiers.reduce((sum, tier) => sum + tier.quantity, 0),
         organizerId: profile.uid,
         organizerName: profile.companyName ?? profile.fullName,
@@ -720,6 +762,146 @@ export function CreateEventForm({
             >
               <PlusCircle className="h-4 w-4" /> Add ticket tier
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* --------------------------------------------------------------- */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Venue zones</CardTitle>
+            <CardDescription>
+              Doors inside the venue. A zone admits only the ticket types you assign to it,
+              holds only as many people as you allow, and can refuse re-entry. Leave this
+              empty if the event has one gate.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {zones.fields.map((field, index) => (
+              <div key={field.id} className="space-y-3 rounded-lg border border-border p-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <FormField
+                    control={form.control}
+                    name={`zones.${index}.name`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel>Zone name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="VIP lounge" {...f} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`zones.${index}.capacity`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel>Capacity</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={1} placeholder="Uncapped" {...f} />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          Blank means no limit. The door counts who is inside now.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`zones.${index}.reEntry`}
+                    render={({ field: f }) => (
+                      <FormItem className="flex flex-col justify-center">
+                        <FormLabel>Re-entry</FormLabel>
+                        <div className="flex items-center gap-2">
+                          <FormControl>
+                            <Switch checked={f.value} onCheckedChange={f.onChange} />
+                          </FormControl>
+                          <span className="text-sm text-muted-foreground">
+                            {f.value ? 'Can leave and return' : 'One entry only'}
+                          </span>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/*
+                  Checkboxes rather than a multi-select, because the consequence of
+                  getting this wrong is somebody refused at a door. All of it has to be
+                  visible at once, not behind a dropdown.
+                */}
+                <FormField
+                  control={form.control}
+                  name={`zones.${index}.allowedTierIds`}
+                  render={({ field: f }) => (
+                    <FormItem>
+                      <FormLabel>Ticket types this door admits</FormLabel>
+                      <div className="flex flex-wrap gap-2">
+                        {watchedTiers.map((tier) => {
+                          const checked = f.value.includes(tier.id);
+                          return (
+                            <button
+                              key={tier.id}
+                              type="button"
+                              onClick={() =>
+                                f.onChange(
+                                  checked
+                                    ? f.value.filter((id: string) => id !== tier.id)
+                                    : [...f.value, tier.id]
+                                )
+                              }
+                              className={cn(
+                                'rounded-full border px-3 py-1 text-xs transition-colors',
+                                checked
+                                  ? 'border-primary bg-primary/10 text-primary'
+                                  : 'border-border text-muted-foreground hover:border-primary/40'
+                              )}
+                            >
+                              {tier.name || 'Unnamed tier'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <FormDescription className="text-xs">
+                        {f.value.length === 0
+                          ? 'None selected — this door admits every ticket type, like a main gate.'
+                          : `Only these ${f.value.length} will be let in. Everything else is refused.`}
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+
+                <Button type="button" variant="outline" size="sm" onClick={() => zones.remove(index)}>
+                  <Trash2 className="h-4 w-4" /> Remove zone
+                </Button>
+              </div>
+            ))}
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                zones.append({
+                  id: `zone-${zones.fields.length + 1}-${Date.now()}`,
+                  name: '',
+                  allowedTierIds: [],
+                  capacity: '',
+                  reEntry: true,
+                })
+              }
+            >
+              <PlusCircle className="h-4 w-4" /> Add zone
+            </Button>
+
+            {watchedZones.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Scan for a zone from the check-in page by choosing it at the door. A zone scan
+                checks the ticket may be in that room — it does not use the ticket up, so
+                someone can step out and come back where you allow it.
+              </p>
+            )}
           </CardContent>
         </Card>
 

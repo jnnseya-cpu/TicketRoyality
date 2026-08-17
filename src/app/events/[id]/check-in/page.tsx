@@ -52,7 +52,7 @@ export default async function CheckInPage({ params }: { params: Promise<{ id: st
         </AlertDescription>
       </Alert>
 
-      <TicketScanner eventId={event.id} eventTitle={event.title} />
+      <TicketScanner eventId={event.id} eventTitle={event.title} zones={event.zones ?? []} />
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Problem at the gate?{' '}
