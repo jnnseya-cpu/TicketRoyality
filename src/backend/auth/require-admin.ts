@@ -1,8 +1,7 @@
 import 'server-only';
 
-import { getAuth } from 'firebase-admin/auth';
-
-import { getAdminApp, getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
+import { getAdminDb } from '@/backend/firebase/admin';
+import { requireUser } from '@/backend/auth/require-user';
 
 /**
  * Server-side proof that the caller is a platform administrator.
@@ -22,37 +21,11 @@ export type AdminCheck =
   | { ok: true; uid: string; email?: string }
   | { ok: false; status: 401 | 403 | 503; error: string };
 
-/** Extracts a bearer token. Returns undefined rather than throwing on a malformed header. */
-function bearer(request: Request): string | undefined {
-  const header = request.headers.get('authorization') ?? '';
-  const [scheme, token] = header.split(' ');
-  if (scheme?.toLowerCase() !== 'bearer' || !token) return undefined;
-  return token.trim() || undefined;
-}
-
 export async function requireAdmin(request: Request): Promise<AdminCheck> {
-  if (!isAdminConfigured()) {
-    // Fail closed. Without the Admin SDK there is no way to verify anything, and
-    // treating "cannot check" as "allowed" is how a privileged route becomes public.
-    return { ok: false, status: 503, error: 'Server auth is not configured.' };
-  }
-
-  const token = bearer(request);
-  if (!token) return { ok: false, status: 401, error: 'Missing bearer token.' };
-
-  let uid: string;
-  let email: string | undefined;
-  try {
-    // checkRevoked: a signed-out or disabled administrator must stop working
-    // immediately, not when their hour-long token happens to expire.
-    const decoded = await getAuth(getAdminApp()).verifyIdToken(token, true);
-    uid = decoded.uid;
-    email = decoded.email;
-  } catch {
-    // The reason stays server-side: distinguishing "expired" from "forged" for the
-    // caller is free reconnaissance.
-    return { ok: false, status: 401, error: 'Invalid or expired session.' };
-  }
+  // Identity first, and from the same helper every other authenticated route uses.
+  const caller = await requireUser(request);
+  if (!caller.ok) return caller;
+  const { uid, email } = caller;
 
   try {
     const doc = await getAdminDb().collection('users').doc(uid).get();
