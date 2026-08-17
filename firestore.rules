@@ -240,6 +240,24 @@ service cloud.firestore {
     }
 
     /* Deny everything not explicitly matched above. */
+    /* ---------------------------------------------------------------- */
+    /* login_attempts, checkout_holds — server-only                       */
+    /* ---------------------------------------------------------------- */
+
+    /* Both are written exclusively by the Admin SDK, which bypasses these rules.
+       Denying every client read and write is therefore not a restriction on any
+       feature — it is what stops a brute-force counter being cleared by the browser
+       being brute-forced, and stops a checkout hold being released by whoever wants
+       the seat. Covered by the catch-all below, and stated explicitly so that adding
+       a permissive rule later is a visible decision rather than an accident. */
+    match /login_attempts/{id} {
+      allow read, write: if false;
+    }
+
+    match /checkout_holds/{id} {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

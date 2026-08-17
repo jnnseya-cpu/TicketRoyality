@@ -70,8 +70,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, []);
 
+  /**
+   * Sign in, throttled.
+   *
+   * `/login` was unthrottled, so a list of breached credentials could be tried at any
+   * rate. The guard is asked before the attempt and told the outcome after, so the
+   * counters live on the server rather than in the browser that is being brute-forced.
+   *
+   * Its refusal is thrown as a normal error, so the login form reports it the same way
+   * it reports a wrong password — and, importantly, without revealing whether the
+   * account exists.
+   */
   const signIn = React.useCallback(async (email: string, password: string) => {
-    const credential = await signInWithEmailAndPassword(auth, email, password);
+    const guard = await fetch('/api/login-guard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: email, outcome: 'attempt' }),
+    })
+      .then((r) => r.json())
+      // A guard that cannot be reached must not lock anyone out of their own account.
+      .catch(() => ({ allowed: true }));
+
+    if (guard.allowed === false) throw new Error(guard.error ?? 'Too many attempts.');
+
+    const report = (outcome: 'failed' | 'succeeded') =>
+      fetch('/api/login-guard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: email, outcome }),
+      }).catch(() => undefined);
+
+    let credential;
+    try {
+      credential = await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      void report('failed');
+      throw error;
+    }
+
+    void report('succeeded');
     const profile = await getUserProfile(credential.user.uid);
     setUserProfile(profile);
     return profile;
