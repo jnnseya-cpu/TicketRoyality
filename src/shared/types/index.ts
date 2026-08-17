@@ -221,6 +221,20 @@ export interface TicketTier {
   /** What the page suggests before the buyer types. Never enforced. */
   suggestedPrice?: number;
   /**
+   * Whether the tier appears without an access code.
+   *
+   * `hidden` keeps it off the event page until somebody redeems the code, and — the part
+   * that matters — checkout **refuses to sell it** without the code, server-side. The
+   * code itself is never on the event document: published events are readable by anyone,
+   * so a short memorable code hashed into public data is an offline dictionary attack.
+   * Codes live in `event_access_codes`, which no client can read.
+   *
+   * What a stranger reading the raw document can still see is that a hidden tier exists,
+   * and its price, because the tier stays in `ticketTiers` where inventory, holds and
+   * issuance all read it. The code gates the purchase, not the knowledge.
+   */
+  visibility?: 'public' | 'hidden';
+  /**
    * Reserved by a checkout in progress. Subtracted by `availableInTier()`, which has
    * always read this field — it simply had nowhere to come from until checkout holds
    * existed. Separate from `quantity` on purpose: `quantity` is the organiser's

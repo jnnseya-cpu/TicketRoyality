@@ -302,6 +302,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /* Access codes for hidden ticket types. Denied to every client in both directions —
+       a code is short and memorable, so a hash a stranger can read is a dictionary attack
+       they can run offline with no throttle in the way. Verification goes through
+       `/api/events/[id]/access`, which counts wrong answers. */
+    match /event_access_codes/{eventId} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }

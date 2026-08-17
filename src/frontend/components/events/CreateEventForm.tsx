@@ -39,6 +39,7 @@ import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
 import { TierEconomics } from '@/frontend/components/pricing/TierEconomics';
 import { Switch } from '@/frontend/components/ui/switch';
 import { cn } from '@/shared/utils';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { createEvent, updateEvent } from '@/shared/data/repositories';
@@ -63,6 +64,14 @@ const ticketTierSchema = z.object({
   pricing: z.enum(['fixed', 'choose']),
   minPrice: z.coerce.number().min(0),
   suggestedPrice: z.coerce.number().min(0),
+  /** `hidden` needs an access code to see and, more importantly, to buy. */
+  visibility: z.enum(['public', 'hidden']),
+  /**
+   * Write-only in this form. The code is never returned to the browser — the organiser
+   * sees which tiers have one, not what it is, because a form that repopulates a secret
+   * is a secret in every screen share.
+   */
+  accessCode: z.string().optional(),
 });
 
 const seatingSchema = z.object({
@@ -236,6 +245,8 @@ function defaultsFor(event?: Event): FormValues {
           pricing: 'fixed' as const,
           minPrice: 0,
           suggestedPrice: 0,
+          visibility: 'public' as const,
+          accessCode: '',
         },
       ],
       seating: [],
@@ -275,6 +286,10 @@ function defaultsFor(event?: Event): FormValues {
       pricing: tier.pricing ?? ('fixed' as const),
       minPrice: tier.minPrice ?? 0,
       suggestedPrice: tier.suggestedPrice ?? 0,
+      visibility: tier.visibility ?? ('public' as const),
+      // Deliberately blank: an existing code is never sent back to the browser. Leaving
+      // it empty means "keep what is stored"; typing replaces it.
+      accessCode: '',
     })),
     seating: event.seating ?? [],
     zones: (event.zones ?? []).map((z) => ({
@@ -389,6 +404,7 @@ export function CreateEventForm({
                 suggestedPrice: tier.suggestedPrice || undefined,
               }
             : {}),
+          ...(tier.visibility === 'hidden' ? { visibility: 'hidden' as const } : {}),
         })),
         seating: values.seating.length > 0 ? values.seating : undefined,
         zones:
@@ -442,13 +458,45 @@ export function CreateEventForm({
         status: values.publish ? 'published' : 'draft',
       };
 
-      if (existingEvent) {
-        await updateEvent(existingEvent.id, payload);
-        toast({ title: 'Event updated', description: values.title });
-      } else {
-        await createEvent(payload);
-        toast({ title: 'Event created', description: values.title });
+      const eventId = existingEvent
+        ? (await updateEvent(existingEvent.id, payload), existingEvent.id)
+        : await createEvent(payload);
+
+      /*
+       * Access codes go to the server separately, never onto the event document.
+       * Published events are readable by anyone, so a code stored there — hashed or not —
+       * is a short secret sitting in public data.
+       *
+       * A blank field means "keep what is stored", so an organiser editing the date does
+       * not silently wipe the code their partners are already using.
+       */
+      const codes: Record<string, string> = {};
+      for (const tier of values.ticketTiers) {
+        if (tier.visibility === 'hidden' && tier.accessCode?.trim()) {
+          codes[tier.id] = tier.accessCode.trim();
+        }
       }
+      if (Object.keys(codes).length > 0) {
+        const response = await authedFetch(`/api/events/${eventId}/access`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ codes }),
+        });
+        if (!response.ok) {
+          // The event saved; the code did not. Said out loud rather than swallowed —
+          // a hidden tier with no working code is a tier nobody can buy.
+          toast({
+            variant: 'destructive',
+            title: 'Event saved, access code was not',
+            description: 'Open the event again and re-enter the code.',
+          });
+        }
+      }
+
+      toast({
+        title: existingEvent ? 'Event updated' : 'Event created',
+        description: values.title,
+      });
       router.push('/dashboard/organiser/events');
     } catch (error) {
       toast({
@@ -867,6 +915,55 @@ export function CreateEventForm({
                   )}
                 />
 
+                {/*
+                  Hidden tiers: a corporate rate, a partner allocation, an artist guest
+                  list. The switch hides it on the page; the code is what actually stops
+                  it being bought, and that is enforced server-side at checkout.
+                */}
+                <FormField
+                  control={form.control}
+                  name={`ticketTiers.${index}.visibility`}
+                  render={({ field: f }) => (
+                    <FormItem className="flex flex-col justify-center sm:col-span-4">
+                      <div className="flex items-center gap-2">
+                        <FormControl>
+                          <Switch
+                            checked={f.value === 'hidden'}
+                            onCheckedChange={(on) => f.onChange(on ? 'hidden' : 'public')}
+                          />
+                        </FormControl>
+                        <span className="text-sm">
+                          {f.value === 'hidden'
+                            ? 'Hidden — needs an access code'
+                            : 'Visible to everyone'}
+                        </span>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                {watchedTiers[index]?.visibility === 'hidden' && (
+                  <FormField
+                    control={form.control}
+                    name={`ticketTiers.${index}.accessCode`}
+                    render={({ field: f }) => (
+                      <FormItem className="sm:col-span-4">
+                        <FormLabel>Access code</FormLabel>
+                        <FormControl>
+                          <Input placeholder="BOARD2026" autoComplete="off" {...f} />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          Spaces and capitals are ignored. Stored where no browser can read
+                          it, so leave this blank to keep the code you already set. Anyone
+                          reading the raw event data can still see that a hidden tier exists
+                          and what it costs — the code stops them buying it, not seeing it.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 {watchedTiers[index]?.pricing === 'choose' && (
                   <>
                     <FormField
@@ -942,6 +1039,8 @@ export function CreateEventForm({
                   pricing: 'fixed',
                   minPrice: 0,
                   suggestedPrice: 0,
+                  visibility: 'public',
+                  accessCode: '',
                 })
               }
             >

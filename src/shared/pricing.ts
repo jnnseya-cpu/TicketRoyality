@@ -150,8 +150,15 @@ export function resolveLinePrice(
   return Math.min(CHOSEN_PRICE_CEILING, Math.max(floor, rounded));
 }
 
-/** Cheapest live tier — what the catalogue card shows as "from". */
+/**
+ * Cheapest live tier — what the catalogue card shows as "from".
+ *
+ * Hidden tiers are excluded. A partner rate cheaper than general admission would
+ * otherwise set the public "from" price, advertising a number nobody without the code
+ * can actually pay — which is both a false price and a leak of the discount.
+ */
 export function leadPrice(event: Pick<Event, 'ticketTiers'>) {
-  if (event.ticketTiers.length === 0) return 0;
-  return Math.min(...event.ticketTiers.map((tier) => tier.price));
+  const sellable = event.ticketTiers.filter((tier) => tier.visibility !== 'hidden');
+  if (sellable.length === 0) return 0;
+  return Math.min(...sellable.map((tier) => tier.price));
 }

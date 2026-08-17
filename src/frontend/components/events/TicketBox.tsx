@@ -30,11 +30,25 @@ export function TicketBox({ event }: { event: Event }) {
   const { addItem } = useCart();
   const { toast } = useToast();
 
-  const [tierId, setTierId] = React.useState(event.ticketTiers[0]?.id ?? 'general');
+  /*
+   * Hidden tiers are off the list until a code opens them. The server is the authority:
+   * checkout refuses to sell a hidden tier without the code however the page looks.
+   */
+  const [unlockedTierIds, setUnlockedTierIds] = React.useState<string[]>([]);
+  const [accessCode, setAccessCode] = React.useState('');
+  const [codeEntry, setCodeEntry] = React.useState('');
+  const [unlocking, setUnlocking] = React.useState(false);
+
+  const hasHidden = event.ticketTiers.some((t) => t.visibility === 'hidden');
+  const visibleTiers = event.ticketTiers.filter(
+    (t) => t.visibility !== 'hidden' || unlockedTierIds.includes(t.id)
+  );
+
+  const [tierId, setTierId] = React.useState(event.ticketTiers.find((t) => t.visibility !== 'hidden')?.id ?? event.ticketTiers[0]?.id ?? 'general');
   const [quantity, setQuantity] = React.useState(1);
   const [bitripayLoading, setBitripayLoading] = React.useState(false);
 
-  const tier = event.ticketTiers.find((t) => t.id === tierId) ?? event.ticketTiers[0];
+  const tier = visibleTiers.find((t) => t.id === tierId) ?? visibleTiers[0];
 
   /*
    * Pay what you want. The buyer's amount is the price on a `choose` tier, floored at the
@@ -117,6 +131,43 @@ export function TicketBox({ event }: { event: Event }) {
     }
   };
 
+  const redeemCode = async () => {
+    setUnlocking(true);
+    try {
+      const response = await fetch(`/api/events/${event.id}/access`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: codeEntry }),
+      });
+      const data = (await response.json()) as { tierIds?: string[]; error?: string };
+      if (!response.ok || !data.tierIds?.length) {
+        throw new Error(data.error ?? 'That code is not recognised.');
+      }
+
+      setUnlockedTierIds((current) => [...new Set([...current, ...(data.tierIds ?? [])])]);
+      // Kept so checkout can prove the unlock. The server checks it again — this is a
+      // carrier, not a permission.
+      setAccessCode(codeEntry);
+      setTierId(data.tierIds[0]);
+      setCodeEntry('');
+      toast({
+        title: 'Code accepted',
+        description:
+          data.tierIds.length === 1
+            ? 'Your ticket type is now available.'
+            : `${data.tierIds.length} ticket types are now available.`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Code not accepted',
+        description: error instanceof Error ? error.message : 'Please check it and try again.',
+      });
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
   if (!tier) {
     return (
       <Card>
@@ -133,8 +184,8 @@ export function TicketBox({ event }: { event: Event }) {
         <CardTitle>Get tickets</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
-        <RadioGroup value={tierId} onValueChange={setTierId} className="space-y-2">
-          {event.ticketTiers.map((option) => {
+        <RadioGroup value={tier?.id ?? ''} onValueChange={setTierId} className="space-y-2">
+          {visibleTiers.map((option) => {
             const remaining = option.quantity - (option.sold ?? 0);
             return (
               <Label
@@ -199,6 +250,37 @@ export function TicketBox({ event }: { event: Event }) {
               {Number(chosen) < (tier.minPrice ?? 0) &&
                 ` We will charge the ${formatCurrency(tier.minPrice ?? 0, event.currency)} minimum.`}
             </p>
+          </div>
+        )}
+
+        {hasHidden && unlockedTierIds.length < event.ticketTiers.filter((t) => t.visibility === 'hidden').length && (
+          <div className="space-y-1.5 rounded-md border border-dashed border-border p-3">
+            <Label htmlFor="access-code" className="text-sm font-medium">
+              Have an access code?
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="access-code"
+                value={codeEntry}
+                placeholder="Enter your code"
+                autoComplete="off"
+                onChange={(e) => setCodeEntry(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void redeemCode();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={redeemCode}
+                disabled={unlocking || !codeEntry.trim()}
+              >
+                {unlocking ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -268,9 +350,20 @@ export function TicketBox({ event }: { event: Event }) {
           )}
         </div>
 
-        <Button variant="royal" className="w-full" onClick={handleAddToCart}>
-          <ShoppingCart className="h-4 w-4" /> Add to cart
-        </Button>
+        {/*
+          A hidden tier is bought here or not at all. The cart spans several events and
+          carries no code, so a basket holding one would be refused at checkout — better
+          to say so now than after the buyer has assembled an order.
+        */}
+        {tier.visibility === 'hidden' ? (
+          <p className="text-center text-xs text-muted-foreground">
+            This ticket type is bought directly rather than through the cart.
+          </p>
+        ) : (
+          <Button variant="royal" className="w-full" onClick={handleAddToCart}>
+            <ShoppingCart className="h-4 w-4" /> Add to cart
+          </Button>
+        )}
 
         {!isFree && (
           <>
@@ -295,6 +388,8 @@ export function TicketBox({ event }: { event: Event }) {
               <input type="hidden" name="eventId" value={event.id} />
               <input type="hidden" name="tierId" value={tier.id} />
               <input type="hidden" name="userId" value={user?.uid ?? ''} />
+              {/* Re-verified server-side. Present only when a hidden tier was unlocked. */}
+              <input type="hidden" name="accessCode" value={accessCode} />
               <Button type="submit" variant="outline" className="w-full">
                 <CreditCard className="h-4 w-4" /> Pay with Stripe
               </Button>

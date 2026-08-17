@@ -17,6 +17,7 @@ import {
   availableInTier,
   CHOSEN_PRICE_CEILING,
   commissionTermsFor,
+  leadPrice,
   platformCutForTicket,
   resolveLinePrice,
   settle,
@@ -214,6 +215,27 @@ test('a fat-fingered amount is capped rather than sent to the card', () => {
 test('the amount charged is rounded to the penny, not to the provider’s taste', () => {
   assert.equal(resolveLinePrice({ price: 0, pricing: 'choose' }, 33.333), 33.33);
   assert.equal(resolveLinePrice({ price: 0, pricing: 'choose' }, 33.335), 33.34);
+});
+
+test('a hidden tier never sets the public "from" price', () => {
+  // A partner rate cheaper than general admission would otherwise advertise a number
+  // nobody without the code can pay, and leak the discount at the same time.
+  const event = {
+    ticketTiers: [
+      { id: 'ga', name: 'General', price: 40, quantity: 100 },
+      { id: 'partner', name: 'Partner', price: 10, quantity: 20, visibility: 'hidden' as const },
+    ],
+  };
+  assert.equal(leadPrice(event), 40);
+});
+
+test('an event with nothing but hidden tiers advertises no price at all', () => {
+  const event = {
+    ticketTiers: [
+      { id: 'invite', name: 'Invite only', price: 75, quantity: 20, visibility: 'hidden' as const },
+    ],
+  };
+  assert.equal(leadPrice(event), 0);
 });
 
 const failed = results.filter(([, ok]) => !ok);

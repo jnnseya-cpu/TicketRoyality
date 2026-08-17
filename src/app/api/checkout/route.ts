@@ -6,6 +6,7 @@ import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { placeHold, releaseHold } from '@/backend/services/holds';
 import type { Coupon, TicketTier } from '@/shared/types';
 import { applyCoupon, resolveLinePrice } from '@/shared/pricing';
+import { codeOpensTier } from '@/backend/services/access-codes';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,6 +47,10 @@ export async function POST(request: Request) {
 
   const form = await request.formData();
   const lines: CheckoutLine[] = [];
+  /* Carried through the whole checkout so both the single-event and cart paths can prove
+     a hidden tier was legitimately unlocked. One code per checkout: a basket mixing two
+     different partners' hidden rates is not a real purchase. */
+  const accessCode = String(form.get('accessCode') ?? '');
 
   // `items` is a JSON array for cart checkout; single-event checkout sends flat fields.
   const rawItems = form.get('items');
@@ -90,6 +95,14 @@ export async function POST(request: Request) {
             | undefined;
           const tier = data?.ticketTiers?.find((t) => t.id === item.tierId);
           if (!tier) return fail(`${item.eventTitle} is no longer on sale`);
+          // A hidden tier is bought only by someone holding the code. Checked here and
+          // not in the browser, because hiding a tier in the UI is not a control.
+          if (
+            tier.visibility === 'hidden' &&
+            !(await codeOpensTier(item.eventId, item.tierId, accessCode))
+          ) {
+            return fail(`${tier.name} needs an access code`);
+          }
           // A fixed tier ignores the posted price; a pay-what-you-want tier accepts it
           // above the organiser's floor. The mode comes from the stored event, so a
           // crafted POST cannot turn a £250 ticket into a donation.
@@ -153,6 +166,9 @@ export async function POST(request: Request) {
           | undefined;
         const tier = data?.ticketTiers?.find((t) => t.id === tierId);
         if (!tier) return fail('That ticket type is no longer on sale');
+        if (tier.visibility === 'hidden' && !(await codeOpensTier(eventId, tierId, accessCode))) {
+          return fail('That ticket type needs an access code');
+        }
         amount = resolveLinePrice(tier, amount);
         name = `${data?.title ?? 'Event'} — ${tier.name}`;
         currency = data?.currency ?? currency;

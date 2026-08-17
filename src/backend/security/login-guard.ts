@@ -48,11 +48,22 @@ export interface GuardVerdict {
   reason?: 'identifier' | 'network';
 }
 
-function key(value: string): string {
+/**
+ * The counters are namespaced so a second thing worth throttling — access-code guessing,
+ * say — gets its own budget rather than sharing login's.
+ *
+ * Sharing would be worse than a duplicate implementation: twenty wrong access codes would
+ * lock a whole office network out of logging in, which turns a throttle into a denial of
+ * service somebody else can trigger on your behalf.
+ */
+function key(value: string, namespace = 'login'): string {
   // Salted with the cron secret, which is already a server-only high-entropy value, so
   // the hashes cannot be reversed with a dictionary of common addresses.
   const salt = process.env.CRON_SECRET ?? 'ticketroyality-login-guard';
-  return createHash('sha256').update(`${salt}|${value.toLowerCase().trim()}`).digest('hex').slice(0, 32);
+  return createHash('sha256')
+    .update(`${salt}|${namespace}|${value.toLowerCase().trim()}`)
+    .digest('hex')
+    .slice(0, 32);
 }
 
 interface AttemptDoc {
@@ -103,15 +114,19 @@ async function bump(
  * unthrottled login is a smaller harm than a total denial of service, and the outage
  * itself is reported.
  */
-export async function checkLogin(identifier: string, ip: string): Promise<GuardVerdict> {
+export async function checkLogin(
+  identifier: string,
+  ip: string,
+  namespace = 'login'
+): Promise<GuardVerdict> {
   if (!isAdminConfigured()) return { allowed: true };
 
   try {
     const now = new Date();
-    const byId = await bump(key(identifier), MAX_PER_IDENTIFIER, now, false);
+    const byId = await bump(key(identifier, namespace), MAX_PER_IDENTIFIER, now, false);
     if (byId.blocked) return { allowed: false, retryAfter: byId.retryAfter, reason: 'identifier' };
 
-    const byIp = await bump(`ip:${key(ip)}`, MAX_PER_NETWORK, now, false);
+    const byIp = await bump(`ip:${key(ip, namespace)}`, MAX_PER_NETWORK, now, false);
     if (byIp.blocked) return { allowed: false, retryAfter: byIp.retryAfter, reason: 'network' };
 
     return { allowed: true };
@@ -122,12 +137,16 @@ export async function checkLogin(identifier: string, ip: string): Promise<GuardV
 }
 
 /** Record a failure. Called only when Firebase Auth actually rejected the credentials. */
-export async function recordFailure(identifier: string, ip: string): Promise<void> {
+export async function recordFailure(
+  identifier: string,
+  ip: string,
+  namespace = 'login'
+): Promise<void> {
   if (!isAdminConfigured()) return;
   try {
     const now = new Date();
-    await bump(key(identifier), MAX_PER_IDENTIFIER, now, true);
-    await bump(`ip:${key(ip)}`, MAX_PER_NETWORK, now, true);
+    await bump(key(identifier, namespace), MAX_PER_IDENTIFIER, now, true);
+    await bump(`ip:${key(ip, namespace)}`, MAX_PER_NETWORK, now, true);
   } catch (error) {
     reportError(error, { scope: 'login-guard.record' });
   }

@@ -124,8 +124,8 @@ const SEGMENTS = [
     name: 'Corporate & internal',
     need: 'Free staff passes, a list of who is coming',
     detail:
-      'Issue free passes at no cost, cap the headcount, and see the attendee list in your dashboard. Coupon codes restrict a price to people who have the code.',
-    next: 'Hidden and invite-only ticket types, and access codes that gate visibility rather than price, are not built.',
+      'Issue free passes at no cost, cap the headcount, and see the attendee list in your dashboard. A ticket type can be hidden behind an access code, so a board rate or a partner allocation is only bought by someone holding the code — enforced at checkout, not just hidden on the page.',
+    next: 'Single sign-on and directory-synced guest lists are not built. An access code hides a tier from the page and stops it being bought; someone reading the raw event data can still see that it exists.',
   },
   {
     icon: PartyPopper,
