@@ -3,6 +3,7 @@ import type Stripe from 'stripe';
 
 import { isStripeConfigured, readCheckoutSession, verifyWebhook } from '@/backend/payments/stripe';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
+import { reportError } from '@/backend/observability/report-error';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -135,10 +136,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ received: true, ignored: event.type });
     }
   } catch (error) {
-    console.error('[stripe] failed to record payment event', {
-      eventId: event.id,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    // The most expensive silence on the platform: a verified payment that was never
+    // recorded is a customer who paid and will never receive a ticket.
+    reportError(error, { scope: 'stripe.webhook', providerEventId: event.id, type: event.type });
     // 500 so Stripe redelivers. Losing this event loses a paid-for ticket.
     return NextResponse.json({ error: 'record_failed' }, { status: 500 });
   }

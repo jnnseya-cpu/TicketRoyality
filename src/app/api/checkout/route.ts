@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import { createCheckoutSession, isStripeConfigured, type CheckoutLine } from '@/backend/payments/stripe';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
-import type { TicketTier } from '@/shared/types';
+import type { Coupon, TicketTier } from '@/shared/types';
+import { applyCoupon } from '@/shared/pricing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,24 +49,86 @@ export async function POST(request: Request) {
   // `items` is a JSON array for cart checkout; single-event checkout sends flat fields.
   const rawItems = form.get('items');
   if (typeof rawItems === 'string') {
+    let parsed: Array<{
+      eventId?: string;
+      tierId?: string;
+      eventTitle: string;
+      tierName: string;
+      price: number;
+      quantity: number;
+      currency: string;
+    }>;
     try {
-      const parsed = JSON.parse(rawItems) as Array<{
-        eventTitle: string;
-        tierName: string;
-        price: number;
-        quantity: number;
-        currency: string;
-      }>;
-      for (const item of parsed) {
-        lines.push({
-          name: `${item.eventTitle} — ${item.tierName}`,
-          amount: item.price,
-          quantity: item.quantity,
-          currency: item.currency,
-        });
-      }
+      parsed = JSON.parse(rawItems);
     } catch {
       return NextResponse.json({ error: 'Malformed items payload.' }, { status: 400 });
+    }
+
+    /*
+     * Every cart line is re-priced from Firestore.
+     *
+     * The posted `price` used to be taken at face value, so a hand-crafted POST could
+     * buy a £250 ticket for a penny. The single-event path was fixed first; this closes
+     * the same hole on the cart, which is the one a real basket goes through.
+     *
+     * A line whose event or tier no longer exists is refused rather than charged at the
+     * price the browser remembered — a tier deleted between adding to cart and paying is
+     * exactly when a stale price is most likely to be wrong.
+     */
+    for (const item of parsed) {
+      const quantity = Math.max(1, Math.min(20, Number(item.quantity) || 1));
+      let amount = Number(item.price) || 0;
+      let currency = String(item.currency ?? 'GBP');
+      let name = `${item.eventTitle} — ${item.tierName}`;
+
+      if (isAdminConfigured() && item.eventId && item.tierId) {
+        try {
+          const doc = await getAdminDb().collection('events').doc(item.eventId).get();
+          const data = doc.data() as
+            | { title?: string; currency?: string; ticketTiers?: TicketTier[] }
+            | undefined;
+          const tier = data?.ticketTiers?.find((t) => t.id === item.tierId);
+          if (!tier) return fail(`${item.eventTitle} is no longer on sale`);
+          amount = tier.price;
+          currency = data?.currency ?? currency;
+          name = `${data?.title ?? item.eventTitle} — ${tier.name}`;
+        } catch {
+          return fail('Could not confirm the ticket prices');
+        }
+      }
+
+      lines.push({ name, amount, quantity, currency });
+    }
+
+    /*
+     * The coupon, validated here rather than trusted.
+     *
+     * The cart posts a code; the server reads the coupon, checks it has not expired or
+     * been exhausted, and spreads the discount across the re-priced lines. The browser
+     * previously did all of that and posted the result, which made every discount a
+     * suggestion the server accepted.
+     */
+    const couponCode = String(form.get('couponCode') ?? '').trim().toUpperCase();
+    if (couponCode && isAdminConfigured()) {
+      try {
+        const found = await getAdminDb()
+          .collection('coupons')
+          .where('code', '==', couponCode)
+          .limit(1)
+          .get();
+
+        const coupon = found.empty ? null : ({ id: found.docs[0].id, ...found.docs[0].data() } as Coupon);
+        const subtotal = lines.reduce((t, l) => t + l.amount * l.quantity, 0);
+        const check = applyCoupon(subtotal, coupon);
+
+        if (check.valid && check.discount > 0 && subtotal > 0) {
+          const factor = check.total / subtotal;
+          for (const line of lines) line.amount = Math.round(line.amount * factor * 100) / 100;
+        }
+      } catch {
+        // A coupon that cannot be read is simply not applied. Failing the whole checkout
+        // over a discount would turn a promotion outage into a sales outage.
+      }
     }
   } else {
     const eventId = String(form.get('eventId') ?? '');

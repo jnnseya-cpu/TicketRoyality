@@ -4,6 +4,7 @@ import { getAuth } from 'firebase-admin/auth';
 
 import { dispatch } from '@/backend/comms/dispatch';
 import { getAdminApp, getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
+import { reportError } from '@/backend/observability/report-error';
 
 /**
  * Deleting your own account, for real.
@@ -164,10 +165,7 @@ export async function deleteOwnAccount(uid: string): Promise<DeletionOutcome> {
       ticketsAnonymised += group.length;
     }
   } catch (error) {
-    console.error('[account-deletion] ticket anonymisation failed', {
-      uid,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    reportError(error, { scope: 'account-deletion.anonymise', uid });
     return {
       ok: false,
       status: 503,
@@ -199,10 +197,7 @@ export async function deleteOwnAccount(uid: string): Promise<DeletionOutcome> {
   try {
     await getAuth(getAdminApp()).deleteUser(uid);
   } catch (error) {
-    console.error('[account-deletion] auth user delete failed', {
-      uid,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    reportError(error, { scope: 'account-deletion.auth', uid });
     return {
       ok: false,
       status: 503,

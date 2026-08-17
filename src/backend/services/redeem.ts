@@ -6,6 +6,7 @@ import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { QR_VERSION, qrSigningInput, type TicketQrPayload } from '@/shared/tickets/qr';
 // Importing the guard here means the door cannot start with a drifted signing format.
 import '@/backend/services/qr-contract';
+import { reportError } from '@/backend/observability/report-error';
 
 /**
  * Door redemption. Server-side, atomic, and authorised.
@@ -201,11 +202,7 @@ export async function redeemAtDoor(
       };
     });
   } catch (error) {
-    console.error('[redeem] transaction failed', {
-      ticketId: payload.t,
-      eventId,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    reportError(error, { scope: 'redeem', ticketId: payload.t, eventId });
     return {
       ok: false,
       status: 503,

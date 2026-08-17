@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "private": true,
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "scripts": {
     "build": "tsc",

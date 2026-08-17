@@ -128,14 +128,22 @@ export default function CartPage() {
   }
 
   // Stripe checkout is a plain form POST so the redirect stays inside the click gesture.
+  /*
+   * Identifiers and quantities only — no prices.
+   *
+   * This used to post a per-line price with the discount already spread into it, which
+   * meant the browser decided what everything cost. The server now re-prices every line
+   * from Firestore and validates the coupon itself, so a hand-crafted POST buys nothing
+   * cheaply. The titles ride along for the failure message only; the server overwrites
+   * them from the event.
+   */
   const stripePayload = JSON.stringify(
     items.map((item) => ({
+      eventId: item.eventId,
+      tierId: item.tierId,
       eventTitle: item.eventTitle,
       tierName: item.tierName,
-      // Discount is spread proportionally across line items.
-      price: subtotal > 0 ? item.price * (total / subtotal) : 0,
       quantity: item.quantity,
-      currency: item.currency,
     }))
   );
 
@@ -269,6 +277,8 @@ export default function CartPage() {
             <form action="/api/checkout" method="POST">
               <input type="hidden" name="items" value={stripePayload} />
               <input type="hidden" name="userId" value={user?.uid ?? ''} />
+              {/* The code, not the discount. The server looks it up and decides. */}
+              <input type="hidden" name="couponCode" value={coupon?.code ?? ''} />
               <Button type="submit" variant="royal" className="w-full">
                 <CreditCard className="h-4 w-4" /> Checkout with Stripe
               </Button>

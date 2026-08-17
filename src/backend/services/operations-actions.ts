@@ -2,6 +2,7 @@ import 'server-only';
 
 import { dispatch } from '@/backend/comms/dispatch';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
+import { reportError } from '@/backend/observability/report-error';
 
 /**
  * The two things an administrator can *do* about what the operations console shows.
@@ -62,7 +63,7 @@ export async function retryPaymentEvent(id: string): Promise<ActionResult> {
         'Queued for retry. The reconciliation sweep runs every ten minutes and will pick it up — refresh this page after that to see the outcome.',
     };
   } catch (error) {
-    console.error('[operations] retry failed', { id, error: String(error) });
+    reportError(error, { scope: 'operations.retry', paymentEventId: id });
     return { ok: false, status: 503, error: 'Could not queue that payment for retry.' };
   }
 }
@@ -147,7 +148,7 @@ export async function resendTicketEmail(id: string): Promise<ActionResult> {
     await ref.update({ delivery: 'sent', deliveredAt: new Date().toISOString() });
     return { ok: true, message: `Tickets re-sent to ${recipient}.` };
   } catch (error) {
-    console.error('[operations] resend failed', { id, error: String(error) });
+    reportError(error, { scope: 'operations.resend', issuedPaymentId: id });
     return { ok: false, status: 503, error: 'Could not resend those tickets.' };
   }
 }
