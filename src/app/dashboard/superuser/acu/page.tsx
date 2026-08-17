@@ -14,7 +14,6 @@ import { useToast } from '@/frontend/hooks/use-toast';
 import { findUserByEmail, updateUserProfile } from '@/shared/data/repositories';
 import {
   ACU_USD_RATE,
-  MARKUP_MULTIPLIER,
   WELCOME_BONUS_ACU,
   acuToUsd,
   usdToAcu,
@@ -101,9 +100,8 @@ function AcuConsole() {
       <div>
         <h1 className="font-headline text-2xl font-bold">ACU console</h1>
         <p className="text-sm text-muted-foreground">
-          Grant AI credit to any account. 1 ACU = ${ACU_USD_RATE.toFixed(2)}; AI calls are billed at
-          provider cost × {MARKUP_MULTIPLIER}. Every new account is minted with{' '}
-          {WELCOME_BONUS_ACU} ACU.
+          Grant AI credit to any account. 1 ACU = ${ACU_USD_RATE.toFixed(2)}. Every new account is
+          minted with {WELCOME_BONUS_ACU} ACU.
         </p>
       </div>
 

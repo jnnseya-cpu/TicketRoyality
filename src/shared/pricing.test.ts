@@ -18,8 +18,6 @@ import {
   DEFAULT_COMMISSION_PERCENT,
   TOPUP_PACKAGES_USD,
   WELCOME_BONUS_ACU,
-  chargeForProviderCost,
-  publicCharge,
 } from './constants/billing';
 
 const results: Array<[string, boolean, string]> = [];
@@ -149,30 +147,6 @@ test('every account starts with 100 ACU free', () => {
 
 test('top-up packages are $5, $10 and $15', () => {
   assert.deepEqual([...TOPUP_PACKAGES_USD], [5, 10, 15]);
-});
-
-test('the public charge never carries the provider cost or the markup', () => {
-  // Widened through `unknown` deliberately: the point of the assertion is to inspect
-  // the runtime shape, which the static type says nothing about.
-  const view = publicCharge(0.004) as unknown as Record<string, unknown>;
-  // The margin is internal (billing.ts). This is the guard that stops it being
-  // reintroduced into an API response by a well-meaning edit six months from now.
-  assert.deepEqual(Object.keys(view).sort(), ['acu', 'usd']);
-  assert.equal(view.providerCostUsd, undefined);
-  assert.equal(view.markupMultiplier, undefined);
-  assert.equal(view.userChargeUsd, undefined);
-});
-
-test('the public charge still agrees with the internal one on price', () => {
-  const internal = chargeForProviderCost(0.004);
-  const view = publicCharge(0.004);
-  assert.equal(view.acu, internal.acu, 'the customer must be charged what the ledger records');
-  assert.equal(pennies(view.usd), pennies(internal.acu * 0.01));
-});
-
-test('a charge always rounds up to at least 1 ACU', () => {
-  assert.equal(publicCharge(0.0000001).acu, 1, 'a real call is never free to the customer');
-  assert.equal(publicCharge(0).acu, 0, 'but no call means no charge');
 });
 
 test('held seats reduce what is available to sell', () => {

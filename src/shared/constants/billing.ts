@@ -1,8 +1,9 @@
 /**
  * ACU (AI Credit Unit) billing configuration.
  *
- * 1 ACU = $0.01. AI calls are billed at the real provider cost multiplied by
- * MARKUP_MULTIPLIER, converted to ACU and rounded up.
+ * 1 ACU = $0.01. AI calls are billed at the real provider cost times an internal
+ * multiplier, converted to ACU and rounded up. That multiplier is deliberately not in
+ * this file — see `backend/billing/margin.ts`.
  *
  * ACU is a *currency* unit, deliberately not a token count. A fixed
  * tokens-per-ACU rate cannot also be a fixed multiple of provider cost, because
@@ -13,19 +14,12 @@
 export const ACU_USD_RATE = 0.01;
 
 /**
- * **Internal. Never render this, or anything derived from it, to a customer.**
+ * The AI margin lives in `backend/billing/margin.ts`, not here.
  *
- * It is the platform's gross margin on AI, and publishing it does two things: it tells
- * every competitor what the model calls actually cost, and it invites the reasonable
- * question "why am I paying four times what you pay?" — a question about a number the
- * customer never needed, because what they are buying is priced in ACU and shown before
- * they spend any.
- *
- * The public contract is the ACU price and nothing else. `chargeForProviderCost` returns
- * the full breakdown for the ledger and the admin console; `publicCharge` is what may
- * cross an API boundary.
+ * This module is `shared`, so any client component may import it — which is exactly how
+ * the multiplier ended up on the public pricing page. Over there it carries
+ * `import 'server-only'`, so a client component that reaches for it fails the build.
  */
-export const MARKUP_MULTIPLIER = 4;
 
 export const WELCOME_BONUS_USD = 1;
 /** 100 ACU, free on every new account. */
@@ -39,41 +33,6 @@ export function usdToAcu(usd: number) {
 
 export function acuToUsd(acu: number) {
   return acu * ACU_USD_RATE;
-}
-
-/**
- * Provider cost -> what the user is charged, in ACU.
- *
- * **Internal.** The returned object carries `providerCostUsd` and `markupMultiplier`,
- * which belong in the ledger and the admin console and must not leave the server. Use
- * `publicCharge()` for anything a client can read.
- */
-export function chargeForProviderCost(providerCostUsd: number) {
-  const userChargeUsd = providerCostUsd * MARKUP_MULTIPLIER;
-  return {
-    providerCostUsd,
-    markupMultiplier: MARKUP_MULTIPLIER,
-    userChargeUsd,
-    acu: usdToAcu(userChargeUsd),
-  };
-}
-
-/** What the customer is told: the price, and nothing about how it was reached. */
-export interface PublicCharge {
-  acu: number;
-  usd: number;
-}
-
-/**
- * The customer-facing view of a charge.
- *
- * A separate function rather than "remember to delete two fields at each call site",
- * because the failure mode of the latter is silent: the response still works, it just
- * quietly publishes the margin, and nothing fails to make anyone look.
- */
-export function publicCharge(providerCostUsd: number): PublicCharge {
-  const acu = chargeForProviderCost(providerCostUsd).acu;
-  return { acu, usd: acuToUsd(acu) };
 }
 
 /** Platform commission defaults, overridable per organiser by the superuser. */

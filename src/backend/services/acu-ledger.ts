@@ -1,7 +1,8 @@
 import 'server-only';
 
 import type { LedgerEntry, LedgerType } from '@/shared/types';
-import { WELCOME_BONUS_ACU, chargeForProviderCost, usdToAcu } from '@/shared/constants/billing';
+import { WELCOME_BONUS_ACU, usdToAcu } from '@/shared/constants/billing';
+import { chargeForProviderCost } from '@/backend/billing/margin';
 
 /**
  * ACU wallet ledger — append-only, server-write-only.
