@@ -46,6 +46,7 @@ and read. If it says **Not built**, it was looked for and is absent.
 | Mobile money | KODA client, intents, HMAC webhook verification | `src/backend/payments/koda.ts` |
 | **Ticket issuance** | **Cloud Function, transactional, idempotent, oversell-proof** | `functions/src/issuance.ts` — 10 emulator tests |
 | Refunds | Reversal via payment intent, inventory returned, redeemed tickets protected | same |
+| **Zero-commission pricing engine** | **Built, not yet wired.** Organiser 0% / £0, keeps 100% of face value; buyer pays 3.99% + 49p per paid ticket, floored at 69p, no cap. One pure function, integer minor units, country-aware and versioned, so the catalogue price and the charge cannot disagree — which is the compliance requirement, not a nicety. The Congolese 2% mobile-money charge is folded into the single service fee and **advertised at the worst rail**, so choosing a card lowers the total rather than raising it. DRC is defined but `active: false` until its economics and tax treatment are settled. **The commission model in `pricing.ts` is still the live one** — see *Not built* for what remains. | `shared/fees.ts`, `constants/fees.ts` — 32 tests |
 | Commission | 5% + 50p per **paid** ticket. **Free tickets carry no charge at all** — the admin fee used to apply per line with no price check, so a 300-place free guest list cost £150. | `src/shared/pricing.ts` — 12 tests |
 | Coupons | Organiser coupon management | `/dashboard/organiser/coupons` |
 | Door scanner | Per-event scan page, QR read, redeem | `/events/[id]/check-in` |
@@ -89,6 +90,7 @@ is precisely what caused the confusion this file exists to end.
 
 | Gap | Consequence if you launch without it | Spec |
 | --- | --- | --- |
+| **Zero-commission cutover** | The engine exists and is tested; **nothing uses it yet**. Still to do: switch `DEFAULT_COMMISSION_PERCENT`/`DEFAULT_ADMIN_FEE` to zero, a single `<TicketPrice>` component fed only by `allInTicketPriceMinor`, replace every face-value price on cards, search, event pages, OG tags and emails, an immutable pricing snapshot per order, checkout charging `buyerTotalMinor`, and the profitability dashboard. **Until then the platform still charges organisers 5% + 50p and shows bare face values**, so no marketing may claim 0% commission or all-in pricing. | `shared/fees.ts` |
 | Comms **callers** — the rest | The revenue-critical three are wired (refund processed, issuance failed/oversold, organiser approved/declined). Payouts, event changes, cancellations and waitlists still complete without telling anyone. | `docs/04` M10 |
 | In-app and push delivery | `inapp` and `push` are declared on many catalogue events and neither is implemented. Both record `suppressed` with the reason rather than claiming a queue. | `docs/04` M10 |
 | **Checkout inventory holds** | Two buyers can both reach checkout for the last ticket. Issuance stops the oversell, but the loser is charged and flagged for refund. `release-holds` returns `implemented: false`. | `docs/08` §8.8 |
