@@ -23,84 +23,109 @@ import { Card, CardContent } from '@/frontend/components/ui/card';
 export const metadata: Metadata = {
   title: 'Industries',
   description:
-    'One inventory model across stadiums, festivals, theatres, conferences, nightclubs, sports clubs, weddings, birthdays and every kind of party, places of worship, charity and corporate events — plus VIP hospitality.',
+    'One inventory model across stadiums, festivals, theatres, conferences, nightclubs, sports clubs, weddings, birthdays and every kind of party, places of worship, charity and corporate events. Each segment lists what the platform does today and what it does not.',
 };
 
 /**
- * The segments the platform is built for, plus hospitality that runs across all of
- * them. Each names the capability that generic ticketing does not give them — the point
- * of the page is the gap, not the list.
+ * The segments the platform sells to.
+ *
+ * Every `detail` string here describes something that is built, and was checked against
+ * `/STATUS.md` rather than against `docs/`. That distinction is the whole point of this
+ * rewrite: the previous copy promised seat-level inventory, gates that admit only
+ * assigned ticket types, sub-promoter settlement waterfalls, presale windows gated by
+ * loyalty tier, wristbands, an emergency blocklist, corporate tables with deposits and
+ * balances, invite-only ticket types with access codes, and a full seat map editor with
+ * obstructed-view tagging. **None of those exist.** `STATUS.md` lists venue zones,
+ * hospitality, loyalty, promoter attribution and venue map generation under "Not built",
+ * and the seat map row reads "preview/display only — no editor, no generator".
+ *
+ * So `detail` is what an organiser in that segment can do today, and `next` is the thing
+ * they will ask for that is not there yet, said plainly. A prospect who buys on a
+ * promise and discovers the gap at their first event is a refund and a review; one who
+ * knew going in is a customer. The honest version also sells better, because "free
+ * tickets carry no commission at all" is true and unusual, while "settlement waterfall"
+ * was neither.
  */
 const SEGMENTS = [
   {
     icon: Trophy,
     name: 'Stadiums & arenas',
-    need: 'Seat-level inventory, multi-gate entry, tiered hospitality',
+    need: 'Tiered inventory, fast entry, one revenue picture',
     detail:
-      'Reserved seating with zones, gates that admit only the ticket types assigned to them, and hospitality sold as inventory rather than bolted on afterwards.',
+      'Price the ground in tiers — general, premium, VIP — each with its own capacity, and let issuance enforce it: a tier cannot be oversold even under a simultaneous rush. Colour-coded seating sections with lettered rows display on the event page, and entry is scanned from a phone.',
+    next: 'Per-gate zoning and hospitality as sellable inventory are specified, not built.',
   },
   {
     icon: Tent,
     name: 'Festivals',
-    need: 'Multi-day, multi-stage, capacity zoning',
+    need: 'Multi-day passes, capacity you cannot exceed',
     detail:
-      'Day passes and full-weekend passes from one capacity pool, wristband support, and gate throughput forecasting for the arrival peak.',
+      'Sell a day pass and a full-weekend pass as separate tiers of one event, each capped independently. Capacity holds under load because tickets are issued in a Firestore transaction, not checked and then written.',
+    next: 'Zone-by-zone capacity, wristbands and arrival forecasting are not built yet.',
   },
   {
     icon: Music,
     name: 'Concert promoters',
-    need: 'Allocation to sub-promoters, settlement across parties',
+    need: 'Tiered pricing, coupons, commission you can see',
     detail:
-      'Give a promoter their own allocation and commission, let them run sub-promoters, and settle organiser, venue, promoter and platform from one waterfall.',
+      'Run early-bird, general and VIP from one event, discount with coupon codes, and see commission itemised per ticket — 5% plus 50p on paid tickets, nothing at all on free ones.',
+    next: 'Sub-promoter allocations and multi-party settlement are on the roadmap, not in the product.',
   },
   {
     icon: Trophy,
     name: 'Sports clubs',
-    need: 'Season inventory, member priority, recurring fixtures',
+    need: 'Recurring fixtures without rebuilding them',
     detail:
-      'Season passes, member presale windows gated by loyalty tier, and fixture duplication that clones the seat map instead of rebuilding it.',
+      'Set a fixture to repeat weekly or monthly to an end date rather than creating each one by hand, with tiers and pricing carried across. Scan entry at the turnstile from any phone.',
+    next: 'Season passes, member priority and loyalty-gated presale windows are not built.',
   },
   {
     icon: Presentation,
     name: 'Conferences',
-    need: 'Sessions, speakers, hybrid and livestream attendance',
+    need: 'Physical, online and livestream from one event',
     detail:
-      'Physical, online and livestream tickets from one event, with identical entry validation and identical revenue reporting across all three.',
+      'One event can be in-person, online or livestreamed, with speakers listed on the page and the same entry validation and revenue reporting across all three formats.',
+    next: 'Per-session ticketing and agenda scheduling are not built.',
   },
   {
     icon: Wine,
     name: 'Nightclubs',
-    need: 'Fast door throughput, guest lists, table service',
+    need: 'Door throughput on the phones you already have',
     detail:
-      'Scan-and-go entry on multiple devices at once, searchable guest lists, and an emergency blocklist that propagates in seconds.',
+      'A per-event check-in page scans QR codes and redeems them on the spot, on as many devices as you have staff. A redeemed ticket cannot be redeemed twice, and redeemed tickets are protected from refund.',
+    next: 'Table service, guest-list management and a live blocklist are not built. Scanning needs signal — there is no offline mode.',
   },
   {
     icon: Clapperboard,
     name: 'Theatres',
-    need: 'Reserved seating, subscription series, accessibility holds',
+    need: 'Sections, rows and repeat performances',
     detail:
-      'Full seat map editor with obstructed-view tagging, accessible and companion seats held as a first-class allocation, never as a leftover.',
+      'Define colour-coded sections with lettered rows, seats per row and a price each; the venue layout renders on the event page. Repeat a production across a run without rebuilding it each night.',
+    next: 'A seat map editor, per-seat selection at checkout, obstructed-view tagging and held accessible seating are specified but not built — sections are display and pricing today, not seat-level inventory.',
   },
   {
     icon: Church,
     name: 'Places of worship',
-    need: 'Free and donation entry, capacity management',
+    need: 'Free entry, real capacity limits, no fees',
     detail:
-      'Free tickets carry no commission at all. Donation tiers let attendees give what they can, and capacity limits stay enforced either way.',
+      'Free tickets carry no commission and no admin fee — a 300-place free list costs nothing. Capacity is still enforced, so a hall is never oversold, and everyone gets a QR pass that scans at the door.',
+    next: 'Pay-what-you-want giving is not built; a contribution has to be a priced tier.',
   },
   {
     icon: HeartHandshake,
     name: 'Charity & fundraising',
-    need: 'Donation tiers, corporate tables, transparent fees',
+    need: 'Priced giving tiers, fees you can point at',
     detail:
-      'Corporate tables with named guests, deposits and balances, and fees itemised so donors can see exactly what reached the cause.',
+      'Name your tiers after what they fund and price them accordingly. Commission is a published 5% plus 50p on paid tickets and zero on free places, so you can tell a donor exactly what reached the cause.',
+    next: 'Corporate tables with named guests, deposits and balances are not built.',
   },
   {
     icon: Building2,
     name: 'Corporate & internal',
-    need: 'Invite-only, access codes, staff passes',
+    need: 'Free staff passes, a list of who is coming',
     detail:
-      'Hidden and invite-only ticket types with access codes, staff and press passes, and attendee lists that never leave your organisation.',
+      'Issue free passes at no cost, cap the headcount, and see the attendee list in your dashboard. Coupon codes restrict a price to people who have the code.',
+    next: 'Hidden and invite-only ticket types, and access codes that gate visibility rather than price, are not built.',
   },
   {
     icon: PartyPopper,
@@ -108,13 +133,15 @@ const SEGMENTS = [
     need: 'Birthdays, private hire, a guest count you control',
     detail:
       'Birthday parties, graduations, hen and stag nights, house, day and boat parties. Sell paid entry or issue free places, cap the guest list so a venue is never oversold, and check people in from a phone at the door.',
+    next: null,
   },
   {
     icon: Heart,
     name: 'Weddings',
     need: 'Guest lists that are not ticket sales',
     detail:
-      'Issue free places to a guest list at no cost to you — free tickets carry no commission. Or let guests contribute towards the day with donation tiers. Every guest gets a QR pass that scans at the door in seconds.',
+      'Issue free places to a guest list at no cost to you — free tickets carry no commission. Every guest gets a QR pass that scans at the door in seconds, and the count cannot exceed what the venue holds.',
+    next: 'Guests contributing an amount of their choosing is not built; a contribution has to be a priced tier.',
   },
 ];
 
@@ -129,9 +156,13 @@ export default function IndustriesPage() {
           Twelve segments. One inventory model.
         </h1>
         <p className="mt-4 text-lg text-muted-foreground">
-          A VIP package, a general-admission ticket and a livestream pass are the same
+          A VIP place, a general-admission ticket and a livestream pass are the same
           object with different tiers. That is why you can run all three from one event
           instead of running two products and two reconciliations.
+        </p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Each card says what the platform does for that segment today, and what it does
+          not do yet. We would rather you found the gap here than at your first event.
         </p>
       </div>
 
@@ -143,6 +174,12 @@ export default function IndustriesPage() {
               <h2 className="font-headline text-xl font-semibold">{segment.name}</h2>
               <p className="text-sm font-medium text-primary">{segment.need}</p>
               <p className="flex-1 text-sm text-muted-foreground">{segment.detail}</p>
+              {segment.next && (
+                <p className="border-t border-border/70 pt-3 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Not yet: </span>
+                  {segment.next}
+                </p>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -152,12 +189,18 @@ export default function IndustriesPage() {
         <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
           <Crown className="h-8 w-8 text-primary" />
           <h2 className="font-headline text-2xl font-bold">
-            VIP hospitality runs across every one of them
+            One inventory model, whatever you are selling
           </h2>
+          {/* This block used to promise hospitality packages with inclusions, named
+              guest lists, dietary requirements, deposits, balances and a concierge
+              workflow. `STATUS.md` lists hospitality under "Not built" — there are no
+              tables, packages or guest allocation in the code. A VIP tier is a priced
+              tier, which is genuinely useful and is what this now says. */}
           <p className="max-w-2xl text-muted-foreground">
-            Packages with inclusions, named guest lists, dietary and accessibility
-            requirements, deposits and balances, and a concierge workflow — inside the
-            same platform that sells your general admission, not a separate product.
+            A VIP place, a general-admission ticket and a livestream pass are the same
+            object at different prices, so they sell from one event and reconcile in one
+            report. Full hospitality — packages with inclusions, named guests, deposits
+            and balances — is specified and not yet built.
           </p>
           <Button asChild>
             <Link href="/register/organiser">
