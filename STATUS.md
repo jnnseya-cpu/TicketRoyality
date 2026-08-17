@@ -56,6 +56,7 @@ and read. If it says **Not built**, it was looked for and is absent.
 | **Ticket delivery** | **SMTP email on issuance — one email per purchase, retried, outcome recorded** | `functions/src/email.ts` — 10 tests |
 | **Comms dispatch** | **`dispatch()` now really sends email** over the same Hostinger mailbox, for all 104 catalogue events. Output recorded per channel in `comms_deliveries`. Channels with no approved provider record `suppressed` **with the reason**, never `queued`. | `backend/comms/dispatch.ts` — 10 tests, real SMTP |
 | **Notifications wired** | Refund processed and issuance-failed/oversold email from the payment function; organiser approved/declined emails from `/api/admin/organiser-decision`. All idempotent — a replayed refund webhook cannot email twice. | `functions/src/index.ts`, `api/admin/organiser-decision` |
+| **Weekly newsletter** | Built from `publishedArticles()` + live upcoming events — **a draft article can never reach an inbox**, pinned by test. Sent in throttled batches of 25 with a per-week cursor, so a blast cannot exhaust the Hostinger SMTP cap and take ticket delivery with it. One-click unsubscribe (signed token, no login) plus RFC 8058 `List-Unsubscribe` headers. | `backend/newsletter/` — 15 tests |
 | **Admin comms console** | Catalogue browser, delivery log with status filters, and a template test that is **sandbox by default**. | `/dashboard/superuser/comms` |
 | **Privileged API auth** | `requireAdmin()` verifies the Firebase ID token server-side (`checkRevoked`) *and* re-reads `userType` from Firestore, so admin status has one source of truth. Fails closed. | `backend/auth/require-admin.ts` |
 | Blog | 14 published articles, 6 topic hubs, generated link graph | `npm run check:links` |
@@ -146,5 +147,6 @@ npm run test:issuance  # 10 tests, Firestore emulator, real transactions
 npm run test:delivery  # 10 tests, real SMTP conversation
 npm run test:ai        # 10 tests, real HTTP servers speaking each vendor's shape
 npm run test:comms     # 10 tests, real SMTP conversation through dispatch()
+npm run test:newsletter # 15 tests, content honesty + unsubscribe
 cd functions && npm run build
 ```

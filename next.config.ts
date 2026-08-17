@@ -87,7 +87,7 @@ const nextConfig: NextConfig = {
          * should rank, and orphaning those to save a crawl nobody was short of would be
          * a poor trade.
          */
-        source: '/(login|register|forgot-password|account|cart)',
+        source: '/(login|register|forgot-password|account|cart|unsubscribe)',
         headers: [{ key: 'X-Robots-Tag', value: 'noindex, follow' }],
       },
       {

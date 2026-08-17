@@ -219,6 +219,19 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    /* ---------------------------------------------------------------- */
+    /* newsletter_runs — the weekly send cursor                          */
+    /* ---------------------------------------------------------------- */
+
+    match /newsletter_runs/{weekId} {
+      allow get, list: if isSuperuser();
+
+      // Written only by the Admin SDK from the cron route. A client that could edit the
+      // cursor could rewind it and mail the whole list again, which is the one way to
+      // turn a newsletter into a reputation incident.
+      allow create, update, delete: if false;
+    }
+
     /* Deny everything not explicitly matched above. */
     match /{document=**} {
       allow read, write: if false;

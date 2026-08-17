@@ -55,6 +55,13 @@ export interface Email {
   subject: string;
   text: string;
   html: string;
+  /**
+   * Extra SMTP headers. Used for RFC 8058 `List-Unsubscribe` on marketing mail, which
+   * Gmail and Yahoo have required from bulk senders since February 2024 — without it a
+   * newsletter is not merely less effective, it is filed as spam wholesale, and the
+   * reputation damage lands on the mailbox that also delivers every ticket.
+   */
+  headers?: Record<string, string>;
 }
 
 export type SendOutcome =
@@ -84,6 +91,7 @@ export async function send(email: Email): Promise<SendOutcome> {
       subject: email.subject,
       text: email.text,
       html: email.html,
+      ...(email.headers ? { headers: email.headers } : {}),
     });
     return { status: 'sent', messageId: info.messageId };
   } catch (error) {

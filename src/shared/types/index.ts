@@ -47,6 +47,24 @@ export interface UserProfile {
 
   wallet?: Wallet;
   welcomeBonusGranted?: boolean;
+
+  /**
+   * Marketing consent.
+   *
+   * Absent means "not yet asked", which `resolveChannels` treats as sendable — that is
+   * the soft opt-in position for an existing customer under PECR, and it is why the
+   * unsubscribe link in every marketing email is not decoration but the lawful basis
+   * for sending the next one.
+   *
+   * Service email — tickets, refunds, security — never consults this. Those are
+   * `mandatory` in the comms catalogue and are sent whatever it says, because a ticket
+   * is a thing the customer paid for, not a message they can be marketed out of.
+   */
+  marketing?: {
+    /** false = unsubscribed. Set by the one-click link, no login required. */
+    email?: boolean;
+    unsubscribedAt?: string;
+  };
 }
 
 export type EventType = 'physical' | 'online' | 'livestream';
