@@ -16,7 +16,7 @@
     "report:links": "tsx scripts/link-report.ts",
     "test:issuance": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx functions/src/issuance.test.ts\"",
     "test:delivery": "tsx functions/src/delivery.test.ts",
-    "test": "npm run test:pricing && npm run test:fees && npm run test:margin && npm run test:humanity && npm run test:rules && npm run test:issuance && npm run test:payment-loop && npm run test:redeem && npm run test:holds && npm run test:transfer && npm run test:zones && npm run test:hospitality && npm run test:delivery && npm run test:ai && npm run test:dynamic-pricing && npm run test:comms && npm run test:newsletter",
+    "test": "npm run test:pricing && npm run test:fees && npm run test:analytics && npm run test:margin && npm run test:humanity && npm run test:rules && npm run test:issuance && npm run test:payment-loop && npm run test:redeem && npm run test:holds && npm run test:transfer && npm run test:zones && npm run test:hospitality && npm run test:delivery && npm run test:ai && npm run test:dynamic-pricing && npm run test:comms && npm run test:newsletter",
     "grant:admin": "tsx scripts/grant-admin.ts",
     "test:ai": "tsx --conditions=react-server src/backend/ai/gateway.test.ts",
     "test:comms": "tsx --conditions=react-server src/backend/comms/dispatch.test.ts",
@@ -33,7 +33,8 @@
     "test:holds": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/holds.test.ts\"",
     "test:transfer": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/transfer.test.ts\"",
     "test:zones": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/zones.test.ts\"",
-    "test:hospitality": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/hospitality.test.ts\""
+    "test:hospitality": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/hospitality.test.ts\"",
+    "test:analytics": "tsx src/shared/analytics.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

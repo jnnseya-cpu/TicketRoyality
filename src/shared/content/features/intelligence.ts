@@ -207,13 +207,13 @@ export const INTELLIGENCE_ARTICLES: Article[] = [
   },
   {
     slug: 'analytics-and-fan-intelligence',
-    status: 'draft',
+    status: 'shipped',
     title: 'What you learn about your audience, and where the line is',
     kind: 'feature',
     cluster: 'intelligence',
     tags: ['analytics', 'data', 'reporting', 'gdpr'],
     excerpt:
-      'Sales curves, demand forecasts, drop-off points and repeat-attendance cohorts — plus the reporting boundary that stops it becoming surveillance.',
+      'Sales curves, a sell-out forecast that shows its working, arrival curves from real door scans, and the reporting boundary that stops any of it becoming surveillance.',
     published: '2026-08-14T09:15:00.000Z',
     updated: '2026-08-14T09:15:00.000Z',
     readMinutes: 6,
@@ -221,24 +221,33 @@ export const INTELLIGENCE_ARTICLES: Article[] = [
     blocks: [
       {
         type: 'paragraph',
-        text: 'Most ticketing dashboards show you tickets sold and revenue. That is a receipt, not analytics. It tells you what happened and nothing about what to do.',
+        text: 'Most ticketing dashboards show you tickets sold and revenue. That is a receipt, not analytics. It tells you what happened and nothing about what to do. Every figure here is computed from your own tickets, and refunded tickets are excluded from every sales number \u2014 leaving them in inflates the picture exactly when an event is going badly, which is when it is being read most carefully.',
       },
       { type: 'heading', text: 'The numbers that change a decision' },
       {
         type: 'list',
         items: [
-          'Sales velocity against comparable events at the same point in their on-sale window — the difference between "slow" and "slow for week three, which is normal"',
-          'Forecast final sales, with a confidence range, updated as the curve develops',
-          'Checkout drop-off by step, which is where a broken payment method or an unexpected fee shows up as a number',
-          'Tier mix — whether your top tier is underpriced, which shows as it selling out first',
-          'Repeat attendance: how many of tonight came to your last one',
-          'Where the traffic came from, including which affiliate or influencer link produced it',
+          'Sales over time, with the dead days drawn as dead days \u2014 a chart that skips them turns a stalled fortnight into a straight line between two good weeks',
+          'A sell-out projection that states its own window, and refuses to give a date when the rate cannot support one',
+          'Tier mix by revenue, which is rarely the same order as by count \u2014 a top tier selling out first is a top tier priced too low',
+          'When people actually arrived, in fifteen-minute buckets around the advertised start, measured from real door scans',
+          'How far ahead they book, in bands coarse enough to act on',
+          'Repeat buyers across everything you run, counted by events attended rather than tickets bought',
         ],
       },
-      { type: 'heading', text: 'Live, on the night' },
+      { type: 'heading', text: 'The forecast shows its working' },
       {
         type: 'paragraph',
-        text: 'During the event the dashboard switches to operations: scans per minute, arrival curve against your forecast, which door is backing up, capacity by zone, and any duplicate-scan attempts as they happen. This is the view you actually want on a phone at 20:45.',
+        text: 'It is a straight line from the last fortnight, and it says so on the card. Not because a better model is impossible, but because an organiser can check this one against their own sales in their head \u2014 and a forecast nobody can check is a forecast nobody should staff a door on. On a young event the window shrinks to the days the event has actually existed, so twenty sales yesterday reads as twenty a day, not as one and a half averaged over a fortnight it was not on sale for.',
+      },
+      {
+        type: 'paragraph',
+        text: 'When it cannot support a date it says which kind of nothing it has: sold out, no recent sales, or a rate that will not clear the remaining stock before the doors. That last one is the useful one, and rounding it to a date after the event would be arithmetic rather than information.',
+      },
+      { type: 'heading', text: 'On the night' },
+      {
+        type: 'paragraph',
+        text: 'The check-in page shows live occupancy for every zone as people scan through, against the limit you set. Duplicate scans are refused and shown to the door staff with the time the ticket was first used. What is not built is a single live operations screen: scans per minute, and a comparison against a forecast arrival curve, are not there \u2014 the arrival curve is read after the event, not against a prediction during it.',
       },
       { type: 'heading', text: 'The reporting boundary' },
       {
@@ -249,10 +258,10 @@ export const INTELLIGENCE_ARTICLES: Article[] = [
         type: 'paragraph',
         text: 'This is a deliberate limit and it costs us a product we could otherwise sell. Cross-organiser behavioural data is the most commercially valuable thing a ticketing platform holds, and it is also the thing customers least expect to be handing over when they buy a ticket. Aggregate insight, yes. A dossier, no.',
       },
-      { type: 'heading', text: 'Sponsors get less again' },
+      { type: 'heading', text: 'What is deliberately absent' },
       {
         type: 'paragraph',
-        text: 'Sponsor reporting is aggregate only, with a minimum cohort size below which a figure is suppressed rather than shown. A "segment" of four people is not anonymised data; it is four identifiable people with a label on them.',
+        text: 'There is no comparison against other organisers\u2019 events, no checkout drop-off funnel, and no traffic-source attribution, because none of those are built. Sponsor reporting is not built either. It is worth naming them: an analytics page is the easiest place in a product to imply a number exists because a chart could hold one.',
       },
     ],
     answers: [

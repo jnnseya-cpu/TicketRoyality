@@ -61,7 +61,7 @@ const SEGMENTS = [
     need: 'Multi-day passes, capacity you cannot exceed',
     detail:
       'Sell a day pass and a full-weekend pass as separate tiers of one event, each capped independently. Capacity holds under load because tickets are issued in a Firestore transaction, not checked and then written. Arenas, camping and backstage can each be their own zone, capped separately and counted live as people come and go.',
-    next: 'Wristbands and arrival forecasting are not built yet. Zones cap and count each area live; they do not read an RFID band.',
+    next: 'Wristbands are not built \u2014 zones cap and count each area live, but nothing reads an RFID band. Arrival curves are measured from your own past door scans; there is no cross-event prediction.',
   },
   {
     icon: Music,
