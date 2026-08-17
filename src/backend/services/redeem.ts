@@ -13,6 +13,7 @@ import {
 // Importing the guard here means the door cannot start with a drifted signing format.
 import '@/backend/services/qr-contract';
 import { reportError } from '@/backend/observability/report-error';
+import { blockedBy } from '@/backend/services/blocklist';
 
 /**
  * Door redemption. Server-side, atomic, and authorised.
@@ -50,6 +51,7 @@ export type RedeemResult =
         | 'unsigned'
         | 'expired-code'
         | 'refunded'
+        | 'blocked'
         | 'unavailable';
       error: string;
       reference?: string;
@@ -144,6 +146,8 @@ export async function redeemAtDoor(
 
       const ticket = snap.data() as {
         eventId: string;
+        organizerId?: string;
+        attendeeEmail?: string;
         rotationSeed?: string;
         reference: string;
         attendeeName?: string;
@@ -243,6 +247,35 @@ export async function redeemAtDoor(
           status: 409,
           kind: 'invalid',
           error: `This ticket is ${ticket.status}.`,
+          reference: ticket.reference,
+        };
+      }
+
+      /*
+       * The blocklist, checked last — after everything that would refuse the ticket on
+       * its own merits, and immediately before the write.
+       *
+       * A block **refuses the scan without touching the ticket**. It stays `valid`, so it
+       * can still be refunded through the path that exists and works again the moment the
+       * block is lifted. Cancelling it here would mean an argument at the front of a queue
+       * permanently destroying something somebody paid for.
+       *
+       * Reading inside the transaction is safe because nothing here writes to the
+       * blocklist; it is a read the transaction will re-run if the ticket changes under
+       * it, which is exactly the behaviour wanted.
+       */
+      const block = await blockedBy(
+        ticket.organizerId ?? '',
+        eventId,
+        ticket.reference,
+        ticket.attendeeEmail
+      );
+      if (block) {
+        return {
+          ok: false,
+          status: 403,
+          kind: 'blocked',
+          error: `Refused — ${block.reason}`,
           reference: ticket.reference,
         };
       }

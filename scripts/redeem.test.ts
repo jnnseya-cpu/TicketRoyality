@@ -296,6 +296,139 @@ async function run() {
     assert.equal(result.ok, true);
   });
 
+  /* ------------------------------------------------------------------ */
+  /* Door blocklist                                                     */
+  /* ------------------------------------------------------------------ */
+
+  const blocklist = await import('../src/backend/services/blocklist');
+
+  async function clearBlocks() {
+    const snap = await db.collection('blocklist').get();
+    await Promise.all(snap.docs.map((d) => d.ref.delete()));
+  }
+
+  await test('a blocked email is refused at the door', async () => {
+    await clearBlocks();
+    await seed('t-block-1', { attendeeEmail: 'barred@example.com' });
+    await blocklist.addBlock({
+      organizerId: ORGANISER,
+      kind: 'email',
+      value: 'Barred@Example.com',
+      reason: 'Barred by the venue',
+      createdBy: ORGANISER,
+    });
+
+    const result = await redeemAtDoor(payload('t-block-1'), EVENT, ORGANISER);
+    assertRefused(result, 'blocked');
+  });
+
+  await test('a block refuses the scan without touching the ticket', async () => {
+    // The property that makes this safe to use in an argument at the front of a queue:
+    // the ticket stays valid, stays refundable, and works the moment the block is lifted.
+    await clearBlocks();
+    await seed('t-block-2', { attendeeEmail: 'barred@example.com' });
+    await blocklist.addBlock({
+      organizerId: ORGANISER,
+      kind: 'email',
+      value: 'barred@example.com',
+      reason: 'Barred',
+      createdBy: ORGANISER,
+    });
+
+    await redeemAtDoor(payload('t-block-2'), EVENT, ORGANISER);
+    const after = await db.collection('tickets').doc('t-block-2').get();
+    assert.equal(after.data()?.status, 'valid', 'the ticket must not be consumed');
+    assert.equal(after.data()?.redeemedAt, undefined);
+  });
+
+  await test('removing the block lets the same ticket straight in', async () => {
+    await clearBlocks();
+    await seed('t-block-3', { attendeeEmail: 'barred@example.com' });
+    const added = await blocklist.addBlock({
+      organizerId: ORGANISER,
+      kind: 'email',
+      value: 'barred@example.com',
+      reason: 'Barred',
+      createdBy: ORGANISER,
+    });
+
+    assertRefused(await redeemAtDoor(payload('t-block-3'), EVENT, ORGANISER), 'blocked');
+    assert.equal(await blocklist.removeBlock(added.id!, ORGANISER), true);
+    assert.equal((await redeemAtDoor(payload('t-block-3'), EVENT, ORGANISER)).ok, true);
+  });
+
+  await test('a blocked ticket reference stops that one ticket', async () => {
+    await clearBlocks();
+    await seed('t-block-4', { reference: 'TR-BANNED', attendeeEmail: 'fine@example.com' });
+    await blocklist.addBlock({
+      organizerId: ORGANISER,
+      kind: 'reference',
+      value: 'tr-banned',
+      reason: 'Chargeback',
+      createdBy: ORGANISER,
+    });
+
+    assertRefused(await redeemAtDoor(payload('t-block-4'), EVENT, ORGANISER), 'blocked');
+  });
+
+  await test('a block on one event does not close another', async () => {
+    await clearBlocks();
+    await seed('t-block-5', { attendeeEmail: 'barred@example.com' });
+    await blocklist.addBlock({
+      organizerId: ORGANISER,
+      eventId: 'some-other-event',
+      kind: 'email',
+      value: 'barred@example.com',
+      reason: 'Barred from the other one',
+      createdBy: ORGANISER,
+    });
+
+    assert.equal((await redeemAtDoor(payload('t-block-5'), EVENT, ORGANISER)).ok, true);
+  });
+
+  await test('one organiser cannot bar somebody from another organiser’s door', async () => {
+    // Entries are scoped to the organiser who wrote them. A platform-wide ban is not a
+    // thing one customer of ours gets to impose on another.
+    await clearBlocks();
+    await seed('t-block-6', { attendeeEmail: 'barred@example.com' });
+    await blocklist.addBlock({
+      organizerId: 'a-different-organiser',
+      kind: 'email',
+      value: 'barred@example.com',
+      reason: 'Barred elsewhere',
+      createdBy: 'a-different-organiser',
+    });
+
+    assert.equal((await redeemAtDoor(payload('t-block-6'), EVENT, ORGANISER)).ok, true);
+  });
+
+  await test('one organiser cannot delete another’s blocklist entry', async () => {
+    await clearBlocks();
+    const added = await blocklist.addBlock({
+      organizerId: ORGANISER,
+      kind: 'email',
+      value: 'barred@example.com',
+      reason: 'Barred',
+      createdBy: ORGANISER,
+    });
+    assert.equal(await blocklist.removeBlock(added.id!, 'someone-else'), false);
+    assert.equal((await blocklist.listBlocks(ORGANISER)).length, 1);
+  });
+
+  await test('an entry without a reason still carries something door staff can read', async () => {
+    await clearBlocks();
+    await blocklist.addBlock({
+      organizerId: ORGANISER,
+      kind: 'email',
+      value: 'barred@example.com',
+      reason: '   ',
+      createdBy: ORGANISER,
+    });
+    assert.equal((await blocklist.listBlocks(ORGANISER))[0].reason, 'No reason recorded');
+  });
+
+  await clearBlocks();
+
   console.log(`\n${passed}/${passed + failures.length} passed\n`);
   if (failures.length > 0) process.exit(1);
 }

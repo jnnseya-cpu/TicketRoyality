@@ -92,8 +92,8 @@ const SEGMENTS = [
     name: 'Nightclubs',
     need: 'Door throughput on the phones you already have',
     detail:
-      'A per-event check-in page scans QR codes and redeems them on the spot, on as many devices as you have staff. A redeemed ticket cannot be redeemed twice, and redeemed tickets are protected from refund. Tables sell as packages with a deposit now and the balance later, and the booker names their own guest list.',
-    next: 'A live blocklist is not built. Scanning needs signal — there is no offline mode.',
+      'A per-event check-in page scans QR codes and redeems them on the spot, on as many devices as you have staff. A redeemed ticket cannot be redeemed twice, and redeemed tickets are protected from refund. Tables sell as packages with a deposit now and the balance later, and the booker names their own guest list. A door blocklist refuses people you have barred, by email or by ticket, without cancelling anything.',
+    next: 'Scanning needs signal — there is no offline mode.',
   },
   {
     icon: Clapperboard,

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { CheckCircle2, Loader2, ScanLine, ShieldAlert, XCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, ScanLine, ShieldAlert, ShieldBan, XCircle } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
 import { Button } from '@/frontend/components/ui/button';
@@ -15,6 +15,10 @@ type ScanOutcome =
   | { kind: 'valid'; reference: string; attendee: string }
   | { kind: 'already-used'; reference: string; redeemedAt?: string }
   | { kind: 'wrong-event'; reference: string }
+  /* Distinct from `invalid` on purpose. The ticket is genuine, paid and unused — the
+     door is refusing the person. Door staff need to see that difference, because the
+     conversation that follows is a completely different one. */
+  | { kind: 'blocked'; reference: string; reason: string }
   | { kind: 'invalid'; detail: string }
   | {
       kind: 'zone';
@@ -120,6 +124,13 @@ export function TicketScanner({
             break;
           case 'wrong-event':
             setOutcome({ kind: 'wrong-event', reference: body.reference ?? decoded.payload.r });
+            break;
+          case 'blocked':
+            setOutcome({
+              kind: 'blocked',
+              reference: body.reference ?? decoded.payload.r,
+              reason: body.error ?? 'Refused at the door.',
+            });
             break;
           default:
             setOutcome({ kind: 'invalid', detail: body.error ?? 'Ticket not found or cancelled.' });
@@ -328,6 +339,16 @@ export function TicketScanner({
             <AlertTitle>Wrong event — do not admit</AlertTitle>
             <AlertDescription>
               Ticket {outcome.reference} was issued for a different event.
+            </AlertDescription>
+          </Alert>
+        )}
+        {outcome?.kind === 'blocked' && (
+          <Alert variant="destructive">
+            <ShieldBan />
+            <AlertTitle>Refused — do not admit</AlertTitle>
+            <AlertDescription>
+              {outcome.reason} The ticket ({outcome.reference}) is otherwise valid and has not
+              been used.
             </AlertDescription>
           </Alert>
         )}

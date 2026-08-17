@@ -310,6 +310,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* The door blocklist. Read and written exclusively through server routes that prove
+       the caller owns the event being scanned. A client write here could bar somebody
+       else's customers, or quietly delete the entry barring itself. */
+    match /blocklist/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }
