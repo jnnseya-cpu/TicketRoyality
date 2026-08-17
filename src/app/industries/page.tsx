@@ -68,7 +68,7 @@ const SEGMENTS = [
     name: 'Concert promoters',
     need: 'Tiered pricing, coupons, commission you can see',
     detail:
-      'Run early-bird, general and VIP from one event, discount with coupon codes, and see commission itemised per ticket — 5% plus 50p on paid tickets, nothing at all on free ones.',
+      'Run early-bird, general and VIP from one event, discount with coupon codes, and keep 100% of every ticket value — we charge organisers no commission at all. Buyers pay one service fee, shown inside the advertised price.',
     next: 'Sub-promoter allocations and multi-party settlement are on the roadmap, not in the product.',
   },
   {
@@ -116,7 +116,7 @@ const SEGMENTS = [
     name: 'Charity & fundraising',
     need: 'Priced giving tiers, fees you can point at',
     detail:
-      'Name your tiers after what they fund and price them accordingly. Commission is a published 5% plus 50p on paid tickets and zero on free places, so you can tell a donor exactly what reached the cause.',
+      'Name your tiers after what they fund and price them accordingly. We take no commission, so every penny of face value reaches the cause and you can tell a donor exactly that. Free places cost nobody anything.',
     next: 'Corporate tables with named guests, deposits and balances are not built.',
   },
   {

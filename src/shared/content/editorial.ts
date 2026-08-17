@@ -29,7 +29,7 @@ export const EDITORIAL_ARTICLES: Article[] = [
       { type: 'heading', text: 'Where the money goes on a £50 ticket' },
       {
         type: 'paragraph',
-        text: 'Card processing is roughly £0.90 — 1.4% plus 20p — and it goes to the payment provider, not the platform. Our commission is 5% plus a 50p admin fee: £3.00. Of that, about £1.05 covers processing, infrastructure and support, leaving under £2 as actual margin.',
+        text: 'The organiser receives all £50. We take no commission, and card processing — roughly £0.90 on a £50 ticket — is ours to absorb, not theirs. Our revenue is the £2.49 service fee the buyer pays, of which about 41p is VAT and roughly £1.09 covers processing, infrastructure and support.',
       },
       {
         type: 'paragraph',
@@ -55,7 +55,7 @@ export const EDITORIAL_ARTICLES: Article[] = [
       {
         question: 'How much does TicketRoyality charge per ticket?',
         answer:
-          '5% of the ticket price plus a 50p admin fee. On a £50 ticket that is £3.00. Card processing of roughly 1.4% + 20p is charged separately by the payment provider.',
+          'Nothing. On a £50 ticket the organiser receives £50.00. The buyer pays a £2.49 TicketRoyality Service Fee, shown inside the £52.49 advertised price, and we absorb card processing out of it.',
       },
       {
         question: 'Who pays the booking fee, the buyer or the organiser?',

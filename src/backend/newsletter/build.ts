@@ -136,7 +136,7 @@ export function buildNewsletter(input: NewsletterInput): NewsletterContent {
 
   textParts.push(
     'RUN YOUR OWN EVENT',
-    `Free tickets carry no commission. Paid tickets are 5% + 50p, and that is the whole fee.`,
+    `Organisers pay 0% commission and keep 100% of their ticket value. Buyers pay one TicketRoyality Service Fee, shown inside every price we advertise. Free tickets cost everybody nothing.`,
     `Start selling: ${siteUrl}/register/organiser`,
     '',
     '—',
@@ -219,7 +219,9 @@ export function buildNewsletter(input: NewsletterInput): NewsletterContent {
         <tr><td style="padding:16px">
           <p style="margin:0;font-size:15px;font-weight:600;color:#111116">Running your own event?</p>
           <p style="margin:6px 0 0;font-size:13px;line-height:1.6;color:#4b4b53">
-            Free tickets carry no commission. Paid tickets are 5% + 50p, and that is the whole fee.
+            Organisers pay 0% commission and keep 100% of their ticket value. Buyers pay
+            one TicketRoyality Service Fee, shown inside every price we advertise. Free
+            tickets cost everybody nothing.
             Tiered and VIP pricing, QR entry, door check-in from a phone, and live revenue reporting.
           </p>
           <p style="margin:10px 0 0">

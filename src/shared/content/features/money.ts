@@ -73,7 +73,7 @@ export const MONEY_ARTICLES: Article[] = [
     cluster: 'money',
     tags: ['fees', 'payouts', 'commission', 'revenue'],
     excerpt:
-      '5% plus 50p, itemised per ticket, calculated on completed non-refunded sales — with the arithmetic published rather than summarised.',
+      '0% organiser commission. You keep 100% of every ticket value; our revenue is a service fee the buyer pays, published rather than summarised.',
     published: '2026-08-14T12:05:00.000Z',
     updated: '2026-08-14T12:05:00.000Z',
     readMinutes: 5,
@@ -81,14 +81,14 @@ export const MONEY_ARTICLES: Article[] = [
     blocks: [
       {
         type: 'paragraph',
-        text: 'Platform pricing in this industry is usually a range with an asterisk. Ours is a number: 5% of the ticket price plus a 50p admin fee, per ticket. Payment processing is charged by the payment provider on top, at their published rate, and it does not come to us.',
+        text: 'Platform pricing in this industry is usually a range with an asterisk. Ours is a sentence: organisers pay nothing. You set the ticket value and you keep all of it. Buyers pay one TicketRoyality Service Fee — 3.99% plus 49p per paid ticket, minimum 79p, VAT included — and it is inside every price we advertise, never added at checkout. Card processing is ours to pay, not yours.',
       },
       { type: 'heading', text: 'On a £50 ticket' },
       {
         type: 'list',
         items: [
           'Ticket price: £50.00',
-          'Platform commission: £3.00 — 5% plus 50p',
+          'Platform commission: £0.00 — you keep the whole £50',
           'Card processing: about £0.90 — 1.4% plus 20p, to the payment provider',
           'Organiser receives: £47.00',
         ],
@@ -122,7 +122,7 @@ export const MONEY_ARTICLES: Article[] = [
       {
         question: 'What commission does TicketRoyality charge organisers?',
         answer:
-          '5% of the ticket price plus a 50p admin fee per ticket. Payment processing is charged separately by the payment provider. Free events carry no commission.',
+          'Nothing. Organisers pay 0% commission and no fixed fee, and receive 100% of face value. Our revenue is the buyer-side service fee, and we absorb card processing. Free events cost everybody nothing.',
       },
       {
         question: 'When do organisers get paid?',
