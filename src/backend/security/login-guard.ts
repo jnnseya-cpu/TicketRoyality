@@ -117,16 +117,28 @@ async function bump(
 export async function checkLogin(
   identifier: string,
   ip: string,
-  namespace = 'login'
+  namespace = 'login',
+  /**
+   * Scales both budgets. A caller that proved some work gets the full allowance; one
+   * that did not gets half of it.
+   *
+   * A multiplier rather than a refusal, deliberately: the person whose browser cannot
+   * complete a proof-of-work is far more likely to be on an old phone than to be an
+   * attacker, and locking them out of their own account is the worse failure.
+   */
+  allowance = 1
 ): Promise<GuardVerdict> {
   if (!isAdminConfigured()) return { allowed: true };
 
+  const perIdentifier = Math.max(2, Math.round(MAX_PER_IDENTIFIER * allowance));
+  const perNetwork = Math.max(5, Math.round(MAX_PER_NETWORK * allowance));
+
   try {
     const now = new Date();
-    const byId = await bump(key(identifier, namespace), MAX_PER_IDENTIFIER, now, false);
+    const byId = await bump(key(identifier, namespace), perIdentifier, now, false);
     if (byId.blocked) return { allowed: false, retryAfter: byId.retryAfter, reason: 'identifier' };
 
-    const byIp = await bump(`ip:${key(ip, namespace)}`, MAX_PER_NETWORK, now, false);
+    const byIp = await bump(`ip:${key(ip, namespace)}`, perNetwork, now, false);
     if (byIp.blocked) return { allowed: false, retryAfter: byIp.retryAfter, reason: 'network' };
 
     return { allowed: true };

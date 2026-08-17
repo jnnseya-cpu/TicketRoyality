@@ -325,6 +325,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Spent proof-of-work nonces. Denied to every client: a document here is what stops a
+       solved challenge being replayed, so a client able to delete one gets unlimited use
+       of a single proof. */
+    match /attestations/{nonce} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }

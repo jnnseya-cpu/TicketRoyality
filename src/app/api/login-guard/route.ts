@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { callerIp, checkLogin, clearAttempts, recordFailure } from '@/backend/security/login-guard';
+import { attestationSignal } from '@/backend/security/attestation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,8 +11,15 @@ export const dynamic = 'force-dynamic';
  *
  * The client asks before attempting a sign-in and reports the outcome afterwards, so the
  * server owns the counters. A client that skipped the check would still hit Firebase
- * Auth's own limits, and App Check is the layer that closes the direct path properly —
- * see `backend/security/login-guard.ts`.
+ * Auth's own limits.
+ *
+ * ## Attestation tightens the limit rather than gating the door
+ *
+ * An unattested attempt is throttled harder — half the budget — instead of being
+ * refused. Refusing outright would lock out anyone whose browser could not complete the
+ * proof, and the person most likely to be on a device that struggles is not the
+ * attacker. Credential stuffing pays the proof-of-work cost on every attempt or accepts
+ * a much smaller allowance; a real customer who fails it once still gets in.
  *
  * The response deliberately says nothing about whether the account exists. A throttle
  * that answers differently for a real address than an invented one is an account
@@ -40,7 +48,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ cleared: true });
   }
 
-  const verdict = await checkLogin(identifier, ip);
+  const attested = await attestationSignal(request);
+  const verdict = await checkLogin(identifier, ip, 'login', attested === true ? 1 : 0.5);
 
   return verdict.allowed
     ? NextResponse.json({ allowed: true })

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { isAuthorisedCron } from '@/shared/cron';
 import { clearConsumedSeatLocks, expireHolds } from '@/backend/services/holds';
 import { expireLapsedBookings } from '@/backend/services/hospitality';
+import { purgeSpentAttestations } from '@/backend/security/attestation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -39,8 +40,13 @@ export async function GET(request: Request) {
    */
   const seatLocksCleared = await clearConsumedSeatLocks();
 
+  /* Spent attestation nonces, once they are older than any challenge could still be
+     valid. Keeping them forever would grow a collection whose only job is to refuse a
+     replay that expiry already refuses. */
+  const attestationsPurged = await purgeSpentAttestations();
+
   return NextResponse.json(
-    { released, bookingsExpired, seatLocksCleared, implemented: true },
+    { released, bookingsExpired, seatLocksCleared, attestationsPurged, implemented: true },
     { headers: { 'Cache-Control': 'no-store' } }
   );
 }

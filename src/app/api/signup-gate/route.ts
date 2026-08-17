@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { assessRisk, type RequestSignals } from '@/shared/security/humanity';
+import { attestationSignal } from '@/backend/security/attestation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,12 +13,19 @@ export const dynamic = 'force-dynamic';
  * that decides whether it is a bot will always decide it is not. The form gathers
  * signals; the server reaches the verdict.
  *
- * This is the first of two layers and the weaker one. It stops naive automation —
- * scripted form fills, headless browsers driving the real page — but a determined
- * attacker can call Firebase Auth directly and never touch this route. The layer that
- * closes that hole is App Check, which enforces at the Firebase service itself
- * (`shared/security/appcheck.ts`), and it needs a reCAPTCHA Enterprise site key from
- * the console. Both are the same vendor; neither is a substitute for the other.
+ * ## What stops the direct path
+ *
+ * Signals alone stop naive automation — scripted form fills, headless browsers driving
+ * the real page. They do nothing about an attacker calling Firebase Auth directly and
+ * never touching this route.
+ *
+ * The proof-of-work attestation is what raises the cost of doing that in bulk: a
+ * solved challenge is required to look like a normal request, it is single-use, and it
+ * costs the same CPU on every attempt. It does not make the direct path impossible —
+ * nothing free does — it makes ten thousand attempts cost hours instead of seconds.
+ *
+ * Absent attestation is scored as unproven rather than hostile, so an old tab or a
+ * client we have not instrumented is not locked out.
  */
 
 interface GateRequest {
@@ -56,9 +64,9 @@ export async function POST(request: Request) {
   const [localPart = '', domain = ''] = email.split('@');
 
   const signals: RequestSignals = {
-    // App Check is not enforced yet, so attestation is unknown rather than failed.
-    // `assessRisk` treats absent as unproven, not hostile — an outdated cached token
-    // on a real browser must not lock a real customer out.
+    // Verified here, not trusted from the body: the header carries a signed challenge
+    // and its solution, and the nonce is burned so it cannot be reused.
+    attested: await attestationSignal(request),
     disposableEmail: DISPOSABLE.some((d) => domain === d || domain.endsWith(`.${d}`)),
     roleAddress: ROLE_PREFIXES.includes(localPart),
     fillMillis: body.fillMillis,

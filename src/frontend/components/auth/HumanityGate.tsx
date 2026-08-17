@@ -2,6 +2,8 @@
 
 import * as React from 'react';
 
+import { prewarm, withAttestation } from '@/frontend/lib/attest';
+
 /**
  * Signal collection for the sign-up humanity gate (docs/11).
  *
@@ -22,6 +24,16 @@ export function useHumanityGate() {
   const mountedAt = React.useRef(Date.now());
   const interacted = React.useRef(false);
   const honeypot = React.useRef('');
+
+  /*
+   * Start the proof-of-work as soon as the form exists, so the couple of hundred
+   * milliseconds are spent while somebody types their email rather than after they press
+   * the button. An attestation that adds a visible pause to a sign-up is one that gets
+   * removed for hurting conversion, and then it protects nothing.
+   */
+  React.useEffect(() => {
+    prewarm();
+  }, []);
 
   const markInteraction = React.useCallback(() => {
     interacted.current = true;
@@ -104,7 +116,9 @@ export async function checkHumanity(
   try {
     const response = await fetch('/api/signup-gate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // The proof-of-work token, when one is ready. Solved in the background while the
+      // form was being filled in, so it adds nothing to the wait here.
+      headers: await withAttestation({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ email, ...signals }),
     });
 
@@ -113,7 +127,7 @@ export async function checkHumanity(
   } catch {
     // Fail open, deliberately. The cost of a wrong refusal is a real customer who
     // cannot create an account and will not try twice; the cost of a wrong allow is
-    // one spam account an admin can suspend. App Check is the layer that fails closed.
+    // one spam account an admin can suspend.
     return { allowed: true };
   }
 }

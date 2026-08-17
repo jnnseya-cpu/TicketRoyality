@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+
+import { withAttestation } from '@/frontend/lib/attest';
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -84,7 +86,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = React.useCallback(async (email: string, password: string) => {
     const guard = await fetch('/api/login-guard', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // Carries the proof-of-work when one is ready. Its absence does not refuse the
+      // sign-in; it halves the number of attempts this identifier and network get.
+      headers: await withAttestation({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ identifier: email, outcome: 'attempt' }),
     })
       .then((r) => r.json())
