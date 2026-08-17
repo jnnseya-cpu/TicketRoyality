@@ -107,7 +107,13 @@ async function notify(
  * Not named `process`: that shadows the Node global at module scope, so every later
  * `process.env` in this file silently resolves to this function instead.
  */
-async function processPaymentEvent(providerEventId: string): Promise<PaymentEventStatus> {
+/**
+ * Exported for testing. This function *is* the payment loop — the step between a
+ * verified webhook and a ticket in somebody's hand — and it was unreachable from a test,
+ * which is precisely why the loop had never been exercised end to end. The triggers
+ * below are thin wrappers around it.
+ */
+export async function processPaymentEvent(providerEventId: string): Promise<PaymentEventStatus> {
   const firestore = db();
   const ref = firestore.collection('payment_events').doc(providerEventId);
   const snap = await ref.get();
