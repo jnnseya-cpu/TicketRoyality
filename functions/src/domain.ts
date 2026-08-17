@@ -128,3 +128,13 @@ export interface PaymentEventDoc {
   /** The checkout hold this payment consumes, if one was placed. */
   holdId?: string;
 }
+
+/** Mirrors `VenueZone` in `src/shared/types`. See `qr-contract.ts` on why it is restated. */
+export interface VenueZoneDoc {
+  id: string;
+  name: string;
+  allowedTierIds: string[];
+  capacity: number | null;
+  reEntry: boolean;
+  occupancy?: number;
+}

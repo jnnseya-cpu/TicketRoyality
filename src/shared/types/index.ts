@@ -80,6 +80,37 @@ export interface Speaker {
   photoUrl?: string;
 }
 
+/**
+ * A physical area of the venue with its own door.
+ *
+ * Zones are about *where a ticket may go*, which is a different question from what it
+ * cost. A £200 hospitality ticket and a £200 stage-side ticket are the same tier price
+ * and belong in different rooms; general admission and VIP can share a main gate and
+ * diverge at the lounge door.
+ *
+ * So a zone names the tiers it admits rather than deriving them from price, and a door
+ * scanning for that zone refuses everything else — which is the "gates that admit only
+ * the ticket types assigned to them" the platform has been claiming.
+ */
+export interface VenueZone {
+  id: string;
+  name: string;
+  /** Tier ids this door admits. Empty means every tier — a main gate. */
+  allowedTierIds: string[];
+  /**
+   * How many people the zone holds. `null` for uncapped, which is normal for a main
+   * gate where the event capacity is the real limit.
+   */
+  capacity: number | null;
+  /**
+   * Whether someone may leave and come back. A smoking area or a main gate usually
+   * allows it; a one-shot hospitality sitting usually does not.
+   */
+  reEntry: boolean;
+  /** Currently inside. Maintained transactionally by the door, never edited by hand. */
+  occupancy?: number;
+}
+
 export interface SeatingSection {
   id: string;
   name: string;
@@ -162,6 +193,8 @@ export interface Event {
   currency: string;
   ticketTiers: TicketTier[];
   seating?: SeatingSection[];
+  /** Doors within the venue. Absent means one undifferentiated gate. */
+  zones?: VenueZone[];
   capacity?: number;
 
   organizerId: string;

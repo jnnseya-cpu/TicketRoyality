@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { requireUser } from '@/backend/auth/require-user';
 import { redeemAtDoor } from '@/backend/services/redeem';
+import { admitToZone } from '@/backend/services/zones';
 import { decodeTicketQr } from '@/shared/tickets/qr';
 
 export const runtime = 'nodejs';
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   const caller = await requireUser(request);
   if (!caller.ok) return NextResponse.json({ error: caller.error }, { status: caller.status });
 
-  let body: { raw?: string; eventId?: string };
+  let body: { raw?: string; eventId?: string; zoneId?: string; direction?: 'in' | 'out' };
   try {
     body = await request.json();
   } catch {
@@ -38,6 +39,27 @@ export async function POST(request: Request) {
       { kind: 'invalid', error: 'That is not a TicketRoyality ticket.' },
       { status: 400 }
     );
+  }
+
+  /*
+   * A zone scan is not a redemption.
+   *
+   * Entering the hospitality lounge must not consume the ticket — the holder is expected
+   * to come back out and go to their seat. So a zone door checks whether the ticket may
+   * be in that room and whether the room is full, and leaves `status` alone. The main
+   * gate, with no zone, is what redeems.
+   */
+  if (body.zoneId) {
+    const zone = await admitToZone(
+      decoded.payload.t,
+      eventId,
+      String(body.zoneId),
+      body.direction === 'out' ? 'out' : 'in'
+    );
+
+    return zone.ok
+      ? NextResponse.json({ ok: true, zone })
+      : NextResponse.json({ error: zone.error, kind: zone.kind }, { status: zone.status });
   }
 
   const result = await redeemAtDoor(decoded.payload, eventId, caller.uid);

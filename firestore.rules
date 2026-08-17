@@ -278,6 +278,14 @@ service cloud.firestore {
        write here could hand somebody else's ticket away, or mark a transfer accepted
        without the seed rotation that stops the old holder's copy scanning. Read is
        allowed to the two parties so each can see the state of their own transfer. */
+    /* Written only by the door route, which proves the scanner owns the event before a
+       ticket moves. A client write could mark itself admitted to a zone it is not
+       entitled to, or edit occupancy so a fire-limited room reads empty. Organisers read
+       occupancy from the event document, which they already own. */
+    match /zone_admissions/{id} {
+      allow read, write: if false;
+    }
+
     match /ticket_transfers/{id} {
       allow get, list: if isSignedIn() && resource.data.fromUserId == request.auth.uid;
       allow write: if false;
