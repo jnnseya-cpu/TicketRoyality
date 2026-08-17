@@ -34,7 +34,8 @@
     "test:transfer": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/transfer.test.ts\"",
     "test:zones": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/zones.test.ts\"",
     "test:hospitality": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/hospitality.test.ts\"",
-    "test:analytics": "tsx src/shared/analytics.test.ts"
+    "test:analytics": "tsx src/shared/analytics.test.ts",
+    "generate:splash": "node scripts/generate-splash.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

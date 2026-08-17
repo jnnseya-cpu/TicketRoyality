@@ -4,6 +4,7 @@ import { Inter, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 import { Header } from '@/frontend/components/common/Header';
 import { Footer } from '@/frontend/components/common/Footer';
+import { AppleSplashLinks } from '@/frontend/components/common/AppleSplashLinks';
 import { SplashScreen } from '@/frontend/components/common/SplashScreen';
 import { InstallPrompt } from '@/frontend/components/common/InstallPrompt';
 import { ServiceWorker } from '@/frontend/components/common/ServiceWorker';
@@ -94,6 +95,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
             <CartProvider>
+              <AppleSplashLinks />
               <SplashScreen />
               <div className="flex min-h-screen flex-col">
                 <Header />
