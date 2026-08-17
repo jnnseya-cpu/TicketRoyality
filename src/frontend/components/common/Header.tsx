@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { Logo, Wordmark } from '@/frontend/components/common/Logo';
+import { NotificationBell } from '@/frontend/components/common/NotificationBell';
 import { ThemeToggle } from '@/frontend/components/common/ThemeToggle';
 import { Button } from '@/frontend/components/ui/button';
 import { Badge } from '@/frontend/components/ui/badge';
@@ -96,6 +97,9 @@ export function Header() {
               </Badge>
             )}
           </Link>
+
+          {/* Only renders for a signed-in user — see NotificationBell. */}
+          <NotificationBell />
 
           <ThemeToggle />
 

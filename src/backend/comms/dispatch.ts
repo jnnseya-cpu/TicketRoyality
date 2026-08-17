@@ -7,6 +7,7 @@ import { siteUrl } from '@/shared/site';
 import { isEmailConfigured, send } from './email';
 import { recordDeliveries, type StoredDelivery } from './log';
 import { catalogueEmail } from './template';
+import { deliverInApp } from './inapp';
 
 /**
  * The single door every notification passes through.
@@ -133,9 +134,27 @@ export async function dispatch(request: DispatchRequest): Promise<DispatchResult
       // something is going to happen and nothing is.
       status = 'suppressed';
       error = 'No approved provider for this channel (CLAUDE.md §1)';
+    } else if (channel === 'inapp') {
+      // 177 catalogue events declare this channel and every one of them used to record
+      // "not implemented". A refund processed, an organiser approved, a payout sent —
+      // all of it reached a delivery log nobody outside the admin console reads.
+      const outcome = await deliverInApp({
+        userId: address,
+        eventKey: event.key,
+        title: subject,
+        body: (request.body?.length ? request.body : [subject])
+          .map((line) => render(line, request.vars))
+          .join('\n\n'),
+        severity: event.severity,
+        action: request.action,
+      });
+
+      status = outcome.delivered ? 'sent' : 'suppressed';
+      if (outcome.delivered) messageId = outcome.id;
+      else error = outcome.reason;
     } else {
-      // push (FCM) and inapp (Firestore) are not wired yet. Honest state, not a lie
-      // about a queue that does not exist.
+      // push (FCM) is not wired. Honest state, not a lie about a queue that does not
+      // exist — and the bell above means an FCM outage is no longer silence.
       status = 'suppressed';
       error = `${channel} delivery is not implemented`;
     }

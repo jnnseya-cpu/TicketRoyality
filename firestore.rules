@@ -241,6 +241,29 @@ service cloud.firestore {
 
     /* Deny everything not explicitly matched above. */
     /* ---------------------------------------------------------------- */
+    /* notifications                                                      */
+    /* ---------------------------------------------------------------- */
+
+    match /notifications/{id} {
+      // Yours alone. A notification carries the subject of something that happened to
+      // you — a refund, a suspension, a payout — so a readable-by-anyone list would be
+      // a feed of other people's account events.
+      allow get, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      // Written only by the server, which dispatches them. A client that could create
+      // one could forge a message from the platform to itself, and screenshots of that
+      // travel further than any of us would like.
+      allow create: if false;
+
+      // The single field a recipient may change is whether they have read it.
+      allow update: if isSignedIn()
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    /* ---------------------------------------------------------------- */
     /* login_attempts, checkout_holds — server-only                       */
     /* ---------------------------------------------------------------- */
 

@@ -213,6 +213,56 @@ async function main() {
     await assertFails(updateDoc(doc(customer, 'tickets', 't-1'), { price: 0 }));
   });
 
+  console.log('\nfirestore.rules — notifications\n');
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'notifications', 'n-1'), {
+      userId: CUSTOMER.uid,
+      eventKey: 'order.refund.processed',
+      title: 'Your refund was processed',
+      body: 'Refunded to your card.',
+      severity: 'success',
+      createdAt: '2026-08-17T00:00:00.000Z',
+    });
+  });
+
+  await test('a user reads their own notification', async () => {
+    await assertSucceeds(getDoc(doc(customer, 'notifications', 'n-1')));
+  });
+
+  await test('a stranger cannot read someone else’s notification', async () => {
+    // These carry the subject of what happened to a person — a refund, a suspension.
+    // A readable-by-anyone list would be a feed of other people's account events.
+    const other = env.authenticatedContext('cust-2').firestore();
+    await assertFails(getDoc(doc(other, 'notifications', 'n-1')));
+  });
+
+  await test('a user cannot forge a notification to themselves', async () => {
+    // A client that could create one could fabricate a message from the platform, and
+    // screenshots of that travel.
+    await assertFails(
+      setDoc(doc(customer, 'notifications', 'forged'), {
+        userId: CUSTOMER.uid,
+        eventKey: 'account.locked',
+        title: 'Your account has been locked',
+        body: 'Click here',
+        severity: 'critical',
+        createdAt: '2026-08-17T00:00:00.000Z',
+      })
+    );
+  });
+
+  await test('a user may mark their own notification read', async () => {
+    await assertSucceeds(
+      updateDoc(doc(customer, 'notifications', 'n-1'), { readAt: '2026-08-17T01:00:00.000Z' })
+    );
+  });
+
+  await test('a user cannot rewrite a notification’s contents', async () => {
+    await assertFails(updateDoc(doc(customer, 'notifications', 'n-1'), { title: 'Something else' }));
+  });
+
   const failed = results.filter(([, ok]) => !ok);
   console.log(`\n${results.length - failed.length}/${results.length} passed\n`);
   await env.cleanup();

@@ -33,10 +33,9 @@ import { reportError } from '@/backend/observability/report-error';
  *    the event id and probe another door, or substitute a guessed ticket id — and the
  *    scanner would obligingly query the database with it.
  *
- * What signing does not fix, and is not claimed to: a screenshot still works once. The
- * single-use transaction is what bounds it, and the terms of service describe exactly
- * that. Defeating a shared screenshot outright needs a rotating code, which is a
- * different feature and is not built.
+ * Signing alone did not stop a forwarded screenshot — the rotating code below does, by
+ * making the picture stale within thirty seconds. What neither fixes is somebody sharing
+ * their account credentials, which is true of every ticketing platform.
  */
 
 export type RedeemResult =
