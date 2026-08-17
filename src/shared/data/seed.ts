@@ -6,10 +6,20 @@ import { eventImageSeed, avatarSeed } from '@/shared/constants/placeholder-image
  * As soon as NEXT_PUBLIC_FIREBASE_* is configured, live Firestore data takes over.
  */
 
-const YEAR = 2026;
-
+/**
+ * Demo dates roll forward rather than expiring.
+ *
+ * These were pinned to a fixed year, so the preview catalogue quietly filled up with
+ * events that had already happened — every one of them showing "sales closed", which
+ * makes the local build look broken to anyone evaluating it and useless to test against.
+ * A date that has passed is moved to the same day next year.
+ */
 function iso(month: number, day: number, hour = 19, minute = 0) {
-  return new Date(Date.UTC(YEAR, month - 1, day, hour, minute)).toISOString();
+  const now = Date.now();
+  const thisYear = new Date().getUTCFullYear();
+  const candidate = Date.UTC(thisYear, month - 1, day, hour, minute);
+  const when = candidate > now ? candidate : Date.UTC(thisYear + 1, month - 1, day, hour, minute);
+  return new Date(when).toISOString();
 }
 
 interface Seed {
