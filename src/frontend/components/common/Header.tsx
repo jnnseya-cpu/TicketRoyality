@@ -135,11 +135,19 @@ export function Header() {
                       <LayoutDashboard /> Dashboard
                     </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/dashboard/customer#tickets">
-                      <Ticket /> My tickets
-                    </Link>
-                  </DropdownMenuItem>
+                  {/*
+                    Customers only. The wallet lives on the customer dashboard, which is
+                    guarded by RequireRole, so this link was a guaranteed "wrong account
+                    type" for every organiser and administrator who clicked it. A menu
+                    item that can only fail is worse than a missing one.
+                  */}
+                  {userProfile?.userType === 'customer' && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/customer#tickets">
+                        <Ticket /> My tickets
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>
                     <LogOut /> Sign out

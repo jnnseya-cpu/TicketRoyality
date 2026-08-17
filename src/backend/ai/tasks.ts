@@ -3,6 +3,9 @@ import type { z } from 'zod';
 import {
   AdCopyInputSchema,
   AdCopyOutputSchema,
+  DynamicPricingOutputSchema,
+  type DynamicPricingInput,
+  type DynamicPricingOutput,
   RecommendationInputSchema,
   RecommendationOutputSchema,
   SimilarEventsInputSchema,
@@ -122,6 +125,88 @@ ${JSON_RULE}`,
   clamp: (output, input) => {
     const valid = new Set(input.candidates.map((e) => e.id));
     return { eventIds: output.eventIds.filter((id) => valid.has(id)).slice(0, input.max) };
+  },
+};
+
+/**
+ * Dynamic pricing — a recommendation, never a decision.
+ *
+ * Deliberately absent from `TASKS`, so it cannot be reached through `/api/ai`. Every
+ * other task takes its input from the caller; this one must not. `sold`, `quantity` and
+ * `daysUntilEvent` are the entire evidence base for the price, and a client that could
+ * post them could invent a sell-out and talk the model into any number it wanted. The
+ * only caller is `/api/events/[id]/pricing/review`, which reads them from Firestore
+ * after checking the caller owns the event.
+ *
+ * The clamp is the part that matters commercially. A model asked about pricing will
+ * occasionally return a confident nonsense — £0, or four times the current price — and
+ * a suggestion an organiser can apply in one click has to be bounded before they see
+ * it, not after. ±40% of the current price, and never below zero.
+ */
+export const dynamicPricingTask: AiTask<DynamicPricingInput, DynamicPricingOutput> = {
+  name: 'dynamic-pricing',
+  system:
+    'You are a revenue manager for live events. You reason from sell-through rate and time remaining, and you are candid when the evidence is too thin to justify a change.',
+  outputSchema: DynamicPricingOutputSchema,
+  outputShape: `{
+  "suggestions": [
+    {
+      "tierId": string,          // must be one of the tier ids given
+      "suggestedPrice": number,  // in the event's currency, two decimals
+      "reason": string           // one sentence, plain English, cites the evidence
+    }
+  ],
+  "summary": string              // one or two sentences on overall demand
+}`,
+  render: (input) => `Review the pricing on this event and suggest changes where the evidence supports one.
+
+Event: ${input.eventTitle}
+Category: ${input.category}
+Location: ${input.location}
+Currency: ${input.currency}
+Days until the event: ${input.daysUntilEvent}
+Days on sale so far: ${input.daysOnSale}
+
+Tiers:
+${input.tiers
+  .map(
+    (t) =>
+      `- id: ${t.id} | ${t.name} | price: ${t.price} | sold: ${t.sold} of ${t.quantity} (${
+        t.quantity > 0 ? Math.round((t.sold / t.quantity) * 100) : 0
+      }%)`
+  )
+  .join('\n')}
+
+Rules:
+- Raise a price only when sell-through is running ahead of the time elapsed.
+- Lower a price only when it is behind and there is still time for a cut to work.
+- Leave a tier out of "suggestions" entirely when the right answer is to do nothing.
+  A short sales history is a reason to wait, not a reason to guess.
+- Never suggest a price below zero, and never suggest a free tier become paid — a free
+  tier is a deliberate choice, not an underpriced one.
+- Keep every change within 40% of the current price.
+- Each reason must cite the numbers it relies on.
+
+${JSON_RULE}`,
+  clamp: (output, input) => {
+    const byId = new Map(input.tiers.map((t) => [t.id, t]));
+    return {
+      summary: output.summary,
+      suggestions: output.suggestions
+        .filter((s) => byId.has(s.tierId))
+        .map((s) => {
+          const tier = byId.get(s.tierId)!;
+          // A free tier stays free. Turning one paid is a commercial decision an
+          // organiser made on purpose, not a pricing error to be optimised away.
+          if (tier.price === 0) return { ...s, suggestedPrice: 0 };
+          const floor = tier.price * 0.6;
+          const ceiling = tier.price * 1.4;
+          const bounded = Math.min(ceiling, Math.max(floor, s.suggestedPrice));
+          return { ...s, suggestedPrice: Math.max(0, Math.round(bounded * 100) / 100) };
+        })
+        // A "suggestion" identical to the current price is noise in the UI.
+        .filter((s) => s.suggestedPrice !== byId.get(s.tierId)!.price),
+    };
   },
 };
 

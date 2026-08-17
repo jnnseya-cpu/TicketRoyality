@@ -110,6 +110,30 @@ export interface Recurrence {
   endDate: string;
 }
 
+export interface PriceSuggestion {
+  tierId: string;
+  tierName: string;
+  /** The price at the moment the review ran, so a stale suggestion is visible as stale. */
+  currentPrice: number;
+  suggestedPrice: number;
+  reason: string;
+}
+
+/**
+ * AI dynamic selling, per event.
+ *
+ * `enabled` turns the review on; it does **not** authorise a price change. Suggestions
+ * are applied by the organiser, one tier at a time. Automatic repricing was considered
+ * and rejected for now: there are no checkout inventory holds yet, so a price that
+ * moves on its own can move underneath somebody who is mid-purchase.
+ */
+export interface DynamicPricing {
+  enabled: boolean;
+  lastReviewedAt?: string;
+  summary?: string;
+  suggestions?: PriceSuggestion[];
+}
+
 export interface Event {
   id: string;
   title: string;
@@ -139,6 +163,7 @@ export interface Event {
 
   speakers?: Speaker[];
   recurrence?: Recurrence;
+  dynamicPricing?: DynamicPricing;
 
   featured?: boolean;
   videoAdUrl?: string;

@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
 import { CreateEventForm } from '@/frontend/components/events/CreateEventForm';
+import { DynamicSellingPanel } from '@/frontend/components/events/DynamicSellingPanel';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { getEventById } from '@/shared/data/repositories';
 import type { Event } from '@/shared/types';
@@ -67,6 +68,9 @@ export default function EditEventPage() {
               <h1 className="font-headline text-2xl font-bold">Edit event</h1>
               <p className="text-sm text-muted-foreground">{event.title}</p>
             </div>
+            {/* Above the form: it reads the tiers the form edits, so a stale suggestion
+                sitting under an unsaved change would be the confusing order. */}
+            <DynamicSellingPanel event={event} />
             <CreateEventForm profile={profile} existingEvent={event} />
           </div>
         );

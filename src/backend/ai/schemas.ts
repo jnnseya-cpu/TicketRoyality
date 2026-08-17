@@ -54,3 +54,45 @@ export const SimilarEventsOutputSchema = z.object({
   eventIds: z.array(z.string()),
 });
 export type SimilarEventsOutput = z.infer<typeof SimilarEventsOutputSchema>;
+
+/**
+ * Dynamic pricing.
+ *
+ * The input is assembled server-side from Firestore and never accepted from a client.
+ * A caller who could send `sold` and `capacity` could manufacture a scarcity story and
+ * talk the model into any price it liked — and the price is what the platform charges.
+ */
+const PricingTierSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  price: z.number().min(0),
+  quantity: z.number().min(0),
+  sold: z.number().min(0),
+});
+
+export const DynamicPricingInputSchema = z.object({
+  eventTitle: z.string(),
+  category: z.string(),
+  location: z.string(),
+  currency: z.string(),
+  /** Whole days from now until doors. Negative means the event has passed. */
+  daysUntilEvent: z.number(),
+  /** How long the event has been on sale, in whole days. */
+  daysOnSale: z.number().min(0),
+  tiers: z.array(PricingTierSchema).min(1).max(20),
+});
+export type DynamicPricingInput = z.infer<typeof DynamicPricingInputSchema>;
+
+export const DynamicPricingOutputSchema = z.object({
+  suggestions: z
+    .array(
+      z.object({
+        tierId: z.string(),
+        suggestedPrice: z.number().min(0),
+        reason: z.string(),
+      })
+    )
+    .max(20),
+  summary: z.string().describe('One or two sentences on the overall read of demand.'),
+});
+export type DynamicPricingOutput = z.infer<typeof DynamicPricingOutputSchema>;
