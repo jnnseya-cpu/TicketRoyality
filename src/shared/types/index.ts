@@ -205,6 +205,22 @@ export interface TicketTier {
   quantity: number;
   sold?: number;
   /**
+   * How the price is decided.
+   *
+   * `fixed` is every ordinary ticket: the organiser names the price and that is what is
+   * charged. `choose` is pay-what-you-want — the buyer names it, bounded below by
+   * `minPrice`. A congregation, a wedding list and a fundraiser all need the second one,
+   * and forcing a donation into a priced tier makes the giver choose between the amount
+   * they meant and the amount on the button.
+   *
+   * Absent means `fixed`, so every tier that already exists is unchanged.
+   */
+  pricing?: 'fixed' | 'choose';
+  /** The floor for a `choose` tier. `0` genuinely allows nothing, which is a valid choice. */
+  minPrice?: number;
+  /** What the page suggests before the buyer types. Never enforced. */
+  suggestedPrice?: number;
+  /**
    * Reserved by a checkout in progress. Subtracted by `availableInTier()`, which has
    * always read this field — it simply had nowhere to come from until checkout holds
    * existed. Separate from `quantity` on purpose: `quantity` is the organiser's

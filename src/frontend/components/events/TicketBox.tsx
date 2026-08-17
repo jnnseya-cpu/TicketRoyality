@@ -16,6 +16,8 @@ import { useToast } from '@/frontend/hooks/use-toast';
 import { formatCurrency } from '@/shared/utils';
 import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
+import { resolveLinePrice } from '@/shared/pricing';
+import { Input } from '@/frontend/components/ui/input';
 import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
 import type { Event } from '@/shared/types';
 
@@ -33,12 +35,33 @@ export function TicketBox({ event }: { event: Event }) {
   const [bitripayLoading, setBitripayLoading] = React.useState(false);
 
   const tier = event.ticketTiers.find((t) => t.id === tierId) ?? event.ticketTiers[0];
-  const lineTotal = (tier?.price ?? 0) * quantity;
+
+  /*
+   * Pay what you want. The buyer's amount is the price on a `choose` tier, floored at the
+   * organiser's minimum. `resolveLinePrice` is the same function the checkout route runs
+   * server-side, so what is shown here and what is charged cannot drift — and a tier that
+   * is not `choose` ignores this field entirely.
+   */
+  const isChoose = tier?.pricing === 'choose';
+  const [chosen, setChosen] = React.useState<string>('');
+
+  React.useEffect(() => {
+    setChosen(
+      tier?.pricing === 'choose'
+        ? String(tier.suggestedPrice ?? tier.minPrice ?? 0)
+        : ''
+    );
+  }, [tier?.id, tier?.pricing, tier?.suggestedPrice, tier?.minPrice]);
+
+  const unitPrice = tier
+    ? resolveLinePrice(tier, isChoose ? Number(chosen) : undefined)
+    : 0;
+  const lineTotal = unitPrice * quantity;
   // One engine, so this total and the server's charge cannot disagree.
-  const quote = computeOrderFees([{ faceMinor: toMinor(tier?.price ?? 0), qty: quantity }]);
+  const quote = computeOrderFees([{ faceMinor: toMinor(unitPrice), qty: quantity }]);
   // A rail with no credentials must not be offered — see use-payment-methods.
   const methods = usePaymentMethods();
-  const isFree = (tier?.price ?? 0) === 0;
+  const isFree = unitPrice === 0;
 
   const handleAddToCart = () => {
     if (!tier) return;
@@ -49,7 +72,9 @@ export function TicketBox({ event }: { event: Event }) {
       imageUrl: event.imageUrl,
       tierId: tier.id,
       tierName: tier.name,
-      price: tier.price,
+      // The chosen amount travels with the cart line. The server re-resolves it against
+      // the stored tier at checkout, so this is a carrier, not an authority.
+      price: unitPrice,
       currency: event.currency,
       quantity,
     });
@@ -122,7 +147,20 @@ export function TicketBox({ event }: { event: Event }) {
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-medium">{option.name}</span>
                     <span className="shrink-0 font-semibold text-primary">
-                      <TicketPrice faceMinor={toMinor(option.price)} currency={event.currency} />
+                      {/* A minimum is still a price a buyer will pay, so it goes through
+                          the same component with `lead` — the fee is inside the figure
+                          shown, not added after the click. */}
+                      {option.pricing === 'choose' && (option.minPrice ?? 0) <= 0 ? (
+                        <span className="text-sm">You choose</span>
+                      ) : (
+                        <TicketPrice
+                          faceMinor={toMinor(
+                            option.pricing === 'choose' ? (option.minPrice ?? 0) : option.price
+                          )}
+                          currency={event.currency}
+                          variant={option.pricing === 'choose' ? 'lead' : 'exact'}
+                        />
+                      )}
                     </span>
                   </div>
                   {option.description && (
@@ -136,6 +174,33 @@ export function TicketBox({ event }: { event: Event }) {
             );
           })}
         </RadioGroup>
+
+        {isChoose && (
+          <div className="space-y-1.5">
+            <Label htmlFor="chosen-amount" className="text-sm font-medium">
+              What would you like to give?
+            </Label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">{event.currency}</span>
+              <Input
+                id="chosen-amount"
+                type="number"
+                min={tier.minPrice ?? 0}
+                step="0.01"
+                inputMode="decimal"
+                value={chosen}
+                onChange={(e) => setChosen(e.target.value)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {(tier.minPrice ?? 0) > 0
+                ? `${formatCurrency(tier.minPrice ?? 0, event.currency)} or more.`
+                : 'Any amount, including nothing at all.'}
+              {Number(chosen) < (tier.minPrice ?? 0) &&
+                ` We will charge the ${formatCurrency(tier.minPrice ?? 0, event.currency)} minimum.`}
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium">Quantity</span>
@@ -222,7 +287,9 @@ export function TicketBox({ event }: { event: Event }) {
             */}
             <form action="/api/checkout" method="POST">
               <input type="hidden" name="name" value={`${event.title} — ${tier.name}`} />
-              <input type="hidden" name="amount" value={tier.price} />
+              {/* Carried, not trusted: the route re-resolves it against the stored tier
+                  and ignores it outright unless that tier is pay-what-you-want. */}
+              <input type="hidden" name="amount" value={unitPrice} />
               <input type="hidden" name="quantity" value={quantity} />
               <input type="hidden" name="currency" value={event.currency} />
               <input type="hidden" name="eventId" value={event.id} />

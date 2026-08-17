@@ -3,7 +3,7 @@ import {
   DEFAULT_COMMISSION_PERCENT,
   OFFLINE_SERVICE_FEE_PERCENT,
 } from '@/shared/constants/billing';
-import type { Coupon, Event, UserProfile } from '@/shared/types';
+import type { Coupon, Event, TicketTier, UserProfile } from '@/shared/types';
 
 /**
  * Commercial arithmetic. Isomorphic on purpose: the organiser dashboard renders these
@@ -112,6 +112,42 @@ export function applyCoupon(subtotal: number, coupon: Coupon | null, now = Date.
 /** Remaining inventory for a tier: quantity less what is sold and what is held in checkout. */
 export function availableInTier(tier: { quantity: number; sold?: number; held?: number }) {
   return tier.quantity - (tier.sold ?? 0) - (tier.held ?? 0);
+}
+
+/**
+ * The one place that decides what a buyer is charged for a line.
+ *
+ * ## Why a posted amount is ever accepted
+ *
+ * Everywhere else, a price posted by a browser is ignored and re-read from Firestore —
+ * that is what stops a £250 ticket being bought for a penny. Pay-what-you-want inverts
+ * the question: the buyer's amount *is* the price, and the only thing the server owes
+ * anyone is the floor the organiser set.
+ *
+ * So this is not a hole in that rule, it is the rule stated precisely: **a fixed tier
+ * ignores the request entirely**, and a `choose` tier accepts it only above the tier's
+ * own minimum. A tier that was never marked `choose` cannot be turned into one by a
+ * crafted POST, because the mode is read from the stored event and not from the form.
+ *
+ * The ceiling exists to stop a typo becoming a card decline nobody understands, and is
+ * far above any real gift.
+ */
+export const CHOSEN_PRICE_CEILING = 100_000;
+
+export function resolveLinePrice(
+  tier: Pick<TicketTier, 'price' | 'pricing' | 'minPrice'>,
+  requestedMajor: number | undefined
+): number {
+  if (tier.pricing !== 'choose') return tier.price;
+
+  const floor = Math.max(0, tier.minPrice ?? 0);
+  const requested = Number(requestedMajor);
+  if (!Number.isFinite(requested)) return floor;
+
+  // Rounded to the penny here rather than at the payment provider, so what the buyer is
+  // told they are giving and what leaves their card are the same number.
+  const rounded = Math.round(requested * 100) / 100;
+  return Math.min(CHOSEN_PRICE_CEILING, Math.max(floor, rounded));
 }
 
 /** Cheapest live tier — what the catalogue card shows as "from". */

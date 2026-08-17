@@ -5,7 +5,7 @@ import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { placeHold, releaseHold } from '@/backend/services/holds';
 import type { Coupon, TicketTier } from '@/shared/types';
-import { applyCoupon } from '@/shared/pricing';
+import { applyCoupon, resolveLinePrice } from '@/shared/pricing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -90,7 +90,10 @@ export async function POST(request: Request) {
             | undefined;
           const tier = data?.ticketTiers?.find((t) => t.id === item.tierId);
           if (!tier) return fail(`${item.eventTitle} is no longer on sale`);
-          amount = tier.price;
+          // A fixed tier ignores the posted price; a pay-what-you-want tier accepts it
+          // above the organiser's floor. The mode comes from the stored event, so a
+          // crafted POST cannot turn a £250 ticket into a donation.
+          amount = resolveLinePrice(tier, Number(item.price));
           currency = data?.currency ?? currency;
           name = `${data?.title ?? item.eventTitle} — ${tier.name}`;
         } catch {
@@ -150,7 +153,7 @@ export async function POST(request: Request) {
           | undefined;
         const tier = data?.ticketTiers?.find((t) => t.id === tierId);
         if (!tier) return fail('That ticket type is no longer on sale');
-        amount = tier.price;
+        amount = resolveLinePrice(tier, amount);
         name = `${data?.title ?? 'Event'} — ${tier.name}`;
         currency = data?.currency ?? currency;
       } catch {

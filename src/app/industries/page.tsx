@@ -108,16 +108,16 @@ const SEGMENTS = [
     name: 'Places of worship',
     need: 'Free entry, real capacity limits, no fees',
     detail:
-      'Free tickets carry no commission and no admin fee — a 300-place free list costs nothing. Capacity is still enforced, so a hall is never oversold, and everyone gets a QR pass that scans at the door.',
-    next: 'Pay-what-you-want giving is not built; a contribution has to be a priced tier.',
+      'Free tickets carry no commission and no admin fee — a 300-place free list costs nothing. Capacity is still enforced, so a hall is never oversold, and everyone gets a QR pass that scans at the door. A tier can also let the giver name their own amount, above a minimum you set or above nothing at all.',
+    next: 'Recurring giving and gift-aid declarations are not built. A one-off offering is; a standing order is not.',
   },
   {
     icon: HeartHandshake,
     name: 'Charity & fundraising',
     need: 'Priced giving tiers, fees you can point at',
     detail:
-      'Name your tiers after what they fund and price them accordingly. We take no commission, so every penny of face value reaches the cause and you can tell a donor exactly that. Corporate tables sell whole, with a deposit up front, the balance due on a date you set, and named guests with their dietary and access needs. Free places cost nobody anything.',
-    next: 'Pay-what-you-want giving and live auction lots are not built; a contribution has to be a priced tier.',
+      'Name your tiers after what they fund and price them accordingly, or let the donor name the amount above a minimum you set. We take no commission, so every penny of face value reaches the cause and you can tell a donor exactly that. Corporate tables sell whole, with a deposit up front, the balance due on a date you set, and named guests with their dietary and access needs. Free places cost nobody anything.',
+    next: 'Live auction lots and gift-aid declarations are not built.',
   },
   {
     icon: Building2,
@@ -140,8 +140,8 @@ const SEGMENTS = [
     name: 'Weddings',
     need: 'Guest lists that are not ticket sales',
     detail:
-      'Issue free places to a guest list at no cost to you — free tickets carry no commission. Every guest gets a QR pass that scans at the door in seconds, and the count cannot exceed what the venue holds.',
-    next: 'Guests contributing an amount of their choosing is not built; a contribution has to be a priced tier.',
+      'Issue free places to a guest list at no cost to you — free tickets carry no commission. Every guest gets a QR pass that scans at the door in seconds, and the count cannot exceed what the venue holds. A separate tier can let guests contribute whatever they choose.',
+    next: 'A gift registry — guests contributing towards named items — is not built. An open contribution is.',
   },
 ];
 

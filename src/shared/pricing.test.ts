@@ -12,7 +12,15 @@
  */
 import assert from 'node:assert/strict';
 
-import { commissionTermsFor, platformCutForTicket, settle, applyCoupon, availableInTier } from './pricing';
+import {
+  applyCoupon,
+  availableInTier,
+  CHOSEN_PRICE_CEILING,
+  commissionTermsFor,
+  platformCutForTicket,
+  resolveLinePrice,
+  settle,
+} from './pricing';
 import {
   DEFAULT_ADMIN_FEE,
   DEFAULT_COMMISSION_PERCENT,
@@ -166,6 +174,46 @@ test('top-up packages are $5, $10 and $15', () => {
 test('held seats reduce what is available to sell', () => {
   assert.equal(availableInTier({ quantity: 100, sold: 10, held: 5 }), 85);
   assert.equal(availableInTier({ quantity: 100 }), 100);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Pay what you want                                                          */
+/* -------------------------------------------------------------------------- */
+
+test('a fixed tier ignores whatever the browser posts', () => {
+  // The hole this closes on every other tier: a crafted POST naming its own price.
+  assert.equal(resolveLinePrice({ price: 250, pricing: 'fixed' }, 0.01), 250);
+  assert.equal(resolveLinePrice({ price: 250 }, 0.01), 250);
+  assert.equal(resolveLinePrice({ price: 250 }, 9_999), 250);
+});
+
+test('a choose tier takes the amount the giver named', () => {
+  assert.equal(resolveLinePrice({ price: 0, pricing: 'choose', minPrice: 5 }, 40), 40);
+});
+
+test('a choose tier never goes below the floor the organiser set', () => {
+  assert.equal(resolveLinePrice({ price: 0, pricing: 'choose', minPrice: 5 }, 1), 5);
+  assert.equal(resolveLinePrice({ price: 0, pricing: 'choose', minPrice: 5 }, -100), 5);
+});
+
+test('a floor of zero really does allow nothing', () => {
+  // A free-entry collection where giving is optional is a real thing a church runs.
+  assert.equal(resolveLinePrice({ price: 0, pricing: 'choose', minPrice: 0 }, 0), 0);
+});
+
+test('a missing, empty or nonsense amount falls back to the floor, never to free', () => {
+  assert.equal(resolveLinePrice({ price: 0, pricing: 'choose', minPrice: 12 }, undefined), 12);
+  assert.equal(resolveLinePrice({ price: 0, pricing: 'choose', minPrice: 12 }, NaN), 12);
+  assert.equal(resolveLinePrice({ price: 0, pricing: 'choose', minPrice: 12 }, Infinity), 12);
+});
+
+test('a fat-fingered amount is capped rather than sent to the card', () => {
+  assert.equal(resolveLinePrice({ price: 0, pricing: 'choose' }, 5_000_000), CHOSEN_PRICE_CEILING);
+});
+
+test('the amount charged is rounded to the penny, not to the provider’s taste', () => {
+  assert.equal(resolveLinePrice({ price: 0, pricing: 'choose' }, 33.333), 33.33);
+  assert.equal(resolveLinePrice({ price: 0, pricing: 'choose' }, 33.335), 33.34);
 });
 
 const failed = results.filter(([, ok]) => !ok);

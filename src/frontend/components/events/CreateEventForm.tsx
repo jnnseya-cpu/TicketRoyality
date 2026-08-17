@@ -55,6 +55,14 @@ const ticketTierSchema = z.object({
   description: z.string().optional(),
   price: z.coerce.number().min(0, 'Price cannot be negative.'),
   quantity: z.coerce.number().int().min(1, 'At least one ticket.'),
+  /**
+   * `choose` is pay-what-you-want: the giver names the amount, above `minPrice`. A mode
+   * rather than a separate tier type because everything downstream — inventory,
+   * issuance, the fee, the payout — is identical; only who decides the number changes.
+   */
+  pricing: z.enum(['fixed', 'choose']),
+  minPrice: z.coerce.number().min(0),
+  suggestedPrice: z.coerce.number().min(0),
 });
 
 const seatingSchema = z.object({
@@ -219,7 +227,16 @@ function defaultsFor(event?: Event): FormValues {
       streamKey: '',
       currency: 'GBP',
       ticketTiers: [
-        { id: 'general', name: 'General Admission', description: '', price: 25, quantity: 200 },
+        {
+          id: 'general',
+          name: 'General Admission',
+          description: '',
+          price: 25,
+          quantity: 200,
+          pricing: 'fixed' as const,
+          minPrice: 0,
+          suggestedPrice: 0,
+        },
       ],
       seating: [],
       zones: [],
@@ -254,6 +271,10 @@ function defaultsFor(event?: Event): FormValues {
       description: tier.description ?? '',
       price: tier.price,
       quantity: tier.quantity,
+      // Absent means fixed, so every tier that predates this is unchanged.
+      pricing: tier.pricing ?? ('fixed' as const),
+      minPrice: tier.minPrice ?? 0,
+      suggestedPrice: tier.suggestedPrice ?? 0,
     })),
     seating: event.seating ?? [],
     zones: (event.zones ?? []).map((z) => ({
@@ -354,9 +375,20 @@ export function CreateEventForm({
           id: tier.id,
           name: tier.name,
           description: tier.description || undefined,
-          price: tier.price,
+          // On a `choose` tier the stored price is the floor, so every existing
+          // "from £x" display, the catalogue lead price and the seat map keep working
+          // without knowing pay-what-you-want exists. What is charged is resolved
+          // server-side from `pricing` and `minPrice`.
+          price: tier.pricing === 'choose' ? tier.minPrice : tier.price,
           quantity: tier.quantity,
           sold: 0,
+          ...(tier.pricing === 'choose'
+            ? {
+                pricing: 'choose' as const,
+                minPrice: tier.minPrice,
+                suggestedPrice: tier.suggestedPrice || undefined,
+              }
+            : {}),
         })),
         seating: values.seating.length > 0 ? values.seating : undefined,
         zones:
@@ -806,6 +838,73 @@ export function CreateEventForm({
                     </FormItem>
                   )}
                 />
+
+                {/*
+                  Pay what you want. A donation, an offering and a wedding contribution
+                  are the same shape: the giver decides. Forcing that into a priced tier
+                  makes them choose between the amount they meant and the amount on the
+                  button, and the platform loses the difference either way.
+                */}
+                <FormField
+                  control={form.control}
+                  name={`ticketTiers.${index}.pricing`}
+                  render={({ field: f }) => (
+                    <FormItem className="flex flex-col justify-center sm:col-span-4">
+                      <div className="flex items-center gap-2">
+                        <FormControl>
+                          <Switch
+                            checked={f.value === 'choose'}
+                            onCheckedChange={(on) => f.onChange(on ? 'choose' : 'fixed')}
+                          />
+                        </FormControl>
+                        <span className="text-sm">
+                          {f.value === 'choose'
+                            ? 'The buyer chooses what to pay'
+                            : 'Fixed price'}
+                        </span>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                {watchedTiers[index]?.pricing === 'choose' && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name={`ticketTiers.${index}.minPrice`}
+                      render={({ field: f }) => (
+                        <FormItem className="sm:col-span-2">
+                          <FormLabel>Minimum ({currency})</FormLabel>
+                          <FormControl>
+                            <Input type="number" min={0} step="0.01" {...f} />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            Enforced on the server. Zero genuinely allows nothing, which is a
+                            valid choice for a free service with an optional collection.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`ticketTiers.${index}.suggestedPrice`}
+                      render={({ field: f }) => (
+                        <FormItem className="sm:col-span-2">
+                          <FormLabel>Suggested ({currency})</FormLabel>
+                          <FormControl>
+                            <Input type="number" min={0} step="0.01" {...f} />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            Pre-filled on the event page. Never enforced — a suggestion that
+                            cannot be changed is a price.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
                 <div className="flex items-end">
                   <Button
                     type="button"
@@ -840,6 +939,9 @@ export function CreateEventForm({
                   description: '',
                   price: 0,
                   quantity: 100,
+                  pricing: 'fixed',
+                  minPrice: 0,
+                  suggestedPrice: 0,
                 })
               }
             >
