@@ -49,6 +49,8 @@ export interface TicketTierDoc {
   price: number;
   quantity: number;
   sold?: number;
+  /** Reserved by a checkout in progress. Consumed by issuance, not merely ignored. */
+  held?: number;
 }
 
 export interface EventDoc {
@@ -118,4 +120,6 @@ export interface PaymentEventDoc {
   reason?: string;
   attempts?: number;
   ticketIds?: string[];
+  /** The checkout hold this payment consumes, if one was placed. */
+  holdId?: string;
 }

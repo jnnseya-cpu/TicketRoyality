@@ -97,6 +97,13 @@ export interface TicketTier {
   price: number;
   quantity: number;
   sold?: number;
+  /**
+   * Reserved by a checkout in progress. Subtracted by `availableInTier()`, which has
+   * always read this field — it simply had nowhere to come from until checkout holds
+   * existed. Separate from `quantity` on purpose: `quantity` is the organiser's
+   * statement of how many exist, and reserving a seat must not destroy that number.
+   */
+  held?: number;
 }
 
 export interface StreamDetails {

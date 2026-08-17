@@ -168,9 +168,35 @@ export async function issueTickets(
       ticketIds.push(ref.id);
     }
 
+    /*
+     * Consume the checkout hold in the same write that records the sale.
+     *
+     * The seat goes straight from held to sold. Releasing the hold separately — before
+     * or after — leaves a window in which the seat reads as free, and on a fast-moving
+     * tier that window is exactly when the oversell this whole mechanism prevents would
+     * happen.
+     *
+     * Floored at zero because a hold may already have been swept if the buyer took
+     * longer than the window: the sale is still correct, there is simply nothing left
+     * to give back.
+     */
+    const holdRelease = payment.holdId ? payment.quantity : 0;
+
     const nextTiers = [...tiers];
-    nextTiers[tierIndex] = { ...tier, sold: sold + payment.quantity };
+    nextTiers[tierIndex] = {
+      ...tier,
+      sold: sold + payment.quantity,
+      held: Math.max(0, (tier.held ?? 0) - holdRelease),
+    };
     tx.update(eventRef, { ticketTiers: nextTiers });
+
+    if (payment.holdId) {
+      tx.set(
+        db.collection('checkout_holds').doc(payment.holdId),
+        { releasedAt: new Date().toISOString(), outcome: 'consumed' },
+        { merge: true }
+      );
+    }
 
     tx.set(markerRef, {
       providerEventId,

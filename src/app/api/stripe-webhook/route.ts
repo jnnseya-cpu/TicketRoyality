@@ -79,6 +79,8 @@ export async function POST(request: Request) {
           attendeeName: checkout.customerName ?? 'Ticket holder',
           attendeeEmail: checkout.customerEmail ?? '',
           providerRef: checkout.paymentIntentId,
+          // Carried so issuance can move the seat from held to sold in one write.
+          holdId: checkout.holdId,
         });
 
         if (outcome === 'unavailable') {

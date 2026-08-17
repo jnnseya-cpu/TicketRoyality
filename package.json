@@ -16,7 +16,7 @@
     "report:links": "tsx scripts/link-report.ts",
     "test:issuance": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx functions/src/issuance.test.ts\"",
     "test:delivery": "tsx functions/src/delivery.test.ts",
-    "test": "npm run test:pricing && npm run test:fees && npm run test:margin && npm run test:humanity && npm run test:rules && npm run test:issuance && npm run test:payment-loop && npm run test:redeem && npm run test:delivery && npm run test:ai && npm run test:dynamic-pricing && npm run test:comms && npm run test:newsletter",
+    "test": "npm run test:pricing && npm run test:fees && npm run test:margin && npm run test:humanity && npm run test:rules && npm run test:issuance && npm run test:payment-loop && npm run test:redeem && npm run test:holds && npm run test:delivery && npm run test:ai && npm run test:dynamic-pricing && npm run test:comms && npm run test:newsletter",
     "grant:admin": "tsx scripts/grant-admin.ts",
     "test:ai": "tsx --conditions=react-server src/backend/ai/gateway.test.ts",
     "test:comms": "tsx --conditions=react-server src/backend/comms/dispatch.test.ts",
@@ -29,7 +29,8 @@
     "test:fees": "tsx src/shared/fees.test.ts",
     "test:rules": "firebase emulators:exec --only firestore --project ticketroyality-rules-test --config firebase.emulator.json \"npx tsx scripts/rules.test.ts\"",
     "test:payment-loop": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx functions/src/payment-loop.test.ts\"",
-    "test:redeem": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/redeem.test.ts\""
+    "test:redeem": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/redeem.test.ts\"",
+    "test:holds": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/holds.test.ts\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

@@ -91,6 +91,7 @@ export function readCheckoutSession(session: Stripe.Checkout.Session) {
     eventId: session.metadata?.eventId || undefined,
     tierId: session.metadata?.tierId || undefined,
     quantity: Number(session.metadata?.quantity ?? 1),
+    holdId: session.metadata?.holdId || undefined,
     amountTotal: (session.amount_total ?? 0) / 100,
     currency: (session.currency ?? 'gbp').toUpperCase(),
     customerEmail: session.customer_details?.email ?? undefined,

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { createCheckoutSession, isStripeConfigured, type CheckoutLine } from '@/backend/payments/stripe';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
+import { placeHold, releaseHold } from '@/backend/services/holds';
 import type { Coupon, TicketTier } from '@/shared/types';
 import { applyCoupon } from '@/shared/pricing';
 
@@ -181,6 +182,24 @@ export async function POST(request: Request) {
     });
   }
 
+  /*
+   * Reserve the inventory before sending anyone to a payment page.
+   *
+   * Without this the second buyer for the last seat pays in full and is refunded by
+   * hand. Only the single-event path holds: a cart spans several events and tiers, and
+   * holding across all of them needs a multi-event transaction that is a larger change
+   * than this one — recorded in STATUS.md rather than half-done.
+   */
+  let holdId = '';
+  const holdEventId = String(form.get('eventId') ?? '');
+  const holdTierId = String(form.get('tierId') ?? '');
+
+  if (typeof rawItems !== 'string' && holdEventId && holdTierId) {
+    const hold = await placeHold(holdEventId, holdTierId, lines[0]?.quantity ?? 1);
+    if (!hold.ok) return fail(hold.error);
+    holdId = hold.holdId;
+  }
+
   try {
     const url = await createCheckoutSession({
       lines,
@@ -200,10 +219,16 @@ export async function POST(request: Request) {
         serviceFeeMinor: String(quote.serviceFeeMinor),
         buyerTotalMinor: String(quote.buyerTotalMinor),
         organiserPayoutMinor: String(quote.organiserPayoutMinor),
+        // Issuance consumes this hold, so the seat moves from held to sold in one step
+        // rather than being briefly free between the two.
+        holdId,
       },
     });
     return NextResponse.redirect(url, { status: 303 });
   } catch (error) {
+    // Stripe never got the buyer, so the seat must not stay reserved for fifteen
+    // minutes on the strength of a checkout that failed to start.
+    if (holdId) await releaseHold(holdId, 'abandoned');
     return fail(error instanceof Error ? error.message : 'Stripe checkout failed');
   }
 }

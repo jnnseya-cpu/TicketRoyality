@@ -42,6 +42,8 @@ export interface RecordPaymentEvent {
    */
   providerRef?: string;
   refundsRef?: string;
+  /** The checkout hold this payment consumes, so issuance can release it atomically. */
+  holdId?: string;
 }
 
 export type RecordOutcome = 'recorded' | 'duplicate' | 'unavailable';
