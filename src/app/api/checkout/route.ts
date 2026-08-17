@@ -5,7 +5,7 @@ import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { placeHold, releaseHold } from '@/backend/services/holds';
 import type { Coupon, TicketTier } from '@/shared/types';
-import { applyCoupon, resolveLinePrice } from '@/shared/pricing';
+import { applyCoupon, resolveLinePrice, tierSaleWindow } from '@/shared/pricing';
 import { codeOpensTier } from '@/backend/services/access-codes';
 
 export const runtime = 'nodejs';
@@ -103,6 +103,16 @@ export async function POST(request: Request) {
           ) {
             return fail(`${tier.name} needs an access code`);
           }
+          // A presale that has not opened, or an early-bird that has closed. Enforced
+          // here because a greyed-out button is on sale to anyone who can post a form.
+          const window = tierSaleWindow(tier);
+          if (!window.onSale) {
+            return fail(
+              window.reason === 'not-yet'
+                ? `${tier.name} is not on sale yet`
+                : `${tier.name} has closed`
+            );
+          }
           // A fixed tier ignores the posted price; a pay-what-you-want tier accepts it
           // above the organiser's floor. The mode comes from the stored event, so a
           // crafted POST cannot turn a £250 ticket into a donation.
@@ -168,6 +178,14 @@ export async function POST(request: Request) {
         if (!tier) return fail('That ticket type is no longer on sale');
         if (tier.visibility === 'hidden' && !(await codeOpensTier(eventId, tierId, accessCode))) {
           return fail('That ticket type needs an access code');
+        }
+        const window = tierSaleWindow(tier);
+        if (!window.onSale) {
+          return fail(
+            window.reason === 'not-yet'
+              ? 'That ticket type is not on sale yet'
+              : 'That ticket type has closed'
+          );
         }
         amount = resolveLinePrice(tier, amount);
         name = `${data?.title ?? 'Event'} — ${tier.name}`;

@@ -68,7 +68,7 @@ const SEGMENTS = [
     name: 'Concert promoters',
     need: 'Tiered pricing, coupons, commission you can see',
     detail:
-      'Run early-bird, general and VIP from one event, discount with coupon codes, and keep 100% of every ticket value — we charge organisers no commission at all. Buyers pay one service fee, shown inside the advertised price.',
+      'Run early-bird, general and VIP from one event, each with its own sales window so the early-bird closes exactly when you said it would, discount with coupon codes, and keep 100% of every ticket value — we charge organisers no commission at all. Buyers pay one service fee, shown inside the advertised price.',
     next: 'Sub-promoter allocations and multi-party settlement are on the roadmap, not in the product.',
   },
   {
@@ -76,8 +76,8 @@ const SEGMENTS = [
     name: 'Sports clubs',
     need: 'Recurring fixtures without rebuilding them',
     detail:
-      'Set a fixture to repeat weekly or monthly to an end date rather than creating each one by hand, with tiers and pricing carried across. Scan entry at the turnstile from any phone.',
-    next: 'Season passes, member priority and loyalty-gated presale windows are not built.',
+      'Set a fixture to repeat weekly or monthly to an end date rather than creating each one by hand, with tiers and pricing carried across. Scan entry at the turnstile from any phone. Each ticket type has its own sales window, so a members\u2019 presale opens early and closes when the general sale starts — enforced when the card is charged, not just on the page.',
+    next: 'A season pass covering a whole run, and loyalty tiers that decide who gets the presale, are not built. A presale is opened to members today with an access code.',
   },
   {
     icon: Presentation,

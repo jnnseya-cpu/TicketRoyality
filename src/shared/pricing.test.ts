@@ -21,6 +21,7 @@ import {
   platformCutForTicket,
   resolveLinePrice,
   settle,
+  tierSaleWindow,
 } from './pricing';
 import {
   DEFAULT_ADMIN_FEE,
@@ -236,6 +237,51 @@ test('an event with nothing but hidden tiers advertises no price at all', () => 
     ],
   };
   assert.equal(leadPrice(event), 0);
+});
+
+/* -------------------------------------------------------------------------- */
+/* Sales windows                                                              */
+/* -------------------------------------------------------------------------- */
+
+const NOW = Date.parse('2026-06-15T12:00:00.000Z');
+
+test('a tier with no window is on sale, which is every tier that already exists', () => {
+  assert.equal(tierSaleWindow({}, NOW).onSale, true);
+});
+
+test('a presale that has not opened is refused, and says when it does', () => {
+  const window = tierSaleWindow({ salesStart: '2026-06-20T09:00:00.000Z' }, NOW);
+  assert.equal(window.onSale, false);
+  assert.ok(!window.onSale && window.reason === 'not-yet');
+  assert.ok(!window.onSale && window.opensAt === '2026-06-20T09:00:00.000Z');
+});
+
+test('an early bird that has closed is refused', () => {
+  const window = tierSaleWindow({ salesEnd: '2026-06-01T09:00:00.000Z' }, NOW);
+  assert.ok(!window.onSale && window.reason === 'closed');
+});
+
+test('a tier inside both ends is on sale', () => {
+  assert.equal(
+    tierSaleWindow({ salesStart: '2026-06-01T00:00:00.000Z', salesEnd: '2026-07-01T00:00:00.000Z' }, NOW)
+      .onSale,
+    true
+  );
+});
+
+test('an unparseable date never closes a tier by accident', () => {
+  // Bad data must not silently take a tier off sale mid-event.
+  assert.equal(tierSaleWindow({ salesStart: 'not a date', salesEnd: 'nonsense' }, NOW).onSale, true);
+});
+
+test('a closed early bird stops setting the public "from" price', () => {
+  const event = {
+    ticketTiers: [
+      { id: 'early', name: 'Early bird', price: 15, quantity: 50, salesEnd: '2026-06-01T00:00:00.000Z' },
+      { id: 'ga', name: 'General', price: 40, quantity: 100 },
+    ],
+  };
+  assert.equal(leadPrice(event, NOW), 40);
 });
 
 const failed = results.filter(([, ok]) => !ok);

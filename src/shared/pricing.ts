@@ -150,15 +150,54 @@ export function resolveLinePrice(
   return Math.min(CHOSEN_PRICE_CEILING, Math.max(floor, rounded));
 }
 
+export type SaleWindow =
+  | { onSale: true }
+  | { onSale: false; reason: 'not-yet' | 'closed'; opensAt?: string; closedAt?: string };
+
+/**
+ * Is this tier buyable right now?
+ *
+ * A presale is not a separate feature — it is an early tier whose window closes when the
+ * general one opens. Modelling it as two dates on a tier means the presale sells, counts,
+ * issues and reconciles exactly like everything else, instead of being a parallel product
+ * with its own inventory that has to be reconciled by hand afterwards.
+ *
+ * Both ends are optional. A tier with neither is on sale, which is every tier that
+ * already exists.
+ */
+export function tierSaleWindow(
+  tier: Pick<TicketTier, 'salesStart' | 'salesEnd'>,
+  now = Date.now()
+): SaleWindow {
+  if (tier.salesStart) {
+    const opens = new Date(tier.salesStart).getTime();
+    if (Number.isFinite(opens) && now < opens) {
+      return { onSale: false, reason: 'not-yet', opensAt: tier.salesStart };
+    }
+  }
+  if (tier.salesEnd) {
+    const closes = new Date(tier.salesEnd).getTime();
+    if (Number.isFinite(closes) && now > closes) {
+      return { onSale: false, reason: 'closed', closedAt: tier.salesEnd };
+    }
+  }
+  return { onSale: true };
+}
+
 /**
  * Cheapest live tier — what the catalogue card shows as "from".
  *
  * Hidden tiers are excluded. A partner rate cheaper than general admission would
  * otherwise set the public "from" price, advertising a number nobody without the code
  * can actually pay — which is both a false price and a leak of the discount.
+ *
+ * So are tiers outside their sales window. A closed early-bird would keep advertising
+ * its price after it sold out of time, which is the oldest complaint in ticketing.
  */
-export function leadPrice(event: Pick<Event, 'ticketTiers'>) {
-  const sellable = event.ticketTiers.filter((tier) => tier.visibility !== 'hidden');
+export function leadPrice(event: Pick<Event, 'ticketTiers'>, now = Date.now()) {
+  const sellable = event.ticketTiers.filter(
+    (tier) => tier.visibility !== 'hidden' && tierSaleWindow(tier, now).onSale
+  );
   if (sellable.length === 0) return 0;
   return Math.min(...sellable.map((tier) => tier.price));
 }

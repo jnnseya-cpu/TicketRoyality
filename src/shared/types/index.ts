@@ -235,6 +235,15 @@ export interface TicketTier {
    */
   visibility?: 'public' | 'hidden';
   /**
+   * When this tier is buyable. Both ISO 8601, both optional.
+   *
+   * This is what a presale actually is: early tiers open first and close when the general
+   * sale starts. Enforced server-side at checkout, because a tier that is merely greyed
+   * out in the browser is on sale to anyone who can post a form.
+   */
+  salesStart?: string;
+  salesEnd?: string;
+  /**
    * Reserved by a checkout in progress. Subtracted by `availableInTier()`, which has
    * always read this field — it simply had nowhere to come from until checkout holds
    * existed. Separate from `quantity` on purpose: `quantity` is the organiser's

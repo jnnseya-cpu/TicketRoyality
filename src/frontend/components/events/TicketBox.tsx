@@ -16,7 +16,7 @@ import { useToast } from '@/frontend/hooks/use-toast';
 import { formatCurrency } from '@/shared/utils';
 import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
-import { resolveLinePrice } from '@/shared/pricing';
+import { resolveLinePrice, tierSaleWindow } from '@/shared/pricing';
 import { Input } from '@/frontend/components/ui/input';
 import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
 import type { Event } from '@/shared/types';
@@ -44,7 +44,12 @@ export function TicketBox({ event }: { event: Event }) {
     (t) => t.visibility !== 'hidden' || unlockedTierIds.includes(t.id)
   );
 
-  const [tierId, setTierId] = React.useState(event.ticketTiers.find((t) => t.visibility !== 'hidden')?.id ?? event.ticketTiers[0]?.id ?? 'general');
+  const [tierId, setTierId] = React.useState(
+    event.ticketTiers.find((t) => t.visibility !== 'hidden' && tierSaleWindow(t).onSale)?.id ??
+      event.ticketTiers.find((t) => t.visibility !== 'hidden')?.id ??
+      event.ticketTiers[0]?.id ??
+      'general'
+  );
   const [quantity, setQuantity] = React.useState(1);
   const [bitripayLoading, setBitripayLoading] = React.useState(false);
 
@@ -131,6 +136,8 @@ export function TicketBox({ event }: { event: Event }) {
     }
   };
 
+  const selectedWindow = tier ? tierSaleWindow(tier) : ({ onSale: true } as const);
+
   const redeemCode = async () => {
     setUnlocking(true);
     try {
@@ -187,13 +194,19 @@ export function TicketBox({ event }: { event: Event }) {
         <RadioGroup value={tier?.id ?? ''} onValueChange={setTierId} className="space-y-2">
           {visibleTiers.map((option) => {
             const remaining = option.quantity - (option.sold ?? 0);
+            const window = tierSaleWindow(option);
             return (
               <Label
                 key={option.id}
                 htmlFor={`tier-${option.id}`}
                 className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 transition-colors has-[:checked]:border-primary has-[:checked]:bg-primary/5"
               >
-                <RadioGroupItem id={`tier-${option.id}`} value={option.id} className="mt-1" />
+                <RadioGroupItem
+                  id={`tier-${option.id}`}
+                  value={option.id}
+                  className="mt-1"
+                  disabled={!window.onSale}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-medium">{option.name}</span>
@@ -217,8 +230,17 @@ export function TicketBox({ event }: { event: Event }) {
                   {option.description && (
                     <p className="mt-0.5 text-xs text-muted-foreground">{option.description}</p>
                   )}
+                  {/* A tier outside its window says when, rather than how many are left:
+                      "12 remaining" on something that does not open until Friday is a
+                      number nobody can act on. */}
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {remaining > 0 ? `${remaining} remaining` : 'Sold out'}
+                    {!window.onSale
+                      ? window.reason === 'not-yet'
+                        ? `On sale ${new Date(window.opensAt ?? '').toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}`
+                        : 'Sales have closed'
+                      : remaining > 0
+                        ? `${remaining} remaining`
+                        : 'Sold out'}
                   </p>
                 </div>
               </Label>
@@ -360,12 +382,25 @@ export function TicketBox({ event }: { event: Event }) {
             This ticket type is bought directly rather than through the cart.
           </p>
         ) : (
-          <Button variant="royal" className="w-full" onClick={handleAddToCart}>
+          <Button
+          variant="royal"
+          className="w-full"
+          onClick={handleAddToCart}
+          disabled={!selectedWindow.onSale}
+        >
             <ShoppingCart className="h-4 w-4" /> Add to cart
           </Button>
         )}
 
-        {!isFree && (
+        {!selectedWindow.onSale && (
+          <p className="rounded-md border border-dashed border-border p-3 text-center text-sm text-muted-foreground">
+            {selectedWindow.reason === 'not-yet'
+              ? `This ticket type opens ${new Date(selectedWindow.opensAt ?? '').toLocaleString('en-GB', { dateStyle: 'full', timeStyle: 'short' })}.`
+              : 'This ticket type is no longer on sale.'}
+          </p>
+        )}
+
+        {!isFree && selectedWindow.onSale && (
           <>
             <div className="relative">
               <Separator />

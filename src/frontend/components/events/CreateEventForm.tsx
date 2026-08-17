@@ -48,6 +48,18 @@ import { COUNTRIES } from '@/shared/constants/countries';
 import { eventImageSeed } from '@/shared/constants/placeholder-images';
 import type { Event, UserProfile } from '@/shared/types';
 
+/**
+ * ISO → the `yyyy-MM-ddTHH:mm` a `datetime-local` input needs, in the organiser's own
+ * timezone. Slicing the ISO string instead would show a UK organiser a UTC time and
+ * quietly move their 7pm presale by an hour every summer.
+ */
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const SECTION_COLORS = ['#E0A82E', '#3B82F6', '#EF4444', '#10B981', '#A855F7', '#F97316'];
 
 const ticketTierSchema = z.object({
@@ -72,6 +84,9 @@ const ticketTierSchema = z.object({
    * is a secret in every screen share.
    */
   accessCode: z.string().optional(),
+  /** `datetime-local` strings. Empty means no bound at that end. */
+  salesStart: z.string().optional(),
+  salesEnd: z.string().optional(),
 });
 
 const seatingSchema = z.object({
@@ -182,6 +197,20 @@ const schema = z
      * with no due date can never be chased — the hold that reserves the table would run
      * to the event and the organiser would find out on the night.
      */
+    values.ticketTiers.forEach((tier, index) => {
+      if (
+        tier.salesStart &&
+        tier.salesEnd &&
+        new Date(tier.salesEnd).getTime() <= new Date(tier.salesStart).getTime()
+      ) {
+        ctx.addIssue({
+          path: ['ticketTiers', index, 'salesEnd'],
+          code: 'custom',
+          message: 'This closes before it opens, so it would never be on sale.',
+        });
+      }
+    });
+
     values.hospitality.forEach((pkg, index) => {
       if (pkg.tierId && !values.ticketTiers.some((t) => t.id === pkg.tierId)) {
         ctx.addIssue({
@@ -247,6 +276,8 @@ function defaultsFor(event?: Event): FormValues {
           suggestedPrice: 0,
           visibility: 'public' as const,
           accessCode: '',
+          salesStart: '',
+          salesEnd: '',
         },
       ],
       seating: [],
@@ -287,6 +318,8 @@ function defaultsFor(event?: Event): FormValues {
       minPrice: tier.minPrice ?? 0,
       suggestedPrice: tier.suggestedPrice ?? 0,
       visibility: tier.visibility ?? ('public' as const),
+      salesStart: tier.salesStart ? toLocalInput(tier.salesStart) : '',
+      salesEnd: tier.salesEnd ? toLocalInput(tier.salesEnd) : '',
       // Deliberately blank: an existing code is never sent back to the browser. Leaving
       // it empty means "keep what is stored"; typing replaces it.
       accessCode: '',
@@ -405,6 +438,8 @@ export function CreateEventForm({
               }
             : {}),
           ...(tier.visibility === 'hidden' ? { visibility: 'hidden' as const } : {}),
+          ...(tier.salesStart ? { salesStart: new Date(tier.salesStart).toISOString() } : {}),
+          ...(tier.salesEnd ? { salesEnd: new Date(tier.salesEnd).toISOString() } : {}),
         })),
         seating: values.seating.length > 0 ? values.seating : undefined,
         zones:
@@ -916,6 +951,42 @@ export function CreateEventForm({
                 />
 
                 {/*
+                  Sales window. A presale is not a separate product — it is an early tier
+                  that opens sooner and closes when the general one starts, so it sells,
+                  counts and reconciles exactly like everything else.
+                */}
+                <FormField
+                  control={form.control}
+                  name={`ticketTiers.${index}.salesStart`}
+                  render={({ field: f }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>On sale from (optional)</FormLabel>
+                      <FormControl>
+                        <Input type="datetime-local" {...f} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`ticketTiers.${index}.salesEnd`}
+                  render={({ field: f }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>Until (optional)</FormLabel>
+                      <FormControl>
+                        <Input type="datetime-local" {...f} />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Your local time. Enforced when the card is charged, not just on the
+                        page.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/*
                   Hidden tiers: a corporate rate, a partner allocation, an artist guest
                   list. The switch hides it on the page; the code is what actually stops
                   it being bought, and that is enforced server-side at checkout.
@@ -1041,6 +1112,8 @@ export function CreateEventForm({
                   suggestedPrice: 0,
                   visibility: 'public',
                   accessCode: '',
+                  salesStart: '',
+                  salesEnd: '',
                 })
               }
             >
