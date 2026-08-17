@@ -170,6 +170,17 @@ env:
     value: https://bitripay.com/pay/sandbox/api/v1
     availability:
       - RUNTIME
+  # Uncomment both when BitriPay goes live, after creating the secrets:
+  #
+  #   firebase apphosting:secrets:set BITRIPAY_CLIENT_ID --project ticketroyality
+  #   firebase apphosting:secrets:set BITRIPAY_SECRET_ID --project ticketroyality
+  #   firebase apphosting:secrets:grantaccess BITRIPAY_CLIENT_ID \
+  #     --backend ticketroyality --project ticketroyality
+  #
+  # Nothing else needs changing. The checkout button is hidden while
+  # BITRIPAY_CLIENT_ID is absent and appears on its own once it is set —
+  # `/api/health` reports the rail and `usePaymentMethods()` reads it — so a
+  # payment method that cannot work is never offered to a buyer.
 #  - variable: BITRIPAY_CLIENT_ID
 #    secret: BITRIPAY_CLIENT_ID
 #    availability:

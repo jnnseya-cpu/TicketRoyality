@@ -16,6 +16,7 @@ import { useToast } from '@/frontend/hooks/use-toast';
 import { formatCurrency } from '@/shared/utils';
 import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
+import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
 import type { Event } from '@/shared/types';
 
 /**
@@ -35,6 +36,8 @@ export function TicketBox({ event }: { event: Event }) {
   const lineTotal = (tier?.price ?? 0) * quantity;
   // One engine, so this total and the server's charge cannot disagree.
   const quote = computeOrderFees([{ faceMinor: toMinor(tier?.price ?? 0), qty: quantity }]);
+  // A rail with no credentials must not be offered — see use-payment-methods.
+  const methods = usePaymentMethods();
   const isFree = (tier?.price ?? 0) === 0;
 
   const handleAddToCart = () => {
@@ -63,8 +66,14 @@ export function TicketBox({ event }: { event: Event }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: lineTotal,
-          currency: 'USD',
+          // The all-in total in the event's own currency.
+          //
+          // This sent `lineTotal` — the face value — in hardcoded USD. The service fee
+          // was skipped entirely and a GBP event was charged as dollars. Harmless only
+          // because BitriPay has no credentials: it would have started taking the wrong
+          // amount in the wrong currency on the day the keys were added, silently.
+          amount: toMajor(quote.buyerTotalMinor),
+          currency: event.currency,
           reference: `${event.id}:${tier?.id}:${user?.uid ?? 'guest'}`,
         }),
       });
@@ -224,6 +233,7 @@ export function TicketBox({ event }: { event: Event }) {
               </Button>
             </form>
 
+            {methods.bitripay && (
             <Button
               variant="outline"
               className="w-full"
@@ -237,6 +247,7 @@ export function TicketBox({ event }: { event: Event }) {
               )}
               Pay with Bitripay
             </Button>
+            )}
 
             {userProfile ? (
               <OfflinePayment event={event} amount={lineTotal} user={userProfile} />

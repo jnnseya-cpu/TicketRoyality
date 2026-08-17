@@ -16,6 +16,7 @@ import { useToast } from '@/frontend/hooks/use-toast';
 import { findCouponByCode } from '@/shared/data/repositories';
 import { formatCurrency, formatEventDate } from '@/shared/utils';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
+import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
 import type { Coupon } from '@/shared/types';
 
 export default function CartPage() {
@@ -50,6 +51,9 @@ export default function CartPage() {
     () => computeOrderFees([{ faceMinor: toMinor(total), qty: 1 }]),
     [total]
   );
+
+  // A rail with no credentials must not be offered — see use-payment-methods.
+  const methods = usePaymentMethods();
 
   const applyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -88,8 +92,10 @@ export default function CartPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount: total,
-          currency: 'USD',
+          // All-in, in the cart's own currency. This sent the pre-fee subtotal as USD
+          // regardless of what the buyer was shown — see the note in TicketBox.
+          amount: toMajor(quote.buyerTotalMinor),
+          currency,
           reference: `cart:${user?.uid ?? 'guest'}`,
         }),
       });
@@ -268,6 +274,7 @@ export default function CartPage() {
               </Button>
             </form>
 
+            {methods.bitripay && (
             <Button
               variant="outline"
               className="w-full"
@@ -281,6 +288,7 @@ export default function CartPage() {
               )}
               Checkout with Bitripay
             </Button>
+            )}
 
             {!user && (
               <p className="text-center text-xs text-muted-foreground">

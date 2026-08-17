@@ -6,7 +6,7 @@ import { ArrowRight, Globe, ShieldCheck, Sparkles } from 'lucide-react';
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent } from '@/frontend/components/ui/card';
-import { PLACEHOLDER_IMAGES, avatarSeed } from '@/shared/constants/placeholder-images';
+import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
 
 export const metadata: Metadata = {
   title: 'About us',
@@ -18,7 +18,7 @@ const PRINCIPLES = [
   {
     icon: ShieldCheck,
     title: 'A ticket is a promise',
-    body: 'One code, one entry, one event. If a ticket has been copied, resold outside the platform or already scanned, it is refused at the gate — every time, in under a fifth of a second.',
+    body: 'One code, one entry, one event. Every scan is checked and redeemed inside a single database transaction, so a ticket that has already been through the gate is refused — including when two doors scan it at the same instant.',
   },
   {
     icon: Sparkles,
@@ -28,17 +28,23 @@ const PRINCIPLES = [
   {
     icon: Globe,
     title: 'Meet people where they pay',
-    body: 'Card, crypto wallet and mobile money — including Vodacom, Airtel, Orange and Africell — because a great event should not be gated by a payment method.',
+    body: 'Cards today, with mobile money for the Congolese corridor — Vodacom, Airtel, Orange and Africell — built and awaiting its commercial go-live. A great event should not be gated by a payment method.',
   },
 ];
 
-const TEAM = [
-  { name: 'Amara Bennett', role: 'Chief Executive', seed: 'amara' },
-  { name: 'Idris Kaur', role: 'Head of Product', seed: 'idris' },
-  { name: 'Sofia Lindqvist', role: 'Head of Engineering', seed: 'sofia' },
-  { name: 'Tomás Herrera', role: 'Head of Partnerships', seed: 'tomas' },
-];
-
+/*
+ * The team section is deliberately absent.
+ *
+ * It used to list four people — a chief executive, a head of product, a head of
+ * engineering and a head of partnerships — with placeholder avatars. None of them
+ * exist. They were invented names presented on a live public site as the executive team
+ * of a real company, which is not a placeholder in the sense a grey image is: a
+ * prospective organiser could have referenced "your Head of Partnerships" in a
+ * conversation, and a journalist could have tried to contact one.
+ *
+ * Removed rather than replaced with different invented names. It goes back when there
+ * are real people to name.
+ */
 export default function AboutUsPage() {
   return (
     <div className="container max-w-5xl py-14">
@@ -84,30 +90,6 @@ export default function AboutUsPage() {
         </div>
       </section>
 
-      <section className="mb-14">
-        <h2 className="mb-6 font-headline text-2xl font-bold">The team</h2>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {TEAM.map((member) => (
-            <Card key={member.name}>
-              <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
-                <div className="relative h-20 w-20 overflow-hidden rounded-full bg-muted">
-                  <Image
-                    src={avatarSeed(member.seed)}
-                    alt={member.name}
-                    fill
-                    sizes="80px"
-                    className="object-cover"
-                  />
-                </div>
-                <div>
-                  <p className="font-medium">{member.name}</p>
-                  <p className="text-sm text-muted-foreground">{member.role}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
 
       <div className="rounded-xl border border-primary/25 bg-primary/5 p-8 text-center">
         <h2 className="font-headline text-2xl font-bold">Work with us</h2>
