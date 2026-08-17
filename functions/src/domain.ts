@@ -34,6 +34,12 @@ export interface TicketDoc {
   redeemedAt?: string;
   purchasedAt: string;
   paymentProvider: PaymentProvider;
+  /**
+   * HMAC over the ticket id and event id, written at issuance. Absent when
+   * `QR_SIGNING_KEY` is unset — a missing key must not stop a paid-for ticket being
+   * issued, and the door route records the difference rather than failing silently.
+   */
+  qrSignature?: string;
 }
 
 export interface TicketTierDoc {
