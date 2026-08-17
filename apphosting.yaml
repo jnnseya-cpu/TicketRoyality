@@ -221,7 +221,7 @@ env:
   # While unset the event page falls back to a text address panel, which is a
   # deliberate degradation rather than an error.
   - variable: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-    value: AIzaSyBPk8apHICPNN1jIbYsmk2zqvPnmgOSc3c
+    value: AIzaSyBDh4h9zx_KLeOfhGLsyhGx6o-gdf53uDQ
     availability:
       - BUILD
       - RUNTIME
