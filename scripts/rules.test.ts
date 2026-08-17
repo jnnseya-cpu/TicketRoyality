@@ -263,6 +263,66 @@ async function main() {
     await assertFails(updateDoc(doc(customer, 'notifications', 'n-1'), { title: 'Something else' }));
   });
 
+  console.log('\nfirestore.rules — hospitality bookings\n');
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'hospitality_bookings', 'b-1'), {
+      eventId: 'e-1',
+      packageId: 'pkg-10',
+      tierId: 'tier-vip',
+      buyerUserId: CUSTOMER.uid,
+      buyerEmail: 'customer@example.com',
+      covers: 10,
+      totalMinor: 150_000,
+      depositMinor: 37_500,
+      paidMinor: 37_500,
+      status: 'deposit_paid',
+      guests: [],
+      createdAt: '2026-08-17T00:00:00.000Z',
+    });
+  });
+
+  await test('a buyer reads their own table booking', async () => {
+    await assertSucceeds(getDoc(doc(customer, 'hospitality_bookings', 'b-1')));
+  });
+
+  await test('a stranger cannot read someone else’s table booking', async () => {
+    // A booking carries an email, a guest list and dietary needs. A readable-by-anyone
+    // collection would be a guest list for every private table on the platform.
+    const other = env.authenticatedContext('cust-2').firestore();
+    await assertFails(getDoc(doc(other, 'hospitality_bookings', 'b-1')));
+  });
+
+  await test('a buyer cannot mark their own table paid', async () => {
+    // The single most valuable write on the platform: £1,500 of table for one field.
+    await assertFails(
+      updateDoc(doc(customer, 'hospitality_bookings', 'b-1'), {
+        paidMinor: 150_000,
+        status: 'paid',
+      })
+    );
+  });
+
+  await test('a buyer cannot seat more people than they paid for', async () => {
+    await assertFails(
+      updateDoc(doc(customer, 'hospitality_bookings', 'b-1'), { covers: 20 })
+    );
+  });
+
+  await test('a buyer cannot forge a booking', async () => {
+    await assertFails(
+      setDoc(doc(customer, 'hospitality_bookings', 'forged'), {
+        eventId: 'e-1',
+        buyerUserId: CUSTOMER.uid,
+        covers: 10,
+        totalMinor: 0,
+        paidMinor: 0,
+        status: 'paid',
+      })
+    );
+  });
+
   const failed = results.filter(([, ok]) => !ok);
   console.log(`\n${results.length - failed.length}/${results.length} passed\n`);
   await env.cleanup();

@@ -291,6 +291,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /* A booking is money owed and a list of named people. Both are written exclusively by
+       the server: the total comes from the pricing engine, `paidMinor` from a verified
+       Stripe webhook, and the guest list through a route that checks the caller owns the
+       booking. A client write here could mark a £4,000 table paid, or seat fourteen people
+       at a table for ten. The buyer may read their own booking so the balance, the due
+       date and the guest list can render without a round trip. */
+    match /hospitality_bookings/{id} {
+      allow get, list: if isSignedIn() && resource.data.buyerUserId == request.auth.uid;
+      allow write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }

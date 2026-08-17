@@ -131,7 +131,7 @@ export const OPERATIONS_ARTICLES: Article[] = [
   },
   {
     slug: 'venue-zones-and-access-control',
-    status: 'draft',
+    status: 'shipped',
     title: 'Zones: why this is not just gates plus a spreadsheet',
     kind: 'feature',
     cluster: 'operations',
@@ -180,7 +180,7 @@ export const OPERATIONS_ARTICLES: Article[] = [
   },
   {
     slug: 'hospitality-operations',
-    status: 'draft',
+    status: 'shipped',
     title: 'Hospitality: tables, packages and the guest who is not the buyer',
     kind: 'feature',
     cluster: 'operations',
@@ -204,29 +204,34 @@ export const OPERATIONS_ARTICLES: Article[] = [
       { type: 'heading', text: 'Guest names arrive late, and change' },
       {
         type: 'paragraph',
-        text: 'The buyer allocates named guests up to the headcount, at any point up to the door, and can change them. Each guest gets their own ticket at their own contact details — the client does not want to be sent their invitation by the account manager who booked it, and the account manager does not want to be forwarding QR codes at 18:00.',
+        text: 'The buyer names the table up to the headcount, at any point up to the door, and can change it. Names, dietary requirements and access needs are collected per seat and reach the organiser as they are entered. The tickets themselves go to the buyer — per-guest ticket delivery to each guest\u2019s own address is not built yet, and saying otherwise would leave an account manager forwarding QR codes at 18:00 while believing they did not have to.',
       },
-      { type: 'heading', text: 'Packages that are not just entry' },
+      { type: 'heading', text: 'Deposit now, balance later' },
+      {
+        type: 'paragraph',
+        text: 'A package can take a percentage up front with the rest due on a date the organiser sets. The table is held from the moment it is reserved, so it stops being sellable before any money moves. Tickets are issued when the balance settles and never on the deposit \u2014 a deposit reserves a table, it does not admit anybody, and chasing a balance from someone already seated is not a position worth designing into a product. If the balance never arrives, the table returns to sale on the due date.',
+      },
+      { type: 'heading', text: 'What a package carries' },
       {
         type: 'list',
         items: [
-          'Dining covers with courses and dietary requirements collected per guest',
-          'Drinks packages, allocated to the table rather than the individual',
-          'Arrival windows separate from general doors, because hospitality usually arrives earlier',
-          'A named host or contact attached to the booking',
+          'Inclusions written by the organiser and shown on the event page exactly as written',
+          'Dietary requirements and access needs, collected per seat',
+          'A door: a table can be assigned to a venue zone with its own capacity and re-entry rule',
+          'A price that comes from the same engine as every other ticket \u2014 a table of ten is ten paid tickets, so the buyer sees one all-in figure and the organiser keeps 100% of the face value',
         ],
       },
       { type: 'heading', text: 'The kitchen needs this before the door does' },
       {
         type: 'paragraph',
-        text: 'Dietary requirements and covers are useless if they surface on the night. They are collected against each guest and available as a report ahead of the event, which is what the venue actually needs in order to buy food.',
+        text: 'Dietary requirements and covers are useless if they surface on the night. They are collected against each seat and shown on the organiser\u2019s table plan alongside what each table still owes, which is what the venue actually needs in order to buy food and what the office needs in order to chase an invoice.',
       },
     ],
     answers: [
       {
         question: 'Can I sell tables rather than individual tickets?',
         answer:
-          'Yes. A table is sold once at a table price with a headcount attached. The buyer allocates named guests up to that headcount at any time before the door, and each guest receives their own ticket at their own contact details.',
+          'Yes. A table is sold once at a table price with a headcount attached, optionally on a deposit with the balance due on a date you set. The buyer names guests up to that headcount at any time before the door, with dietary and access needs per seat. The tickets are issued to the buyer once the table is paid in full.',
       },
     ],
     linkSlots: [{ heading: 'Events with hospitality', query: '', href: '/events' }],

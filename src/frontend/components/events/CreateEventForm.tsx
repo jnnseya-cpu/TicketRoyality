@@ -39,6 +39,7 @@ import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
 import { TierEconomics } from '@/frontend/components/pricing/TierEconomics';
 import { Switch } from '@/frontend/components/ui/switch';
 import { cn } from '@/shared/utils';
+import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { createEvent, updateEvent } from '@/shared/data/repositories';
 import { CATEGORY_GROUPS, categoryValue, parseCategoryValue } from '@/shared/constants/categories';
@@ -81,6 +82,26 @@ const zoneSchema = z.object({
   reEntry: z.boolean(),
 });
 
+/**
+ * A hospitality package is a table, not a tier.
+ *
+ * It references a tier rather than carrying its own price, so the table sells from the
+ * same inventory every other ticket sells from and there is no second way to charge.
+ * `covers` seats of that tier are consumed by one booking.
+ */
+const hospitalitySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1, 'Name this package.'),
+  tierId: z.string().min(1, 'Choose the ticket type it is priced from.'),
+  covers: z.coerce.number().int().min(1, 'A table seats at least one.').max(60),
+  // One per line in the form, an array on the event. A textarea is the honest control
+  // for a list nobody knows the length of in advance.
+  inclusions: z.string(),
+  depositPercent: z.coerce.number().int().min(1).max(100),
+  balanceDueDate: z.string().optional(),
+  zoneId: z.string().optional(),
+});
+
 const speakerSchema = z.object({
   name: z.string().min(1, 'Enter a name.'),
   title: z.string().min(1, 'Enter a title.'),
@@ -107,6 +128,7 @@ const schema = z
     ticketTiers: z.array(ticketTierSchema).min(1, 'Add at least one ticket tier.'),
     seating: z.array(seatingSchema),
     zones: z.array(zoneSchema),
+    hospitality: z.array(hospitalitySchema),
     speakers: z.array(speakerSchema),
     isRecurring: z.boolean(),
     recurrenceFrequency: z.enum(['weekly', 'monthly']).optional(),
@@ -138,6 +160,35 @@ const schema = z
     if (values.eventType === 'livestream' && !values.streamUrl) {
       ctx.addIssue({ path: ['streamUrl'], code: 'custom', message: 'Add the stream URL.' });
     }
+    /*
+     * A package priced from a tier that no longer exists cannot be sold, and a deposit
+     * with no due date can never be chased — the hold that reserves the table would run
+     * to the event and the organiser would find out on the night.
+     */
+    values.hospitality.forEach((pkg, index) => {
+      if (pkg.tierId && !values.ticketTiers.some((t) => t.id === pkg.tierId)) {
+        ctx.addIssue({
+          path: ['hospitality', index, 'tierId'],
+          code: 'custom',
+          message: 'That ticket type has been removed. Choose another.',
+        });
+      }
+      if (pkg.depositPercent < 100 && !pkg.balanceDueDate) {
+        ctx.addIssue({
+          path: ['hospitality', index, 'balanceDueDate'],
+          code: 'custom',
+          message: 'A deposit needs a date the balance is due by.',
+        });
+      }
+      if (pkg.balanceDueDate && new Date(pkg.balanceDueDate).getTime() > values.date.getTime()) {
+        ctx.addIssue({
+          path: ['hospitality', index, 'balanceDueDate'],
+          code: 'custom',
+          message: 'The balance has to be due before the event, not after it.',
+        });
+      }
+    });
+
     if (values.isRecurring && !values.recurrenceEndDate) {
       ctx.addIssue({
         path: ['recurrenceEndDate'],
@@ -172,6 +223,7 @@ function defaultsFor(event?: Event): FormValues {
       ],
       seating: [],
       zones: [],
+      hospitality: [],
       speakers: [],
       isRecurring: false,
       featured: false,
@@ -212,6 +264,17 @@ function defaultsFor(event?: Event): FormValues {
       capacity: z.capacity === null || z.capacity === undefined ? '' : String(z.capacity),
       reEntry: z.reEntry,
     })),
+    hospitality: (event.hospitality ?? []).map((h) => ({
+      id: h.id,
+      name: h.name,
+      tierId: h.tierId,
+      covers: h.covers,
+      inclusions: (h.inclusions ?? []).join('\n'),
+      depositPercent: h.depositPercent,
+      // Back to the `yyyy-mm-dd` a date input needs, from the ISO string on the event.
+      balanceDueDate: h.balanceDueDate ? h.balanceDueDate.slice(0, 10) : '',
+      zoneId: h.zoneId ?? '',
+    })),
     speakers: (event.speakers ?? []).map((s) => ({ ...s, photoUrl: s.photoUrl ?? '' })),
     isRecurring: Boolean(event.recurrence),
     recurrenceFrequency: event.recurrence?.frequency,
@@ -241,12 +304,14 @@ export function CreateEventForm({
   const tiers = useFieldArray({ control: form.control, name: 'ticketTiers' });
   const seating = useFieldArray({ control: form.control, name: 'seating' });
   const zones = useFieldArray({ control: form.control, name: 'zones' });
+  const hospitality = useFieldArray({ control: form.control, name: 'hospitality' });
   const speakers = useFieldArray({ control: form.control, name: 'speakers' });
 
   const eventType = form.watch('eventType');
   const isRecurring = form.watch('isRecurring');
   const watchedSeating = form.watch('seating');
   const watchedZones = form.watch('zones');
+  const watchedHospitality = form.watch('hospitality');
   const watchedTiers = form.watch('ticketTiers');
   const currency = form.watch('currency');
 
@@ -304,6 +369,24 @@ export function CreateEventForm({
                 // written from here — sending it would reset a live count mid-event.
                 capacity: z.capacity?.trim() ? Number(z.capacity) : null,
                 reEntry: z.reEntry,
+              }))
+            : undefined,
+        hospitality:
+          values.hospitality.length > 0
+            ? values.hospitality.map((h) => ({
+                id: h.id,
+                name: h.name,
+                tierId: h.tierId,
+                covers: h.covers,
+                inclusions: h.inclusions
+                  .split('\n')
+                  .map((line) => line.trim())
+                  .filter(Boolean),
+                depositPercent: h.depositPercent,
+                balanceDueDate: h.balanceDueDate
+                  ? new Date(h.balanceDueDate).toISOString()
+                  : undefined,
+                zoneId: h.zoneId || undefined,
               }))
             : undefined,
         capacity: values.ticketTiers.reduce((sum, tier) => sum + tier.quantity, 0),
@@ -902,6 +985,234 @@ export function CreateEventForm({
                 someone can step out and come back where you allow it.
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        {/* --------------------------------------------------------------- */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Hospitality packages</CardTitle>
+            <CardDescription>
+              Tables sold whole, with what is included, named guests, and a deposit now if you
+              want one. A package is priced from one of your ticket types — the table takes
+              that many places out of it — so hospitality and tickets never disagree about how
+              full the room is.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {hospitality.fields.map((field, index) => {
+              const pkg = watchedHospitality[index];
+              const tier = watchedTiers.find((t) => t.id === pkg?.tierId);
+              const covers = Number(pkg?.covers) || 0;
+              const quote =
+                tier && covers > 0
+                  ? computeOrderFees([{ faceMinor: toMinor(Number(tier.price) || 0), qty: covers }])
+                  : null;
+              const depositPercent = Math.min(100, Math.max(1, Number(pkg?.depositPercent) || 100));
+
+              return (
+                <div key={field.id} className="space-y-3 rounded-lg border border-border p-4">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name={`hospitality.${index}.name`}
+                      render={({ field: f }) => (
+                        <FormItem>
+                          <FormLabel>Package name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Champagne table" {...f} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`hospitality.${index}.tierId`}
+                      render={({ field: f }) => (
+                        <FormItem>
+                          <FormLabel>Priced from</FormLabel>
+                          <Select onValueChange={f.onChange} value={f.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Choose a ticket type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {watchedTiers.map((t) => (
+                                <SelectItem key={t.id} value={t.id}>
+                                  {t.name || 'Unnamed tier'} — {currency} {Number(t.price) || 0}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`hospitality.${index}.covers`}
+                      render={({ field: f }) => (
+                        <FormItem>
+                          <FormLabel>Seats at the table</FormLabel>
+                          <FormControl>
+                            <Input type="number" min={1} max={60} {...f} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name={`hospitality.${index}.inclusions`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel>What is included</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            rows={3}
+                            placeholder={'Champagne on arrival\nThree-course dinner\nPrivate host'}
+                            {...f}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          One per line. These appear on the event page exactly as written.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name={`hospitality.${index}.depositPercent`}
+                      render={({ field: f }) => (
+                        <FormItem>
+                          <FormLabel>Payable up front</FormLabel>
+                          <FormControl>
+                            <Input type="number" min={1} max={100} {...f} />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            {depositPercent >= 100
+                              ? 'Paid in full at booking. Nothing to chase.'
+                              : `${depositPercent}% deposit, the rest by the date below.`}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`hospitality.${index}.balanceDueDate`}
+                      render={({ field: f }) => (
+                        <FormItem>
+                          <FormLabel>Balance due by</FormLabel>
+                          <FormControl>
+                            <Input type="date" disabled={depositPercent >= 100} {...f} />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            The table is held until this date. If the balance never arrives it
+                            goes back on sale.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`hospitality.${index}.zoneId`}
+                      render={({ field: f }) => (
+                        <FormItem>
+                          <FormLabel>Door</FormLabel>
+                          {/* `none` is the placeholder value the select needs; it must not
+                              reach the event as a zone id that no door matches. */}
+                          <Select
+                            onValueChange={(v) => f.onChange(v === 'none' ? '' : v)}
+                            value={f.value || 'none'}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="No specific zone" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="none">No specific zone</SelectItem>
+                              {watchedZones.map((z) => (
+                                <SelectItem key={z.id} value={z.id}>
+                                  {z.name || 'Unnamed zone'}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/*
+                    The buyer's number, not the face value — a table quoted at face value on
+                    this screen and charged all-in at checkout is how an organiser ends up
+                    telling a customer the wrong price on the phone.
+                  */}
+                  {quote && (
+                    <p className="text-sm text-muted-foreground">
+                      A buyer pays{' '}
+                      <span className="font-semibold text-foreground">
+                        {currency} {toMajor(quote.buyerTotalMinor).toFixed(2)}
+                      </span>{' '}
+                      for this table — {covers} × {currency} {Number(tier?.price ?? 0).toFixed(2)}{' '}
+                      including the service fee. You receive{' '}
+                      <span className="font-semibold text-foreground">
+                        {currency} {toMajor(quote.organiserPayoutMinor).toFixed(2)}
+                      </span>
+                      {depositPercent < 100 && (
+                        <>
+                          , with {currency}{' '}
+                          {toMajor(
+                            Math.round((quote.buyerTotalMinor * depositPercent) / 100)
+                          ).toFixed(2)}{' '}
+                          taken as the deposit
+                        </>
+                      )}
+                      . Tickets are issued when the balance is settled, never on the deposit.
+                    </p>
+                  )}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => hospitality.remove(index)}
+                  >
+                    <Trash2 className="h-4 w-4" /> Remove package
+                  </Button>
+                </div>
+              );
+            })}
+
+            <Button
+              type="button"
+              variant="outline"
+              disabled={watchedTiers.length === 0}
+              onClick={() =>
+                hospitality.append({
+                  id: `table-${hospitality.fields.length + 1}-${Date.now()}`,
+                  name: '',
+                  tierId: watchedTiers[0]?.id ?? '',
+                  covers: 8,
+                  inclusions: '',
+                  depositPercent: 100,
+                  balanceDueDate: '',
+                  zoneId: '',
+                })
+              }
+            >
+              <PlusCircle className="h-4 w-4" /> Add hospitality package
+            </Button>
           </CardContent>
         </Card>
 

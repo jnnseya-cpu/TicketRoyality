@@ -11,6 +11,7 @@ import {
   LogOut,
   Sparkles,
   Ticket as TicketIcon,
+  UtensilsCrossed,
   Wallet,
 } from 'lucide-react';
 
@@ -206,6 +207,25 @@ function CustomerDashboard({ profile }: { profile: UserProfile }) {
               <Button variant="outline" className="w-full" asChild>
                 <Link href="/dashboard/customer/wallet">
                   Open wallet <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UtensilsCrossed className="h-5 w-5 text-primary" /> Table bookings
+              </CardTitle>
+              <CardDescription>
+                Hospitality tables you have reserved, the balance outstanding on each, and your
+                guest list.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" className="w-full" asChild>
+                <Link href="/dashboard/customer/bookings">
+                  Open bookings <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
             </CardContent>

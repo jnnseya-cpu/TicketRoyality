@@ -58,7 +58,17 @@ export type PlaceHoldResult =
 export async function placeHold(
   eventId: string,
   tierId: string,
-  quantity: number
+  quantity: number,
+  /**
+   * How long the reservation lasts. Defaults to a checkout window.
+   *
+   * Hospitality passes a longer one: a table booked on a deposit is reserved until the
+   * balance is due, which may be weeks. Reusing the same counter and the same sweep for
+   * both means hospitality inventory cannot drift away from ticket inventory — they are
+   * literally the same number — while still letting a lapsed booking return the table to
+   * sale on its own.
+   */
+  ttlMs: number = HOLD_WINDOW_MS
 ): Promise<PlaceHoldResult> {
   if (!isAdminConfigured()) {
     return { ok: false, reason: 'unavailable', error: 'Checkout is unavailable.' };
@@ -102,7 +112,7 @@ export async function placeHold(
         eventId,
         tierId,
         quantity,
-        expiresAt: new Date(Date.now() + HOLD_WINDOW_MS).toISOString(),
+        expiresAt: new Date(Date.now() + Math.max(60_000, ttlMs)).toISOString(),
       } satisfies Hold);
 
       return { ok: true, holdId: holdRef.id };

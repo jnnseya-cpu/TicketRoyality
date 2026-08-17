@@ -3,6 +3,7 @@ import type Stripe from 'stripe';
 
 import { isStripeConfigured, readCheckoutSession, verifyWebhook } from '@/backend/payments/stripe';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
+import { recordBookingPayment } from '@/backend/services/hospitality';
 import { reportError } from '@/backend/observability/report-error';
 
 export const runtime = 'nodejs';
@@ -48,6 +49,69 @@ export async function POST(request: Request) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const checkout = readCheckoutSession(event.data.object as Stripe.Checkout.Session);
+
+        /*
+         * A hospitality deposit or balance, which is a payment against a booking rather
+         * than a ticket sale.
+         *
+         * It is recorded first and issues nothing. Tickets appear only on the payment
+         * that closes the balance, and even then they are not issued here — a
+         * `payment_events` document is written and the function that has always issued
+         * tickets does it, with the same oversell guard and the same hold consumption.
+         * Adding a second issuance path would be the one thing this codebase has
+         * consistently refused to grow.
+         */
+        if (checkout.bookingId) {
+          const paid = await recordBookingPayment(
+            checkout.bookingId,
+            Math.round(checkout.amountTotal * 100),
+            event.id
+          );
+
+          if (!paid.ok) {
+            // 500 so Stripe redelivers: the buyer has been charged, and a payment we
+            // failed to record is a table that stays unpaid in our records.
+            if (paid.status === 503) {
+              return NextResponse.json({ error: 'datastore_unavailable' }, { status: 500 });
+            }
+            console.error('[stripe] hospitality payment refused', {
+              eventId: event.id,
+              bookingId: checkout.bookingId,
+              reason: paid.error,
+            });
+            return NextResponse.json({ received: true, booked: false }, { status: 202 });
+          }
+
+          if (paid.settled) {
+            const outcome = await recordPaymentEvent({
+              // Distinct from the booking payment's own idempotency key so the two
+              // records cannot collide, and still derived from the Stripe event so a
+              // replay cannot issue a second set of tickets.
+              providerEventId: `${event.id}__issue`,
+              provider: 'stripe',
+              providerType: event.type,
+              intent: 'issue',
+              eventId: paid.settled.eventId,
+              tierId: paid.settled.tierId,
+              userId: paid.settled.buyerUserId,
+              quantity: paid.settled.covers,
+              // Face value per cover, as the table was sold. Not the settled total,
+              // which carries the service fee and would settle a refund wrongly.
+              price: paid.settled.unitFaceMinor / 100,
+              currency: paid.settled.currency,
+              attendeeName: checkout.customerName ?? 'Table guest',
+              attendeeEmail: paid.settled.buyerEmail,
+              providerRef: checkout.paymentIntentId,
+              holdId: paid.settled.holdId,
+            });
+
+            if (outcome === 'unavailable') {
+              return NextResponse.json({ error: 'datastore_unavailable' }, { status: 500 });
+            }
+          }
+
+          return NextResponse.json({ received: true, booking: paid.status });
+        }
 
         // Metadata is set when the checkout session is created. Without it there is
         // nothing to issue against, and issuing a guess would be worse than stopping:

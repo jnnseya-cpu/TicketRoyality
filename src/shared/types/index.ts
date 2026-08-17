@@ -111,6 +111,82 @@ export interface VenueZone {
   occupancy?: number;
 }
 
+/**
+ * A hospitality package — a table sold as inventory, not a ticket with extras.
+ *
+ * The distinction matters. A VIP ticket is one seat at one price; a hospitality package
+ * is *n* covers bought together by one buyer who then names the guests, usually with a
+ * deposit now and the balance later. Modelling it as a fancy tier would mean either
+ * charging per person for something bought per table, or inventing a second way to take
+ * money — and a second money path is the one thing this codebase has consistently
+ * refused to grow.
+ *
+ * So a package references a `tierId`: the tier is the inventory and the price, the
+ * package is the table structure around it. Everything about charging, commission,
+ * refunds and issuance stays exactly where it already is.
+ */
+export interface HospitalityPackage {
+  id: string;
+  name: string;
+  /** The tier that carries price and inventory. One table consumes `covers` of it. */
+  tierId: string;
+  /** Seats at the table. */
+  covers: number;
+  /** What the buyer gets — "Champagne on arrival", "Three-course dinner". */
+  inclusions: string[];
+  /**
+   * Percentage payable up front, 1–100. `100` means pay in full, which is the default
+   * and the only mode that needs no chasing.
+   */
+  depositPercent: number;
+  /** When the rest is due. Ignored when `depositPercent` is 100. */
+  balanceDueDate?: string;
+  /** The door this table is admitted through, if the venue has zones. */
+  zoneId?: string;
+}
+
+/** A named seat at a booked table. */
+export interface HospitalityGuest {
+  name: string;
+  email?: string;
+  dietary?: string;
+  accessibility?: string;
+}
+
+export type HospitalityBookingStatus =
+  | 'deposit_pending'
+  | 'deposit_paid'
+  | 'paid'
+  | 'cancelled'
+  | 'expired';
+
+/**
+ * One booked table.
+ *
+ * **Tickets are not issued until the balance is settled.** A deposit reserves the table;
+ * it does not admit anybody. Issuing on deposit would put guests in the room holding
+ * tickets for money the organiser has not received, and chasing a balance from someone
+ * already at their table is not a position to design into a product.
+ */
+export interface HospitalityBooking {
+  id: string;
+  eventId: string;
+  packageId: string;
+  tierId: string;
+  buyerUserId: string;
+  buyerEmail: string;
+  covers: number;
+  /** Integer minor units, from the pricing engine. Never recomputed for display. */
+  totalMinor: number;
+  depositMinor: number;
+  paidMinor: number;
+  status: HospitalityBookingStatus;
+  guests: HospitalityGuest[];
+  balanceDueDate?: string;
+  createdAt: string;
+  ticketIds?: string[];
+}
+
 export interface SeatingSection {
   id: string;
   name: string;
@@ -195,6 +271,8 @@ export interface Event {
   seating?: SeatingSection[];
   /** Doors within the venue. Absent means one undifferentiated gate. */
   zones?: VenueZone[];
+  /** Tables sold as inventory. Each references the tier that carries its price. */
+  hospitality?: HospitalityPackage[];
   capacity?: number;
 
   organizerId: string;

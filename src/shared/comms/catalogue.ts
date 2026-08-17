@@ -54,6 +54,13 @@ export const COMMS_CATALOGUE: CommsCategory[] = [
       { key: 'order.abandoned', label: 'Checkout abandoned', subject: 'You left tickets for {{event}} behind', severity: 'info', channels: ['email'], audience: ['customer'], note: 'Marketing — fully opt-outable' },
       { key: 'ticket.transferred_out', label: 'Ticket sent', subject: 'You sent a ticket to {{recipient}}', severity: 'info', channels: ['email', 'inapp'], audience: ['customer'], mandatory: true },
       { key: 'ticket.transferred_in', label: 'Ticket received', subject: '{{actor}} sent you a ticket for {{event}}', severity: 'success', channels: ['email', 'inapp', 'push'], audience: ['customer'], mandatory: true },
+      // Hospitality. A table is a larger, slower purchase than a ticket: money arrives
+      // in two parts and a guest list is filled in over days, so the buyer needs telling
+      // at each step rather than once at the end.
+      { key: 'hospitality.table.reserved', label: 'Table reserved', subject: 'Your table for {{event}} is reserved', severity: 'success', channels: ['email', 'inapp'], audience: ['customer'], mandatory: true },
+      { key: 'hospitality.balance.due', label: 'Balance due', subject: 'Balance due for your table at {{event}}', severity: 'warning', channels: ['email', 'inapp'], audience: ['customer'], mandatory: true, note: 'Tickets are not issued until this is settled' },
+      { key: 'hospitality.booking.settled', label: 'Table paid in full', subject: 'Your table at {{event}} is paid — tickets on the way', severity: 'success', channels: ['email', 'inapp'], audience: ['customer'], mandatory: true },
+      { key: 'hospitality.booking.cancelled', label: 'Table cancelled', subject: 'Your table booking for {{event}} was cancelled', severity: 'warning', channels: ['email', 'inapp'], audience: ['customer'], mandatory: true },
       { key: 'order.refund.requested', label: 'Refund requested', subject: 'We received your refund request', severity: 'info', channels: ['email', 'inapp'], audience: ['customer'] },
       { key: 'order.refund.processed', label: 'Refund processed', subject: 'Your refund of {{amount}} is on its way', severity: 'success', channels: ['email', 'inapp'], audience: ['customer'], mandatory: true },
       { key: 'order.refund.declined', label: 'Refund declined', subject: 'About your refund request', severity: 'warning', channels: ['email', 'inapp'], audience: ['customer'], mandatory: true },

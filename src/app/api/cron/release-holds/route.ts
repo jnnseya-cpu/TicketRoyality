@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { isAuthorisedCron } from '@/shared/cron';
 import { expireHolds } from '@/backend/services/holds';
+import { expireLapsedBookings } from '@/backend/services/hospitality';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,8 +21,17 @@ export async function GET(request: Request) {
 
   const released = await expireHolds();
 
+  /*
+   * Then reconcile hospitality to match.
+   *
+   * The sweep above is the authority on inventory: when a balance is never paid it takes
+   * the covers back and the table is sellable again. Leaving the booking document
+   * claiming a table it no longer holds is how two parties end up at one table.
+   */
+  const bookingsExpired = await expireLapsedBookings();
+
   return NextResponse.json(
-    { released, implemented: true },
+    { released, bookingsExpired, implemented: true },
     { headers: { 'Cache-Control': 'no-store' } }
   );
 }

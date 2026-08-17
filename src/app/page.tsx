@@ -103,11 +103,11 @@ const CORE_FEATURES = [
   },
   {
     icon: Crown,
-    title: 'VIP & Premium Tiers',
-    // Was "hospitality packages, VIP lounges, tables". None of that exists — STATUS.md
-    // lists hospitality under Not built, and there are no tables, packages or guest
-    // allocation in the code. Priced tiers are real and are what this describes.
-    body: 'Price the room in tiers — general, premium, VIP — each with its own capacity, sold from one event and reconciled in one report.',
+    title: 'VIP & Hospitality',
+    // This once promised tables that did not exist and was cut back to priced tiers.
+    // Packages, deposits, balances and named guests are now built and tested, so the
+    // claim comes back — bounded to what the code does, which is not a concierge.
+    body: 'Price the room in tiers, or sell a table whole — inclusions, a deposit now, the balance on your date, and a guest list the booker fills in.',
   },
   {
     icon: BarChart3,
@@ -116,11 +116,11 @@ const CORE_FEATURES = [
   },
   {
     icon: LayoutGrid,
-    title: 'Sections & Capacity',
-    // Was "VIP zones, and restricted infrastructure sections". Venue zones are Not built:
-    // there is no per-zone capacity, no zone scanner and no re-entry rule. Colour-coded
-    // sections with lettered rows are real, as display and pricing.
-    body: 'General admission or colour-coded sections with lettered rows and per-tier capacity that issuance enforces — a tier cannot be oversold, even under a simultaneous rush.',
+    title: 'Zones & Capacity',
+    // Venue zones shipped: per-zone capacity, a zone scanner, tier allow-lists and a
+    // re-entry rule, all enforced in one transaction at the door. Seat-level inventory
+    // still is not built, so sections stay described as display and pricing.
+    body: 'Doors inside the venue that admit only the tiers you assign, each with its own limit and its own re-entry rule, counted live as people come and go.',
   },
   {
     icon: Handshake,
@@ -371,19 +371,19 @@ export default async function HomePage() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-6">
-              {/* Was "Hospitality Orchestration — manage exclusive access points with
-                  real-time capacity monitoring". Hospitality is Not built: no tables, no
-                  packages, no guest allocation, no capacity monitoring beyond a tier's
-                  own count. This describes the premium tier, which is real. */}
+              {/* Tables, deposits, balances and named guests are built and tested. The
+                  claim stops at what the code does: it books, prices, chases and seats a
+                  table. It does not run a concierge or route drinks to it. */}
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-                Premium tiers
+                Premium &amp; hospitality
               </p>
               <p className="mt-1 font-headline text-lg font-semibold text-white">
                 Sell the best seats as their own inventory
               </p>
               <p className="mt-1 text-sm text-white/75">
                 A VIP tier is priced, capped and reconciled exactly like general admission —
-                one event, one report, and an organiser who keeps 100% of both.
+                and a table sells whole, on a deposit, with the guest list named before the
+                doors.
               </p>
             </div>
           </div>

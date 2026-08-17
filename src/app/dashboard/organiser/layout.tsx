@@ -14,6 +14,7 @@ import {
   Sparkles,
   TicketPercent,
   Tickets,
+  UtensilsCrossed,
   Wallet,
 } from 'lucide-react';
 
@@ -34,6 +35,7 @@ const NAV = [
   { href: '/dashboard/organiser', label: 'Overview', icon: LayoutDashboard },
   { href: '/dashboard/organiser/events', label: 'Events', icon: CalendarDays },
   { href: '/dashboard/organiser/tickets', label: 'Tickets & orders', icon: Tickets },
+  { href: '/dashboard/organiser/hospitality', label: 'Hospitality', icon: UtensilsCrossed },
   { href: '/dashboard/organiser/coupons', label: 'Coupons', icon: TicketPercent },
   { href: '/dashboard/organiser/reports', label: 'Reports', icon: BarChart3 },
   { href: '/dashboard/organiser/revenue', label: 'Revenue & payouts', icon: Wallet },

@@ -52,16 +52,16 @@ const SEGMENTS = [
     name: 'Stadiums & arenas',
     need: 'Tiered inventory, fast entry, one revenue picture',
     detail:
-      'Price the ground in tiers — general, premium, VIP — each with its own capacity, and let issuance enforce it: a tier cannot be oversold even under a simultaneous rush. Colour-coded seating sections with lettered rows display on the event page, and entry is scanned from a phone.',
-    next: 'Per-gate zoning and hospitality as sellable inventory are specified, not built.',
+      'Price the ground in tiers — general, premium, VIP — each with its own capacity, and let issuance enforce it: a tier cannot be oversold even under a simultaneous rush. Define doors within the ground that admit only the tiers you assign to them, each with its own limit and its own re-entry rule, and sell hospitality tables as inventory alongside the tickets.',
+    next: 'Seat-level inventory — a specific seat sold to a specific person — is not built. Sections are display and pricing.',
   },
   {
     icon: Tent,
     name: 'Festivals',
     need: 'Multi-day passes, capacity you cannot exceed',
     detail:
-      'Sell a day pass and a full-weekend pass as separate tiers of one event, each capped independently. Capacity holds under load because tickets are issued in a Firestore transaction, not checked and then written.',
-    next: 'Zone-by-zone capacity, wristbands and arrival forecasting are not built yet.',
+      'Sell a day pass and a full-weekend pass as separate tiers of one event, each capped independently. Capacity holds under load because tickets are issued in a Firestore transaction, not checked and then written. Arenas, camping and backstage can each be their own zone, capped separately and counted live as people come and go.',
+    next: 'Wristbands and arrival forecasting are not built yet. Zones cap and count each area live; they do not read an RFID band.',
   },
   {
     icon: Music,
@@ -92,8 +92,8 @@ const SEGMENTS = [
     name: 'Nightclubs',
     need: 'Door throughput on the phones you already have',
     detail:
-      'A per-event check-in page scans QR codes and redeems them on the spot, on as many devices as you have staff. A redeemed ticket cannot be redeemed twice, and redeemed tickets are protected from refund.',
-    next: 'Table service, guest-list management and a live blocklist are not built. Scanning needs signal — there is no offline mode.',
+      'A per-event check-in page scans QR codes and redeems them on the spot, on as many devices as you have staff. A redeemed ticket cannot be redeemed twice, and redeemed tickets are protected from refund. Tables sell as packages with a deposit now and the balance later, and the booker names their own guest list.',
+    next: 'A live blocklist is not built. Scanning needs signal — there is no offline mode.',
   },
   {
     icon: Clapperboard,
@@ -116,8 +116,8 @@ const SEGMENTS = [
     name: 'Charity & fundraising',
     need: 'Priced giving tiers, fees you can point at',
     detail:
-      'Name your tiers after what they fund and price them accordingly. We take no commission, so every penny of face value reaches the cause and you can tell a donor exactly that. Free places cost nobody anything.',
-    next: 'Corporate tables with named guests, deposits and balances are not built.',
+      'Name your tiers after what they fund and price them accordingly. We take no commission, so every penny of face value reaches the cause and you can tell a donor exactly that. Corporate tables sell whole, with a deposit up front, the balance due on a date you set, and named guests with their dietary and access needs. Free places cost nobody anything.',
+    next: 'Pay-what-you-want giving and live auction lots are not built; a contribution has to be a priced tier.',
   },
   {
     icon: Building2,
@@ -191,16 +191,17 @@ export default function IndustriesPage() {
           <h2 className="font-headline text-2xl font-bold">
             One inventory model, whatever you are selling
           </h2>
-          {/* This block used to promise hospitality packages with inclusions, named
-              guest lists, dietary requirements, deposits, balances and a concierge
-              workflow. `STATUS.md` lists hospitality under "Not built" — there are no
-              tables, packages or guest allocation in the code. A VIP tier is a priced
-              tier, which is genuinely useful and is what this now says. */}
+          {/* This block once promised hospitality that did not exist, and was cut back to
+              "a VIP tier is a priced tier" for a year. Packages, deposits, balances and
+              named guests are now built and tested; a concierge workflow and per-guest
+              ticket delivery are still not, and that distinction is what this says. */}
           <p className="max-w-2xl text-muted-foreground">
             A VIP place, a general-admission ticket and a livestream pass are the same
             object at different prices, so they sell from one event and reconcile in one
-            report. Full hospitality — packages with inclusions, named guests, deposits
-            and balances — is specified and not yet built.
+            report. A hospitality table is that same inventory sold whole — with
+            inclusions, a deposit now, the balance on a date you set, and a guest list the
+            booker fills in. Tickets are issued when the balance settles, never on the
+            deposit.
           </p>
           <Button asChild>
             <Link href="/register/organiser">
