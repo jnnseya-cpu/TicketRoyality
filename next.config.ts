@@ -65,6 +65,38 @@ const nextConfig: NextConfig = {
           { key: 'X-Robots-Tag', value: 'noindex' },
         ],
       },
+      {
+        /*
+         * Keep-out pages, told to search engines the only way that actually works.
+         *
+         * These were listed as `Disallow` in robots.txt, which was the wrong tool and
+         * produced Search Console's "Indexed, though blocked by robots.txt". robots.txt
+         * governs *crawling*, not *indexing*: `/login`, `/register` and `/cart` are
+         * linked from the header on every page, so Google found the URLs, indexed them
+         * on the strength of those links — and was then forbidden from fetching them, so
+         * it could never see a reason to drop them. The block is what kept them stuck.
+         *
+         * A page has to be crawlable to be de-indexed. `noindex` is the instruction;
+         * robots.txt now permits the crawl that delivers it.
+         *
+         * Sent as a header rather than `robots` metadata because most of these are
+         * client components, which cannot export `metadata` at all — and one rule here
+         * cannot drift from the page it protects.
+         *
+         * `follow` is deliberately left on: several of these link onward to pages that
+         * should rank, and orphaning those to save a crawl nobody was short of would be
+         * a poor trade.
+         */
+        source: '/(login|register|forgot-password|account|cart)',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, follow' }],
+      },
+      {
+        // Sub-paths of the same. `/register/organiser` and `/register/customer` are
+        // excluded on purpose — they are the organiser and buyer acquisition landing
+        // pages, linked from the homepage CTAs, and they should rank.
+        source: '/(login|dashboard|checkout)/:path*',
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, follow' }],
+      },
     ];
   },
 };
