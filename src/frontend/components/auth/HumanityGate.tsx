@@ -68,14 +68,28 @@ export function useHumanityGate() {
 export function Honeypot({ onChange }: { onChange: (value: string) => void }) {
   return (
     <div aria-hidden="true" className="absolute left-[-9999px] top-auto h-px w-px overflow-hidden">
-      <label htmlFor="company-website-url">Leave this field empty</label>
+      <label htmlFor="tr-hp">Leave this field empty</label>
       <input
-        id="company-website-url"
-        // Named like something a form-filler wants to complete.
-        name="company_website_url"
+        id="tr-hp"
+        /*
+         * The name matters more than it looks.
+         *
+         * This was `company_website_url`, chosen to tempt a form-filling bot — and
+         * `organization` and `url` are precisely the tokens Chrome's address autofill
+         * matches on, so filling the visible address fields filled this hidden one too.
+         * A real person with autofill on scored an instant refusal, which is the exact
+         * failure this gate is supposed to avoid.
+         *
+         * A meaningless name is invisible to autofill heuristics and just as visible to
+         * a bot reading the DOM, which is the only reader it needs to attract.
+         */
+        name="tr_hp"
         type="text"
         tabIndex={-1}
         autoComplete="off"
+        // Belt and braces: some password managers ignore autoComplete but honour this.
+        data-1p-ignore
+        data-lpignore="true"
         onChange={(event) => onChange(event.target.value)}
       />
     </div>

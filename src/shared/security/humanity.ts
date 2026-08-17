@@ -60,9 +60,20 @@ export function assessRisk(signals: RequestSignals): RiskAssessment {
     reasons.push(reason);
   };
 
-  // Honeypot is near-conclusive. A hidden field is invisible to a person and
-  // irresistible to a naive form-filler.
-  if (signals.honeypotTripped) add(70, 'honeypot field completed');
+  /*
+   * Honeypot is strong evidence, not proof.
+   *
+   * It was 70, which alone reached the `severe` band and refused outright. That is a
+   * single point of failure in a decision that must not have one: browser autofill and
+   * password managers fill hidden fields too, and when this one was named
+   * `company_website_url` they did exactly that — refusing real people on one signal.
+   *
+   * 55 keeps it decisive in combination (with a sub-second fill, or no interaction at
+   * all, it still refuses) while requiring corroboration before locking anyone out.
+   * The asymmetry is deliberate: a wrong refusal is a customer who never comes back, a
+   * wrong allow is one spam account an admin suspends in a click.
+   */
+  if (signals.honeypotTripped) add(55, 'honeypot field completed');
 
   // Sub-second completion of a multi-field form is not typing, it is pasting or
   // scripting. 800ms is generous — a fast human with autofill clears it.

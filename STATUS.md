@@ -38,8 +38,8 @@ and read. If it says **Not built**, it was looked for and is absent.
 | Accounts | Register (customer/organiser), login, forgot password, three role dashboards | `src/app/register`, `/dashboard/*` |
 | Password reveal | Eye toggle on every password field, accessible, never submits the form | `ui/password-input.tsx` |
 | **Admin sign-in** | `/login/admin`, linked under the normal login panel. Verifies `userType == 'superuser'` after authenticating and sends anyone else to their own dashboard rather than into an admin shell that 403s on every read. A separate door, not a separate lock — one credential store, and the rules are the authority. | `src/app/login/admin` |
-| **Admin account** | Promotion via Admin SDK script — no self-serve admin signup exists by design. `--set-password` recovers an account offline, which `admin@ticketroyality.com` needs because it has **no inbox** and can never receive a reset email. | `scripts/grant-admin.ts` |
-| Bot gate (sign-up) | Honeypot + fill-timing + interaction, **scored server-side**; refuses before any account is created | `/api/signup-gate` |
+| **Admin account** | Creation *and* promotion via Admin SDK script (`--create`) — the platform's most privileged account no longer depends on passing a public bot filter. Promotion via Admin SDK script — no self-serve admin signup exists by design. `--set-password` recovers an account offline, which `admin@ticketroyality.com` needs because it has **no inbox** and can never receive a reset email. | `scripts/grant-admin.ts` |
+| Bot gate (sign-up) | Honeypot + fill-timing + interaction, **scored server-side**; refuses before any account is created. **No single signal can refuse** — the honeypot was weighted 70 and named `company_website_url`, which Chrome's address autofill matched, so real people were refused outright. | `/api/signup-gate` — 12 tests |
 | Tiered ticketing | Multiple tiers, prices, quantities per event | `src/shared/types`, `CreateEventForm` |
 | Seat map | **Preview/display only** — no editor, no generator | `SeatMapPreview.tsx` |
 | Checkout | Stripe session creation, 303 redirect, honest failure | `src/app/api/checkout` |

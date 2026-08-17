@@ -36,6 +36,7 @@ const args = process.argv.slice(2);
 const email = args.find((a) => !a.startsWith('--'));
 const revoke = args.includes('--revoke');
 const setPassword = args.includes('--set-password');
+const create = args.includes('--create');
 
 function flag(name: string): string | undefined {
   const index = args.indexOf(`--${name}`);
@@ -51,7 +52,10 @@ function die(message: string): never {
 }
 
 if (!email) {
-  die('Usage: npm run grant:admin -- <email> --project <project-id> [--revoke] [--set-password]');
+  die(
+    'Usage: npm run grant:admin -- <email> --project <project-id> ' +
+      '[--create] [--revoke] [--set-password]'
+  );
 }
 if (!projectId) {
   die('No project. Pass --project <project-id> or set GOOGLE_CLOUD_PROJECT.');
@@ -100,20 +104,63 @@ async function main() {
   try {
     user = await auth.getUserByEmail(email!);
   } catch {
-    die(
-      `No account exists for ${email} in ${projectId}.\n` +
-        '  Sign up through the site first — this promotes an existing account, it does not create one.'
-    );
+    if (!create) {
+      die(
+        `No account exists for ${email} in ${projectId}.\n` +
+          '  Pass --create to create it here, or sign up through the site first.'
+      );
+    }
+
+    /*
+     * Created here rather than through the sign-up form, deliberately.
+     *
+     * The public form runs the humanity gate, which is tuned for strangers and is
+     * right to be: it scores role addresses, fast fills and honeypot hits. An
+     * administrator being set up by the person who owns the project is none of those
+     * things, and making the platform's most privileged account depend on passing a
+     * bot filter means one false positive locks you out of your own system.
+     *
+     * Whoever can run this already holds project credentials. There is nothing left
+     * for a bot check to protect.
+     */
+    const password = await promptPassword(`Password for the new ${email}: `);
+    const confirm = await promptPassword('Confirm: ');
+    if (password !== confirm) die('Passwords do not match. Nothing created.');
+    if (password.length < 12) {
+      die('Use at least 12 characters. This account holds every privilege on the platform.');
+    }
+
+    user = await auth.createUser({
+      email: email!,
+      password,
+      emailVerified: true,
+      displayName: 'Platform Administrator',
+    });
+    console.log(`\n✓ Created auth user ${user.uid}`);
   }
 
   const ref = db.collection('users').doc(user.uid);
-  const snap = await ref.get();
+  let snap = await ref.get();
 
   if (!snap.exists) {
-    die(
-      `Auth user ${user.uid} exists but has no users/ document.\n` +
-        '  Finish registration in the app before promoting the account.'
-    );
+    if (!create) {
+      die(
+        `Auth user ${user.uid} exists but has no users/ document.\n` +
+          '  Finish registration in the app, or re-run with --create.'
+      );
+    }
+    // The app reads this document, not the auth record, so an auth user without one
+    // signs in successfully and then has no role, no name and no dashboard.
+    await ref.set({
+      uid: user.uid,
+      email: email!,
+      fullName: 'Platform Administrator',
+      userType: 'customer',
+      status: 'approved',
+      createdAt: new Date().toISOString(),
+    });
+    snap = await ref.get();
+    console.log(`✓ Created users/${user.uid}`);
   }
 
   if (setPassword) {
