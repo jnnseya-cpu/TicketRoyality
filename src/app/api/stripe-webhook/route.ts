@@ -145,6 +145,9 @@ export async function POST(request: Request) {
           providerRef: checkout.paymentIntentId,
           // Carried so issuance can move the seat from held to sold in one write.
           holdId: checkout.holdId,
+          // One seat per ticket, in order. Issuance already writes these; without them a
+          // seated event issues tickets with no seat on them.
+          ...(checkout.seats.length > 0 ? { seats: checkout.seats } : {}),
         });
 
         if (outcome === 'unavailable') {

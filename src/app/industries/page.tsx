@@ -53,7 +53,7 @@ const SEGMENTS = [
     need: 'Tiered inventory, fast entry, one revenue picture',
     detail:
       'Price the ground in tiers — general, premium, VIP — each with its own capacity, and let issuance enforce it: a tier cannot be oversold even under a simultaneous rush. Define doors within the ground that admit only the tiers you assign to them, each with its own limit and its own re-entry rule, and sell hospitality tables as inventory alongside the tickets.',
-    next: 'Seat-level inventory — a specific seat sold to a specific person — is not built. Sections are display and pricing.',
+    next: 'Best-available automatic allocation is not built — a buyer picks their own seats from the map.',
   },
   {
     icon: Tent,
@@ -100,8 +100,8 @@ const SEGMENTS = [
     name: 'Theatres',
     need: 'Sections, rows and repeat performances',
     detail:
-      'Define colour-coded sections with lettered rows, seats per row and a price each; the venue layout renders on the event page. Repeat a production across a run without rebuilding it each night.',
-    next: 'A seat map editor, per-seat selection at checkout, obstructed-view tagging and held accessible seating are specified but not built — sections are display and pricing today, not seat-level inventory.',
+      'Define colour-coded sections with lettered rows, seats per row and a price each, then point a section at a ticket type and buyers choose their own seats — held while they pay, so two people cannot take F12. Tag restricted-view seats out of sale and hold accessible seats back for booking with you directly. Repeat a production across a run without rebuilding it each night.',
+    next: 'Best-available automatic allocation, seat swaps after purchase and a drag-and-drop map builder for irregular rooms are not built. Sections are still grids of rows.',
   },
   {
     icon: Church,

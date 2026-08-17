@@ -317,6 +317,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Seat locks. Created inside the checkout hold transaction and deleted when the hold
+       is released. A client write could take a seat without paying for it, or free a seat
+       somebody has already bought. Which seats are gone is answered by
+       `/api/events/[id]/seats`, which returns labels and never who is sitting in them. */
+    match /seat_locks/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }

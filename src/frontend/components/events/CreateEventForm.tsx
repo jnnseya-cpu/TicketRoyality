@@ -97,7 +97,27 @@ const seatingSchema = z.object({
   startRow: z.string().min(1).max(1, 'One letter, e.g. A.'),
   rows: z.coerce.number().int().min(1).max(26),
   seatsPerRow: z.coerce.number().int().min(1).max(60),
+  /**
+   * The tier these seats consume.
+   *
+   * Empty leaves the section as it has always been: a picture of the room, priced but not
+   * chosen from. Setting it turns the section into real seat-level inventory, because a
+   * seat then holds a place in that tier — one number rather than two that agree until
+   * they do not.
+   */
+  tierId: z.string().optional(),
+  /** Comma-separated labels. Sold to nobody. */
+  unavailableSeats: z.string().optional(),
+  accessibleSeats: z.string().optional(),
 });
+
+/** "A1, A2,a3" → ["A1","A2","A3"]. Tolerant of how a human types a list. */
+function parseSeatList(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(/[,\s]+/)
+    .map((seat) => seat.trim().toUpperCase())
+    .filter(Boolean);
+}
 
 /**
  * A zone is a door, not a price band.
@@ -324,7 +344,12 @@ function defaultsFor(event?: Event): FormValues {
       // it empty means "keep what is stored"; typing replaces it.
       accessCode: '',
     })),
-    seating: event.seating ?? [],
+    seating: (event.seating ?? []).map((section) => ({
+      ...section,
+      tierId: section.tierId ?? '',
+      unavailableSeats: (section.unavailableSeats ?? []).join(', '),
+      accessibleSeats: (section.accessibleSeats ?? []).join(', '),
+    })),
     zones: (event.zones ?? []).map((z) => ({
       id: z.id,
       name: z.name,
@@ -441,7 +466,25 @@ export function CreateEventForm({
           ...(tier.salesStart ? { salesStart: new Date(tier.salesStart).toISOString() } : {}),
           ...(tier.salesEnd ? { salesEnd: new Date(tier.salesEnd).toISOString() } : {}),
         })),
-        seating: values.seating.length > 0 ? values.seating : undefined,
+        seating:
+          values.seating.length > 0
+            ? values.seating.map((section) => ({
+                id: section.id,
+                name: section.name,
+                color: section.color,
+                price: section.price,
+                startRow: section.startRow,
+                rows: section.rows,
+                seatsPerRow: section.seatsPerRow,
+                ...(section.tierId ? { tierId: section.tierId } : {}),
+                ...(parseSeatList(section.unavailableSeats).length > 0
+                  ? { unavailableSeats: parseSeatList(section.unavailableSeats) }
+                  : {}),
+                ...(parseSeatList(section.accessibleSeats).length > 0
+                  ? { accessibleSeats: parseSeatList(section.accessibleSeats) }
+                  : {}),
+              }))
+            : undefined,
         zones:
           values.zones.length > 0
             ? values.zones.map((z) => ({
@@ -1580,6 +1623,71 @@ export function CreateEventForm({
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name={`seating.${index}.tierId`}
+                  render={({ field: f }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>Sells from</FormLabel>
+                      <Select
+                        onValueChange={(v) => f.onChange(v === 'none' ? '' : v)}
+                        value={f.value || 'none'}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Display only</SelectItem>
+                          {watchedTiers.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name || 'Unnamed tier'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription className="text-xs">
+                        Choose a tier and buyers pick their own seats from this section, held
+                        while they pay. Leave it on display only and the section is a picture
+                        of the room, as it has been.
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`seating.${index}.unavailableSeats`}
+                  render={({ field: f }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>Not for sale</FormLabel>
+                      <FormControl>
+                        <Input placeholder="A1, A2, F14" {...f} />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Restricted view, a pillar, the camera position.
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`seating.${index}.accessibleSeats`}
+                  render={({ field: f }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>Held for access</FormLabel>
+                      <FormControl>
+                        <Input placeholder="B1, B2" {...f} />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Wheelchair spaces and companion seats. Shown on the map as held back
+                        and booked with you directly, never sold out from under someone who
+                        needs them.
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+
                 <div className="flex items-end sm:col-span-4">
                   <Button
                     type="button"
@@ -1605,6 +1713,9 @@ export function CreateEventForm({
                   startRow: String.fromCharCode(65 + seating.fields.length),
                   rows: 5,
                   seatsPerRow: 20,
+                  tierId: '',
+                  unavailableSeats: '',
+                  accessibleSeats: '',
                 })
               }
             >
@@ -1614,7 +1725,16 @@ export function CreateEventForm({
             {watchedSeating.length > 0 && (
               <>
                 <Separator />
-                <SeatMapPreview sections={watchedSeating} currency={currency} />
+                {/* The form holds the seat lists as text a human types; the preview wants
+                    the real shape. Converted here rather than storing two conventions. */}
+                <SeatMapPreview
+                  sections={watchedSeating.map((section) => ({
+                    ...section,
+                    unavailableSeats: parseSeatList(section.unavailableSeats),
+                    accessibleSeats: parseSeatList(section.accessibleSeats),
+                  }))}
+                  currency={currency}
+                />
               </>
             )}
           </CardContent>

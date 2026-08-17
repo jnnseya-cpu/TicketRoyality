@@ -10,6 +10,7 @@ import { Label } from '@/frontend/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/frontend/components/ui/radio-group';
 import { Separator } from '@/frontend/components/ui/separator';
 import { OfflinePayment } from '@/frontend/components/events/OfflinePayment';
+import { SeatPicker } from '@/frontend/components/events/SeatPicker';
 import { useAuth } from '@/frontend/hooks/use-auth';
 import { useCart } from '@/frontend/hooks/use-cart';
 import { useToast } from '@/frontend/hooks/use-toast';
@@ -52,6 +53,7 @@ export function TicketBox({ event }: { event: Event }) {
   );
   const [quantity, setQuantity] = React.useState(1);
   const [bitripayLoading, setBitripayLoading] = React.useState(false);
+  const [selectedSeats, setSelectedSeats] = React.useState<string[]>([]);
 
   const tier = visibleTiers.find((t) => t.id === tierId) ?? visibleTiers[0];
 
@@ -137,6 +139,22 @@ export function TicketBox({ event }: { event: Event }) {
   };
 
   const selectedWindow = tier ? tierSaleWindow(tier) : ({ onSale: true } as const);
+
+  /*
+   * Seats, when the tier has a section mapped to it. A tier with no section sells
+   * general admission exactly as before — seat selection is additive, not a new mode
+   * every event has to opt out of.
+   */
+  const seatedSections = (event.seating ?? []).filter((s) => s.tierId === tier?.id);
+  const isSeated = seatedSections.length > 0;
+  const seatsChosen = selectedSeats.length === quantity;
+
+  React.useEffect(() => {
+    // A seat chosen for the stalls is not a seat in the circle, and four seats are not
+    // three tickets. Either change starts the choice again rather than silently carrying
+    // a selection that no longer matches what is being bought.
+    setSelectedSeats([]);
+  }, [tierId, quantity]);
 
   const redeemCode = async () => {
     setUnlocking(true);
@@ -306,6 +324,17 @@ export function TicketBox({ event }: { event: Event }) {
           </div>
         )}
 
+        {isSeated && selectedWindow.onSale && (
+          <SeatPicker
+            eventId={event.id}
+            sections={event.seating ?? []}
+            tierId={tier.id}
+            quantity={quantity}
+            selected={selectedSeats}
+            onChange={setSelectedSeats}
+          />
+        )}
+
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium">Quantity</span>
           <div className="flex items-center gap-2">
@@ -377,9 +406,11 @@ export function TicketBox({ event }: { event: Event }) {
           carries no code, so a basket holding one would be refused at checkout — better
           to say so now than after the buyer has assembled an order.
         */}
-        {tier.visibility === 'hidden' ? (
+        {tier.visibility === 'hidden' || isSeated ? (
           <p className="text-center text-xs text-muted-foreground">
-            This ticket type is bought directly rather than through the cart.
+            {isSeated
+              ? 'Reserved seating is bought directly, so the seats are held while you pay.'
+              : 'This ticket type is bought directly rather than through the cart.'}
           </p>
         ) : (
           <Button
@@ -425,8 +456,19 @@ export function TicketBox({ event }: { event: Event }) {
               <input type="hidden" name="userId" value={user?.uid ?? ''} />
               {/* Re-verified server-side. Present only when a hidden tier was unlocked. */}
               <input type="hidden" name="accessCode" value={accessCode} />
-              <Button type="submit" variant="outline" className="w-full">
-                <CreditCard className="h-4 w-4" /> Pay with Stripe
+              {/* The seats are re-locked server-side inside the hold transaction, so this
+                  is what the buyer chose, not what they are entitled to. */}
+              <input type="hidden" name="seats" value={selectedSeats.join(',')} />
+              <Button
+                type="submit"
+                variant="outline"
+                className="w-full"
+                disabled={isSeated && !seatsChosen}
+              >
+                <CreditCard className="h-4 w-4" />
+                {isSeated && !seatsChosen
+                  ? `Choose ${quantity - selectedSeats.length} more seat${quantity - selectedSeats.length === 1 ? '' : 's'}`
+                  : 'Pay with Stripe'}
               </Button>
             </form>
 

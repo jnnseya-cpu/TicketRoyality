@@ -171,6 +171,143 @@ async function run() {
     assert.equal(t.quantity - (t.sold ?? 0) - (t.held ?? 0), 3, 'three genuinely sellable');
   });
 
+  /* ------------------------------------------------------------------ */
+  /* Seat locks                                                         */
+  /* ------------------------------------------------------------------ */
+
+  const seats = await import('../src/backend/services/seats');
+
+  async function clearSeatLocks() {
+    const snap = await db.collection('seat_locks').get();
+    await Promise.all(snap.docs.map((d) => d.ref.delete()));
+  }
+
+  await test('choosing a seat locks it against everybody else', async () => {
+    await clearSeatLocks();
+    await seedTier(100);
+    const first = await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['F12']);
+    assert.equal(first.ok, true);
+
+    const second = await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['F12']);
+    assert.equal(second.ok, false, 'the same seat must not be held twice');
+    if (!second.ok) assert.equal(second.reason, 'seat-taken');
+  });
+
+  await test('a refused seat takes no inventory with it', async () => {
+    // The failure that would be worst: the seat is refused but the tier count moved, so
+    // the event silently sells out with empty seats in the room.
+    await clearSeatLocks();
+    await seedTier(100);
+    await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['F12']);
+    const heldBefore = (await tier()).held;
+
+    await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['F12']);
+    assert.equal((await tier()).held, heldBefore, 'a refused hold must not consume a place');
+  });
+
+  await test('seats around a taken one are still free', async () => {
+    await clearSeatLocks();
+    await seedTier(100);
+    await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['F12']);
+    assert.equal((await holds.placeHold(EVENT, 'tier-1', 2, undefined, ['F11', 'F13'])).ok, true);
+  });
+
+  await test('seat labels match however they were typed', async () => {
+    await clearSeatLocks();
+    await seedTier(100);
+    await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['f12']);
+    const second = await holds.placeHold(EVENT, 'tier-1', 1, undefined, [' F12 ']);
+    assert.equal(second.ok, false, 'case and spacing must not open a second lock');
+  });
+
+  await test('an abandoned checkout gives the seat back', async () => {
+    await clearSeatLocks();
+    await seedTier(100);
+    const hold = await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['F12']);
+    if (!hold.ok) throw new Error('setup failed');
+
+    await holds.releaseHold(hold.holdId, 'abandoned');
+    assert.equal((await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['F12'])).ok, true);
+  });
+
+  await test('an expired checkout gives the seat back', async () => {
+    await clearSeatLocks();
+    await seedTier(100);
+    const hold = await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['F12']);
+    if (!hold.ok) throw new Error('setup failed');
+    await db
+      .collection('checkout_holds')
+      .doc(hold.holdId)
+      .update({ expiresAt: new Date(Date.now() - 60_000).toISOString() });
+
+    assert.equal(await holds.expireHolds(), 1);
+    assert.equal((await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['F12'])).ok, true);
+  });
+
+  await test('a sold seat reads as taken, and a refunded one goes back on sale', async () => {
+    /*
+     * The reason availability is derived rather than recorded. Nothing deletes a "seat is
+     * sold" row when a refund happens — the refund runs in `functions/`, which cannot
+     * import this module — so a recorded seat would be unsellable forever and nobody
+     * would notice until the theatre wondered why row F never fills.
+     */
+    await clearSeatLocks();
+    await seedTier(100);
+    await db.collection('tickets').doc('seat-ticket-1').set({
+      eventId: EVENT,
+      status: 'valid',
+      seat: 'H4',
+      reference: 'TR-SEAT-1',
+    });
+
+    assert.ok((await seats.takenSeats(EVENT)).includes('H4'));
+
+    await db.collection('tickets').doc('seat-ticket-1').update({ status: 'refunded' });
+    assert.ok(!(await seats.takenSeats(EVENT)).includes('H4'), 'a refunded seat is for sale');
+
+    await db.collection('tickets').doc('seat-ticket-1').delete();
+  });
+
+  await test('a held seat reads as taken while the checkout is live', async () => {
+    await clearSeatLocks();
+    await seedTier(100);
+    await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['J9']);
+    assert.ok((await seats.takenSeats(EVENT)).includes('J9'));
+  });
+
+  await test('the lock from a consumed hold is cleared, leaving the ticket as the record', async () => {
+    await clearSeatLocks();
+    await seedTier(100);
+    const hold = await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['K1']);
+    if (!hold.ok) throw new Error('setup failed');
+
+    // What issuance does: marks the hold consumed, knowing nothing about seat locks.
+    await db
+      .collection('checkout_holds')
+      .doc(hold.holdId)
+      .update({ releasedAt: new Date().toISOString(), outcome: 'consumed' });
+
+    assert.equal(await holds.clearConsumedSeatLocks(), 1);
+    const lock = await db.collection('seat_locks').doc(holds.seatLockId(EVENT, 'K1')).get();
+    assert.equal(lock.exists, false, 'a consumed lock must not outlive the sale');
+  });
+
+  await test('clearing consumed locks twice does not run twice', async () => {
+    await clearSeatLocks();
+    await seedTier(100);
+    const hold = await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['K2']);
+    if (!hold.ok) throw new Error('setup failed');
+    await db
+      .collection('checkout_holds')
+      .doc(hold.holdId)
+      .update({ releasedAt: new Date().toISOString(), outcome: 'consumed' });
+
+    assert.equal(await holds.clearConsumedSeatLocks(), 1);
+    assert.equal(await holds.clearConsumedSeatLocks(), 0, 'the second pass has nothing to do');
+  });
+
+  await clearSeatLocks();
+
   console.log(`\n${passed}/${passed + failures.length} passed\n`);
   if (failures.length > 0) process.exit(1);
 }

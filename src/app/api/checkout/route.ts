@@ -51,6 +51,13 @@ export async function POST(request: Request) {
      a hidden tier was legitimately unlocked. One code per checkout: a basket mixing two
      different partners' hidden rates is not a real purchase. */
   const accessCode = String(form.get('accessCode') ?? '');
+  /* Chosen seats, single-event path only. A cart spans several events and would need a
+     multi-event transaction to hold them, which is recorded in STATUS.md rather than
+     half-built. */
+  const chosenSeats = String(form.get('seats') ?? '')
+    .split(',')
+    .map((seat) => seat.trim().toUpperCase())
+    .filter(Boolean);
 
   // `items` is a JSON array for cart checkout; single-event checkout sends flat fields.
   const rawItems = form.get('items');
@@ -232,7 +239,15 @@ export async function POST(request: Request) {
   const holdTierId = String(form.get('tierId') ?? '');
 
   if (typeof rawItems !== 'string' && holdEventId && holdTierId) {
-    const hold = await placeHold(holdEventId, holdTierId, lines[0]?.quantity ?? 1);
+    const quantity = lines[0]?.quantity ?? 1;
+
+    // A seat per ticket or none at all. Two seats for three tickets would issue a third
+    // ticket with no seat and nobody would notice until the door.
+    if (chosenSeats.length > 0 && chosenSeats.length !== quantity) {
+      return fail('Choose one seat for each ticket');
+    }
+
+    const hold = await placeHold(holdEventId, holdTierId, quantity, undefined, chosenSeats);
     if (!hold.ok) return fail(hold.error);
     holdId = hold.holdId;
   }
@@ -259,6 +274,8 @@ export async function POST(request: Request) {
         // Issuance consumes this hold, so the seat moves from held to sold in one step
         // rather than being briefly free between the two.
         holdId,
+        // Carried to issuance, which already writes one seat per ticket in order.
+        seats: chosenSeats.join(','),
       },
     });
     return NextResponse.redirect(url, { status: 303 });

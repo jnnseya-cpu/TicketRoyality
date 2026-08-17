@@ -42,11 +42,33 @@ export interface Hold {
   releasedAt?: string;
   /** `consumed` when issuance used it, `expired` when the sweep took it back. */
   outcome?: 'consumed' | 'expired' | 'abandoned';
+  /** Specific seats reserved by this hold, for a seated event. */
+  seats?: string[];
+  /** Set once the seat locks have been cleaned up. See `clearConsumedSeatLocks`. */
+  seatsCleared?: boolean;
+}
+
+/**
+ * One document per seat, created inside the hold transaction.
+ *
+ * `tx.create` fails if the document exists, so two people choosing row F seat 12 at the
+ * same instant cannot both hold it — the database refuses the second, rather than a
+ * read-then-write deciding it after the fact. It is the same discipline as
+ * `payment_events`: uniqueness enforced by the document id.
+ */
+export const SEAT_LOCKS = 'seat_locks';
+
+export function seatLockId(eventId: string, seat: string): string {
+  return `${eventId}__${seat.trim().toUpperCase()}`;
 }
 
 export type PlaceHoldResult =
   | { ok: true; holdId: string }
-  | { ok: false; reason: 'sold-out' | 'no-tier' | 'no-event' | 'unavailable'; error: string };
+  | {
+      ok: false;
+      reason: 'sold-out' | 'no-tier' | 'no-event' | 'seat-taken' | 'unavailable';
+      error: string;
+    };
 
 /**
  * Reserve inventory, or refuse.
@@ -68,7 +90,12 @@ export async function placeHold(
    * literally the same number — while still letting a lapsed booking return the table to
    * sale on its own.
    */
-  ttlMs: number = HOLD_WINDOW_MS
+  ttlMs: number = HOLD_WINDOW_MS,
+  /**
+   * Specific seats, for a seated event. Reserved in the same transaction as the tier
+   * count, so a seat and the inventory behind it can never disagree.
+   */
+  seats: string[] = []
 ): Promise<PlaceHoldResult> {
   if (!isAdminConfigured()) {
     return { ok: false, reason: 'unavailable', error: 'Checkout is unavailable.' };
@@ -104,6 +131,23 @@ export async function placeHold(
         };
       }
 
+      /*
+       * The seats, locked by document id.
+       *
+       * `create` rather than `set`: it fails if the lock exists, which is how the second
+       * buyer for one seat is refused by the database rather than by a check that read a
+       * moment too early. Inside the same transaction as the tier count, so a held seat
+       * always has held inventory behind it.
+       */
+      for (const seat of seats) {
+        tx.create(db.collection(SEAT_LOCKS).doc(seatLockId(eventId, seat)), {
+          eventId,
+          seat: seat.trim().toUpperCase(),
+          holdId: holdRef.id,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
       const next = [...tiers];
       next[index] = { ...tier, held: held + quantity };
       tx.update(eventRef, { ticketTiers: next });
@@ -113,11 +157,22 @@ export async function placeHold(
         tierId,
         quantity,
         expiresAt: new Date(Date.now() + Math.max(60_000, ttlMs)).toISOString(),
+        ...(seats.length > 0 ? { seats: seats.map((s) => s.trim().toUpperCase()) } : {}),
       } satisfies Hold);
 
       return { ok: true, holdId: holdRef.id };
     });
   } catch (error) {
+    // ALREADY_EXISTS from a seat lock. Somebody else took the seat between the buyer
+    // opening the map and pressing pay, which is a normal thing to happen and needs a
+    // sentence a human understands rather than an outage.
+    if ((error as { code?: number }).code === 6) {
+      return {
+        ok: false,
+        reason: 'seat-taken',
+        error: 'One of those seats was just taken. Choose again.',
+      };
+    }
     reportError(error, { scope: 'holds.place', eventId, tierId, quantity });
     return { ok: false, reason: 'unavailable', error: 'Could not reserve those tickets.' };
   }
@@ -163,12 +218,65 @@ export async function releaseHold(
         }
       }
 
-      tx.update(holdRef, { releasedAt: new Date().toISOString(), outcome });
+      /* The seat locks go back with the inventory. A seat still locked by an abandoned
+         checkout is a seat nobody can buy and nobody is sitting in. */
+      for (const seat of data.seats ?? []) {
+        tx.delete(db.collection(SEAT_LOCKS).doc(seatLockId(data.eventId, seat)));
+      }
+
+      tx.update(holdRef, {
+        releasedAt: new Date().toISOString(),
+        outcome,
+        ...((data.seats ?? []).length > 0 ? { seatsCleared: true } : {}),
+      });
       return true;
     });
   } catch (error) {
     reportError(error, { scope: 'holds.release', holdId });
     return false;
+  }
+}
+
+/**
+ * Clear seat locks left behind by a hold that issuance consumed.
+ *
+ * Issuance runs in `functions/`, a separate deployable that cannot import this module, so
+ * it marks the hold consumed and knows nothing about seat locks. Once the tickets exist
+ * the lock is redundant — the seat is taken because a ticket says so — and leaving it
+ * would mean a **refunded** seat could never be resold, since nothing would ever delete
+ * the lock.
+ *
+ * Availability is therefore computed from tickets plus live locks, and this removes the
+ * locks that have done their job.
+ */
+export async function clearConsumedSeatLocks(limit = 200): Promise<number> {
+  if (!isAdminConfigured()) return 0;
+
+  const db = getAdminDb();
+  try {
+    const consumed = await db
+      .collection('checkout_holds')
+      .where('outcome', '==', 'consumed')
+      .limit(limit)
+      .get();
+
+    let cleared = 0;
+    for (const doc of consumed.docs) {
+      const hold = doc.data() as Hold;
+      if (hold.seatsCleared || !hold.seats?.length) continue;
+
+      await Promise.all(
+        hold.seats.map((seat) =>
+          db.collection(SEAT_LOCKS).doc(seatLockId(hold.eventId, seat)).delete()
+        )
+      );
+      await doc.ref.update({ seatsCleared: true });
+      cleared += hold.seats.length;
+    }
+    return cleared;
+  } catch (error) {
+    reportError(error, { scope: 'holds.clearSeatLocks' });
+    return 0;
   }
 }
 

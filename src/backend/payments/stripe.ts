@@ -94,6 +94,11 @@ export function readCheckoutSession(session: Stripe.Checkout.Session) {
     holdId: session.metadata?.holdId || undefined,
     /** Set when the payment is a hospitality deposit or balance rather than a ticket sale. */
     bookingId: session.metadata?.bookingId || undefined,
+    /** Chosen seats, in the order the tickets should carry them. */
+    seats: (session.metadata?.seats || '')
+      .split(',')
+      .map((seat) => seat.trim())
+      .filter(Boolean),
     amountTotal: (session.amount_total ?? 0) / 100,
     currency: (session.currency ?? 'gbp').toUpperCase(),
     customerEmail: session.customer_details?.email ?? undefined,

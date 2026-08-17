@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { isAuthorisedCron } from '@/shared/cron';
-import { expireHolds } from '@/backend/services/holds';
+import { clearConsumedSeatLocks, expireHolds } from '@/backend/services/holds';
 import { expireLapsedBookings } from '@/backend/services/hospitality';
 
 export const runtime = 'nodejs';
@@ -30,8 +30,17 @@ export async function GET(request: Request) {
    */
   const bookingsExpired = await expireLapsedBookings();
 
+  /*
+   * Seat locks left behind by a hold issuance consumed.
+   *
+   * Once the tickets exist the lock is redundant — the seat is taken because a ticket
+   * says so — and leaving it would mean a refunded seat could never be resold, because
+   * nothing else ever deletes it.
+   */
+  const seatLocksCleared = await clearConsumedSeatLocks();
+
   return NextResponse.json(
-    { released, bookingsExpired, implemented: true },
+    { released, bookingsExpired, seatLocksCleared, implemented: true },
     { headers: { 'Cache-Control': 'no-store' } }
   );
 }

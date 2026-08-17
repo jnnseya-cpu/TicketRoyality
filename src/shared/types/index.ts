@@ -195,6 +195,21 @@ export interface SeatingSection {
   startRow: string;
   rows: number;
   seatsPerRow: number;
+  /**
+   * The tier whose inventory these seats consume.
+   *
+   * Without it a section is decoration: a picture of a room next to a tier that counts
+   * separately. With it, choosing seat F12 holds one place in that tier, so the seat map
+   * and the ticket count are the same number rather than two numbers that agree until
+   * they do not.
+   *
+   * Absent on sections created before seat selection existed; those stay display-only.
+   */
+  tierId?: string;
+  /** Seats sold but not admitted — obstructed view, a pillar, a camera position. */
+  unavailableSeats?: string[];
+  /** Seats held back for wheelchair users and companions, never sold online. */
+  accessibleSeats?: string[];
 }
 
 export interface TicketTier {
