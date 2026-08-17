@@ -106,7 +106,19 @@ export function Header() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm">
-                    <UserIcon className="h-4 w-4" />
+                    {/* A plain <img>, not next/image: this is a 24px avatar inside a
+                        button, and routing it through the optimiser would cost a
+                        server render for something smaller than the icon it replaces. */}
+                    {userProfile?.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={userProfile.logoUrl}
+                        alt=""
+                        className="-ml-1 h-6 w-6 shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="h-4 w-4" />
+                    )}
                     <span className="max-w-[10rem] truncate">
                       {userProfile?.fullName ?? user.email}
                     </span>

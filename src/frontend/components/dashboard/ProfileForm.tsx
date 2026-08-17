@@ -6,6 +6,7 @@ import { Loader2, Pencil } from 'lucide-react';
 import { Button } from '@/frontend/components/ui/button';
 import { Input } from '@/frontend/components/ui/input';
 import { Label } from '@/frontend/components/ui/label';
+import { ProfileMedia } from '@/frontend/components/dashboard/ProfileMedia';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { updateUserProfile } from '@/shared/data/repositories';
 import type { UserProfile } from '@/shared/types';
@@ -73,7 +74,12 @@ export function ProfileForm({
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Above the fields, and outside the read-only lock. A picture is not a detail a
+          stray keystroke can corrupt, so making it wait behind "Edit" would be
+          protection against nothing. */}
+      <ProfileMedia profile={profile} onSaved={onSaved} />
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2 sm:col-span-2">
           <Label>Email</Label>

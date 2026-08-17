@@ -22,6 +22,21 @@ service firebase.storage {
                    && request.resource.size < 8 * 1024 * 1024;
     }
 
+    /* Profile photo and cover, for every account type — customer, organiser and
+       superuser alike. Separate from /organisers/ on purpose: that path is company
+       branding tied to an approved organiser, this one is the person's own picture and
+       a customer must be able to set it without being an organiser.
+
+       Public read because an avatar is rendered on public surfaces (organiser
+       directory, event host cards). Nothing personal beyond the picture lives here. */
+    match /users/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn()
+                   && request.auth.uid == uid
+                   && isImage()
+                   && request.resource.size < 5 * 1024 * 1024;
+    }
+
     match /organisers/{organiserId}/{fileName} {
       allow read: if true;
       allow write: if isSignedIn()

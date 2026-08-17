@@ -4,12 +4,15 @@ import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Activity,
   BadgeCheck,
   LayoutDashboard,
   Menu,
   Percent,
   Smartphone,
   Sparkles,
+  UserCog,
+  Users,
 } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
@@ -27,10 +30,15 @@ import { cn } from '@/shared/utils';
 
 const NAV = [
   { href: '/dashboard/superuser', label: 'Overview', icon: LayoutDashboard },
+  // Second, deliberately. It is the only page that answers "did somebody pay and
+  // get nothing?", which is the question that costs money while nobody is looking.
+  { href: '/dashboard/superuser/operations', label: 'Operations', icon: Activity },
+  { href: '/dashboard/superuser/users', label: 'Accounts', icon: Users },
   { href: '/dashboard/superuser/approvals', label: 'Organiser approvals', icon: BadgeCheck },
   { href: '/dashboard/superuser/offline-payments', label: 'Offline payments', icon: Smartphone },
   { href: '/dashboard/superuser/commissions', label: 'Commissions', icon: Percent },
   { href: '/dashboard/superuser/acu', label: 'ACU console', icon: Sparkles },
+  { href: '/dashboard/superuser/profile', label: 'My profile', icon: UserCog },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
