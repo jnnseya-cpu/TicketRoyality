@@ -74,7 +74,7 @@ export const PLATFORM_ARTICLES: Article[] = [
   },
   {
     slug: 'notifications-that-arrive',
-    status: 'draft',
+    status: 'shipped',
     title: 'The messages that must arrive, and the ones you can turn off',
     kind: 'feature',
     cluster: 'platform',
@@ -95,10 +95,15 @@ export const PLATFORM_ARTICLES: Article[] = [
         type: 'paragraph',
         text: 'Over a hundred communication events are specified across thirteen categories, each with its audience, its channels, its severity and its trigger. Ticket issued, payment failed, event postponed, venue changed, payout sent, refund processed, presale opening, door opening — each is a defined event rather than something someone writes in a hurry when it first happens.',
       },
-      { type: 'heading', text: 'Four channels, chosen per message' },
+      { type: 'heading', text: 'Channels, chosen per message' },
       {
         type: 'paragraph',
-        text: 'Email, in-app, push and WhatsApp. Which channels carry a given message is part of its definition, not a global preference. A venue change one hour before doors goes everywhere available. A monthly summary is email only.',
+        text: 'Which channels carry a given message is part of its definition, not a global preference. A venue change one hour before doors goes everywhere available; a monthly summary is email only.',
+      },
+      { type: 'heading', text: 'What actually leaves the building' },
+      {
+        type: 'paragraph',
+        text: 'Two channels deliver today: email, over SMTP, and in-app, which appears in the bell in your header the moment it is written. Push and WhatsApp are defined in the catalogue and are not delivered \u2014 a message routed only to them is recorded as suppressed rather than reported as sent. Saying which is which matters more than the count: a delivery log that claims success is worse than no log at all when a customer is telling you their ticket never arrived.',
       },
       { type: 'heading', text: 'Sixty-one are mandatory' },
       {

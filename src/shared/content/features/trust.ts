@@ -205,7 +205,7 @@ export const TRUST_ARTICLES: Article[] = [
   },
   {
     slug: 'your-ticket-wallet',
-    status: 'draft',
+    status: 'shipped',
     title: 'Where your tickets live, and how to send one to a friend',
     kind: 'feature',
     cluster: 'buying',
@@ -233,12 +233,12 @@ export const TRUST_ARTICLES: Article[] = [
       },
       {
         type: 'paragraph',
-        text: 'Recommendations attached to that ticket are cleared and regenerated for the recipient, because they were derived from your history and it is not theirs to receive.',
+        text: 'The ticket\u2019s rotating secret is replaced as part of the same operation, so every code your phone can still compute stops working within thirty seconds. That is the part that makes a transfer real rather than a change of name: two working copies of one seat would be worse than no transfer at all.',
       },
       { type: 'heading', text: 'It works without signal' },
       {
         type: 'paragraph',
-        text: 'Tickets are available offline and can be added to a phone wallet. A ticket that requires connectivity to display is a ticket that fails in exactly the place it is needed — a basement venue with eight hundred phones competing for one cell.',
+        text: 'The code your phone shows is computed on the phone, from a secret the ticket already holds \u2014 it is not fetched from a server at the moment the queue is longest and the network is worst. A ticket that needs connectivity to display is a ticket that fails in exactly the place it is needed: a basement venue with eight hundred phones competing for one cell. Apple and Google Wallet passes are not built; this is the ticket in your browser, installed as an app if you want it.',
       },
       { type: 'heading', text: 'The messages that matter arrive' },
       {

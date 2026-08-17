@@ -67,7 +67,7 @@ export const OPERATIONS_ARTICLES: Article[] = [
   },
   {
     slug: 'rotating-qr-and-ticket-forgery',
-    status: 'draft',
+    status: 'shipped',
     title: 'Why a screenshot of your ticket does not get anyone in',
     kind: 'feature',
     cluster: 'trust',
@@ -98,15 +98,19 @@ export const OPERATIONS_ARTICLES: Article[] = [
         type: 'paragraph',
         text: 'Beyond rotation, every ticket admits once. The first successful scan marks it used, and every subsequent presentation shows the door staff when and where it was already scanned. Even where a code is somehow reproduced, only the first person through is admitted.',
       },
-      { type: 'heading', text: 'The per-event salt matters more than the algorithm' },
+      { type: 'heading', text: 'The seed is per ticket, which is what confines the damage' },
       {
         type: 'paragraph',
-        text: 'Codes are signed with a key derived per event rather than one platform-wide secret. If material from one event were ever exposed, it would not enable forgery against any other event. Blast radius is a design property, and confining it is worth more than an extra layer of cleverness in the signing itself.',
+        text: 'Each ticket carries its own secret, generated when the ticket is issued, and the codes are computed from that. One ticket\u2019s secret says nothing about any other ticket \u2014 not the next seat, not the same event, not the same buyer. Blast radius is a design property, and confining it to a single ticket is worth more than cleverness in the algorithm.',
       },
-      { type: 'heading', text: 'Screenshot detection flags, it never refuses' },
       {
         type: 'paragraph',
-        text: 'Where a screenshot is detected, it is raised as a signal for staff rather than an automatic rejection. People screenshot their own tickets constantly — because their phone battery is dying, because signal at the venue is poor, because they want it somewhere they can find it fast. Refusing them entry to stop a scam punishes far more legitimate attendees than fraudsters.',
+        text: 'It is also why the code works with no signal. The phone computes the current code from the secret it already holds, rather than asking a server for one at the moment the queue is longest and the network is worst.',
+      },
+      { type: 'heading', text: 'Sending a ticket to a friend, properly' },
+      {
+        type: 'paragraph',
+        text: 'People do give tickets away, and telling them not to does not stop them. So there is a transfer: send it to an email address, they accept from a signed link, and the ticket moves to their account. Accepting rotates the secret, so every code the previous holder\u2019s phone can compute stops working within thirty seconds. A transfer that left two working copies would be worse than none \u2014 two people would believe they were getting in, and one seat was sold.',
       },
       { type: 'heading', text: 'What this means if you are buying' },
       {
@@ -118,7 +122,7 @@ export const OPERATIONS_ARTICLES: Article[] = [
       {
         question: 'Can someone screenshot my ticket and use it?',
         answer:
-          'No. The QR code regenerates on a short cycle, so a screenshot goes stale within minutes. Every ticket also admits only once — the first scan marks it used and later presentations show door staff when and where it was already scanned.',
+          'No. The code regenerates every thirty seconds, so a screenshot is stale almost immediately. Every ticket also admits only once — the first scan marks it used, in a single database transaction, so two doors scanning at the same instant admit exactly one person.',
       },
       {
         question: 'How do I avoid ticket resale scams?',
