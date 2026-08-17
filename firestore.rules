@@ -45,21 +45,28 @@ service cloud.firestore {
     /* ---------------------------------------------------------------- */
 
     match /users/{uid} {
-      // A user reads their own profile; superusers read everyone. Organiser profiles
-      // are public because they are rendered on the /organisers pages.
-      allow get: if isSelf(uid)
-                 || isSuperuser()
-                 || resource.data.userType == 'organiser';
-
-      // Listing users requires a signed-in caller, deliberately. `users` documents
-      // carry email, phone, address and date of birth, so an anonymous list would make
-      // every organiser's contact details bulk-harvestable.
+      // Your own profile, or an administrator's. Nothing else.
       //
-      // The public organiser directory does NOT go through this rule. It is rendered
-      // server-side by backend/services/public-profiles.ts using the Admin SDK, which
-      // returns a whitelist projection of branding fields only. That keeps the
-      // directory public and indexable without publishing personal data.
-      allow list: if isSuperuser() || isSignedIn();
+      // This used to carry `|| resource.data.userType == 'organiser'`, which made every
+      // approved organiser's FULL user document readable by anyone who could reach
+      // Firestore — email, phone, postal address and date of birth, by uid, with no
+      // account required. The organiser ids are published in the sitemap, so the set of
+      // uids to try was public too.
+      //
+      // Nothing needed it. `getUserProfile()` is only ever called with the caller's own
+      // uid, and the public directory is server-rendered through the Admin SDK
+      // projection in backend/services/public-profiles.ts, which returns branding
+      // fields only. The clause was a hole with no user.
+      allow get: if isSelf(uid) || isSuperuser();
+
+      // Listing is now administrators only. It was `isSignedIn()`, which let anyone who
+      // registered a free account enumerate every user on the platform and read the same
+      // personal fields in bulk — a worse version of the same leak.
+      //
+      // The two legitimate readers both moved off this rule: admin screens go through
+      // /api/admin/users behind requireAdmin, and the public directory and sitemap use
+      // the Admin SDK projection.
+      allow list: if isSuperuser();
 
       // A new profile may only be created by its owner, must claim its own uid, and
       // must not self-assign an elevated role or an approved organiser status.

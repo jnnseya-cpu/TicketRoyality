@@ -16,7 +16,7 @@
     "report:links": "tsx scripts/link-report.ts",
     "test:issuance": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx functions/src/issuance.test.ts\"",
     "test:delivery": "tsx functions/src/delivery.test.ts",
-    "test": "npm run test:pricing && npm run test:fees && npm run test:margin && npm run test:humanity && npm run test:issuance && npm run test:delivery && npm run test:ai && npm run test:dynamic-pricing && npm run test:comms && npm run test:newsletter",
+    "test": "npm run test:pricing && npm run test:fees && npm run test:margin && npm run test:humanity && npm run test:rules && npm run test:issuance && npm run test:delivery && npm run test:ai && npm run test:dynamic-pricing && npm run test:comms && npm run test:newsletter",
     "grant:admin": "tsx scripts/grant-admin.ts",
     "test:ai": "tsx --conditions=react-server src/backend/ai/gateway.test.ts",
     "test:comms": "tsx --conditions=react-server src/backend/comms/dispatch.test.ts",
@@ -26,7 +26,8 @@
     "test:newsletter": "tsx --conditions=react-server src/backend/newsletter/newsletter.test.ts",
     "test:humanity": "tsx src/shared/security/humanity.test.ts",
     "test:dynamic-pricing": "tsx --conditions=react-server src/backend/ai/dynamic-pricing.test.ts",
-    "test:fees": "tsx src/shared/fees.test.ts"
+    "test:fees": "tsx src/shared/fees.test.ts",
+    "test:rules": "firebase emulators:exec --only firestore --project ticketroyality-rules-test --config firebase.emulator.json \"npx tsx scripts/rules.test.ts\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -75,6 +76,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@types/node": "^22.13.1",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.0.8",
@@ -82,6 +84,7 @@
     "autoprefixer": "^10.4.20",
     "eslint": "^9.20.0",
     "eslint-config-next": "^15.5.22",
+    "firebase-tools": "^15.27.0",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.19",
     "tsx": "^4.19.2",

@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 
-import { getEvents, getOrganisers } from '@/shared/data/repositories';
+import { getEvents } from '@/shared/data/repositories';
+import { getPublicOrganisers } from '@/backend/services/public-profiles';
 import { siteUrl } from '@/shared/site';
 import { articlesInCluster, publishedArticles, publishedClusters } from '@/shared/content/articles';
 
@@ -69,7 +70,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // A sitemap must never fail the build or the route. If the catalogue is unreachable
   // we publish the static routes rather than nothing.
   try {
-    const [events, organisers] = await Promise.all([getEvents(), getOrganisers('approved')]);
+    // Organisers come from the Admin SDK projection, not the client SDK.
+    //
+    // This route runs on the server with no signed-in user, so the client-SDK read it
+    // used to do was refused by `firestore.rules` and swallowed by the catch below —
+    // organiser URLs have been silently missing from the sitemap. Tightening the users
+    // rule made that permanent, so the read moved to the same privileged projection the
+    // public directory already uses.
+    const [events, organisers] = await Promise.all([getEvents(), getPublicOrganisers()]);
 
     for (const event of events) {
       // Past events are dropped rather than listed — see docs/04 M25 on 410s.
@@ -85,7 +93,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const organiser of organisers) {
       entries.push({
         url: `${base}/organisers/${organiser.uid}`,
-        lastModified: new Date(organiser.createdAt ?? now),
+        lastModified: now,
         changeFrequency: 'weekly',
         priority: 0.6,
       });
