@@ -273,6 +273,16 @@ service cloud.firestore {
        being brute-forced, and stops a checkout hold being released by whoever wants
        the seat. Covered by the catch-all below, and stated explicitly so that adding
        a permissive rule later is a visible decision rather than an accident. */
+    /* Transfers are created, accepted and cancelled through server routes that verify
+       the caller's ID token and check ticket ownership against the document. A client
+       write here could hand somebody else's ticket away, or mark a transfer accepted
+       without the seed rotation that stops the old holder's copy scanning. Read is
+       allowed to the two parties so each can see the state of their own transfer. */
+    match /ticket_transfers/{id} {
+      allow get, list: if isSignedIn() && resource.data.fromUserId == request.auth.uid;
+      allow write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }
