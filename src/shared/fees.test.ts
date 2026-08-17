@@ -226,6 +226,71 @@ test('a config that undercharges is caught by the guard', () => {
   assert.ok(audit.losses.length > 0, 'a 0.1% fee must produce outright losses');
 });
 
+test('the full cost stack is modelled, not just the fee-attributable part', () => {
+  // The cost table applies the rail percentage to the whole charge, face value
+  // included. £50 UK card: 1.5% of £52.49 = 79p, + 20p fixed, + 10p infra/AI/KODA.
+  const quote = computeOrderFees([{ faceMinor: 5000, qty: 1 }]);
+  assert.equal(quote.economics.fullCostMinor, 109);
+  assert.equal(
+    quote.economics.netContributionMinor,
+    quote.serviceFeeNetMinor - quote.economics.fullCostMinor
+  );
+  assert.ok(quote.economics.fullCostMinor > quote.economics.directCostMinor);
+});
+
+test('every UK card order is net-profitable on the full stack', () => {
+  for (const face of [100, 500, 1000, 2500, 5000, 10000, 25000]) {
+    const quote = computeOrderFees([{ faceMinor: face, qty: 1 }]);
+    assert.ok(
+      quote.economics.netProfitable,
+      `£${face / 100} lost ${-quote.economics.netContributionMinor}p on a UK card`
+    );
+  }
+});
+
+test('an international card stops being profitable on high-value tickets', () => {
+  /*
+   * A real exposure, pinned so it cannot drift unnoticed.
+   *
+   * Net of VAT the fee earns 3.99 ÷ 1.2 = 3.325% of face. An international card costs
+   * 3.25% of face **plus fee**, which is 3.38% of face — very slightly more. The 49p
+   * fixed component covers the gap on small tickets and is exhausted at about £166,
+   * turning permanently negative from roughly £193 upward.
+   *
+   * It matters because §26 says the percentage component is where VIP, hospitality and
+   * premium inventory earn — and those are exactly the tickets that lose money when the
+   * buyer pays with a foreign card. The fee cannot be varied by payment method (that is
+   * a surcharge), so the levers are a negotiated international rate, routing, or a
+   * higher headline percentage. None of those is an engineering decision.
+   */
+  const net = (faceMinor: number) =>
+    computeOrderFees([{ faceMinor, qty: 1 }], { rail: 'stripe_intl_card' }).economics
+      .netContributionMinor;
+
+  // The margin is so thin near the crossover that penny rounding makes it flicker: the
+  // first negative is £166.27, then it oscillates between 0 and −1p for another £27.
+  // Pinning the flicker point would be pinning a rounding artefact, so what is asserted
+  // is the shape — comfortably positive well below, reliably negative well above.
+  assert.ok(net(10000) > 0, '£100 must still contribute');
+  assert.ok(net(15000) > 0, '£150 must still contribute');
+  for (let face = 19300; face <= 50000; face += 700) {
+    assert.ok(net(face) < 0, `£${face / 100} should be loss-making on an international card`);
+  }
+});
+
+test('mobile money is net-profitable at every price, which is the corridor argument', () => {
+  const drc = structuredClone(ZERO_FEE_CONFIG);
+  drc.countries.CD.active = true;
+  for (const face of [100, 2500, 25000, 100000]) {
+    const quote = computeOrderFees([{ faceMinor: face, qty: 1 }], {
+      rail: 'bitripay_momo',
+      countryCode: 'CD',
+      cfg: drc,
+    });
+    assert.ok(quote.economics.netProfitable, `$${face / 100} lost money on mobile money`);
+  }
+});
+
 test('health bands are reported, not just a boolean', () => {
   const quote = computeOrderFees([{ faceMinor: 5000, qty: 1 }]);
   assert.equal(quote.economics.health, 'healthy');

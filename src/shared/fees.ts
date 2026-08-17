@@ -75,13 +75,32 @@ export interface OrderQuote {
 
   rail: PaymentRail;
   economics: {
-    /** Attributable variable cost of earning this fee. */
+    /**
+     * Attributable cost — the cost of earning the fee. Rail percentage on the *fee*,
+     * plus the fixed order costs. This is the basis the cost-multiple floor is measured
+     * against, and the reasoning is in the comment at the calculation site.
+     */
     directCostMinor: number;
     grossContributionMinor: number;
-    /** Revenue ÷ cost. 2.0 is the floor. `null` when there is no cost to divide by. */
+    /** Revenue ÷ attributable cost. 2.0 is the target. `null` when there is no cost. */
     costMultiple: number | null;
     health: Health;
     meetsFloor: boolean;
+
+    /**
+     * The whole cost stack, with the rail's percentage applied to the **entire charge**
+     * — face value included, exactly as the cost table specifies.
+     *
+     * This is what the order actually costs. `directCostMinor` answers "is the fee
+     * product profitable"; this answers "does this order make money at all", and they
+     * are different questions with different answers on high-value international cards.
+     * Both are reported because reporting only the first is how a platform convinces
+     * itself it is profitable while losing money per transaction.
+     */
+    fullCostMinor: number;
+    netContributionMinor: number;
+    /** True when the order makes money once processing on face value is paid for. */
+    netProfitable: boolean;
   };
 }
 
@@ -199,6 +218,25 @@ export function computeOrderFees(
   const grossContributionMinor = serviceFeeNetMinor - directCostMinor;
   const costMultiple = directCostMinor === 0 ? null : serviceFeeNetMinor / directCostMinor;
 
+  /*
+   * The whole cost stack, per the cost table: the rail's percentage applies to the
+   * ENTIRE charge, face value included, because that is what the processor actually
+   * bills. Capped where the rail caps it.
+   *
+   * Kept alongside the attributable figure rather than instead of it. The attributable
+   * basis is the right one for deciding whether the *fee* is priced correctly; this one
+   * is the right one for deciding whether the *order* makes money. A platform that only
+   * ever looks at the first can run a per-transaction loss for a long time while every
+   * dashboard reads healthy.
+   */
+  const railPctOnCharge = round((buyerTotalMinor * railCost.pct) / 100);
+  const railPctCharged =
+    railCost.capPence === undefined ? railPctOnCharge : Math.min(railPctOnCharge, railCost.capPence);
+  const fullCostMinor = hasFee
+    ? railPctCharged + railCost.fixedPence + cfg.costs.platformFixedPerOrderMinor
+    : 0;
+  const netContributionMinor = serviceFeeNetMinor - fullCostMinor;
+
   return {
     configVersion: cfg.version,
     countryCode: country.countryCode,
@@ -221,6 +259,9 @@ export function computeOrderFees(
       costMultiple,
       health: healthFor(costMultiple, grossContributionMinor),
       meetsFloor: costMultiple === null || costMultiple >= cfg.minimumCostMultiple,
+      fullCostMinor,
+      netContributionMinor,
+      netProfitable: netContributionMinor >= 0,
     },
   };
 }
