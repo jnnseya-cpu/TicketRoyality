@@ -18,6 +18,11 @@ import { Logo } from '@/frontend/components/common/Logo';
 import { formatCurrency, formatEventDate } from '@/shared/utils';
 import type { Ticket } from '@/shared/types';
 import { QR_VERSION, encodeTicketQr } from '@/shared/tickets/qr';
+import {
+  ROTATION_WINDOW_SECONDS,
+  computeRotationCodeInBrowser,
+  millisUntilRotation,
+} from '@/shared/tickets/rotating';
 
 /**
  * The customer's ticket QR.
@@ -28,14 +33,56 @@ import { QR_VERSION, encodeTicketQr } from '@/shared/tickets/qr';
  * `userId` was in here and has been removed: nothing read it, and anyone who
  * photographed a ticket learned the buyer's account id for free.
  */
-export function ticketQrPayload(ticket: Ticket) {
+export function ticketQrPayload(ticket: Ticket, rotatingCode?: string) {
   return encodeTicketQr({
     v: QR_VERSION,
     t: ticket.id,
     e: ticket.eventId,
     r: ticket.reference,
     s: ticket.qrSignature,
+    c: rotatingCode,
   });
+}
+
+/**
+ * A code that changes every 30 seconds, computed in the browser from the ticket's seed.
+ *
+ * Signing alone stops a QR being forged; it does not stop the buyer photographing their
+ * own ticket and forwarding it, with whoever arrives first getting in and the real
+ * holder refused at the door. Rotation makes the photograph stale before it can travel.
+ *
+ * Computed locally rather than fetched, so the ticket still works with no signal — a
+ * basement venue is exactly where a network round-trip would fail, and exactly when the
+ * ticket is needed. Returns undefined without Web Crypto, and the door falls back to the
+ * static signature: a ticket that renders nothing is a person at a gate with no way in,
+ * which is worse than a slightly weaker code.
+ */
+function useRotatingCode(ticket: Ticket): { code?: string; secondsLeft: number } {
+  const [code, setCode] = React.useState<string | undefined>(undefined);
+  const [secondsLeft, setSecondsLeft] = React.useState(ROTATION_WINDOW_SECONDS);
+
+  React.useEffect(() => {
+    if (!ticket.rotationSeed) return;
+    let cancelled = false;
+
+    const tick = async () => {
+      const next = await computeRotationCodeInBrowser(ticket.rotationSeed!, ticket.id);
+      if (!cancelled) {
+        setCode(next ?? undefined);
+        setSecondsLeft(Math.ceil(millisUntilRotation() / 1000));
+      }
+    };
+
+    void tick();
+    // Every second so the countdown is honest; the code only changes on a window edge.
+    const timer = setInterval(() => void tick(), 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [ticket.rotationSeed, ticket.id]);
+
+  return { code, secondsLeft };
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
@@ -55,6 +102,7 @@ export function TicketModal({
   trigger?: React.ReactNode;
 }) {
   const printRef = React.useRef<HTMLDivElement>(null);
+  const rotating = useRotatingCode(ticket);
 
   const handleDownload = () => {
     const canvas = printRef.current?.querySelector('canvas');
@@ -87,12 +135,18 @@ export function TicketModal({
         <div ref={printRef} className="space-y-4">
           <div className="flex justify-center rounded-lg bg-white p-4">
             <QRCodeCanvas
-              value={ticketQrPayload(ticket)}
+              value={ticketQrPayload(ticket, rotating.code)}
               size={196}
               level="M"
               includeMargin={false}
             />
           </div>
+
+          {rotating.code && (
+            <p className="text-center text-xs text-muted-foreground">
+              This code refreshes in {rotating.secondsLeft}s — a screenshot will not scan.
+            </p>
+          )}
 
           <p className="text-center text-xs uppercase tracking-[0.2em] text-primary">
             {ticket.organizerName}

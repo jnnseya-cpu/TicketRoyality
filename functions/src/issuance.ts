@@ -2,7 +2,7 @@ import { randomInt } from 'node:crypto';
 import { getFirestore, type Firestore, type Transaction } from 'firebase-admin/firestore';
 
 import type { EventDoc, PaymentEventDoc, TicketDoc } from './domain';
-import { signTicket } from './qr';
+import { generateRotationSeed, signTicket } from './qr';
 
 /**
  * Ticket issuance — the privileged operation at the centre of the platform.
@@ -164,7 +164,10 @@ export async function issueTickets(
       // server-only and never leaves this package: the wallet renders the signature it
       // was given, and the door posts it back for the server to recompute.
       const qrSignature = signTicket(ref.id, ticket.eventId);
-      tx.set(ref, qrSignature ? { ...ticket, qrSignature } : ticket);
+      // The rotation seed makes a forwarded screenshot stale within 30 seconds. Minted
+      // per ticket so one leaked seed is worth one ticket.
+      const rotationSeed = generateRotationSeed();
+      tx.set(ref, qrSignature ? { ...ticket, qrSignature, rotationSeed } : { ...ticket, rotationSeed });
       ticketIds.push(ref.id);
     }
 

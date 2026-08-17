@@ -4,6 +4,12 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { QR_VERSION, qrSigningInput, type TicketQrPayload } from '@/shared/tickets/qr';
+import {
+  ROTATION_SKEW,
+  encodeRotationCode,
+  rotationInput,
+  rotationWindow,
+} from '@/shared/tickets/rotating';
 // Importing the guard here means the door cannot start with a drifted signing format.
 import '@/backend/services/qr-contract';
 import { reportError } from '@/backend/observability/report-error';
@@ -38,7 +44,14 @@ export type RedeemResult =
   | {
       ok: false;
       status: 400 | 401 | 403 | 404 | 409 | 503;
-      kind: 'already-used' | 'wrong-event' | 'invalid' | 'unsigned' | 'refunded' | 'unavailable';
+      kind:
+        | 'already-used'
+        | 'wrong-event'
+        | 'invalid'
+        | 'unsigned'
+        | 'expired-code'
+        | 'refunded'
+        | 'unavailable';
       error: string;
       reference?: string;
       redeemedAt?: string;
@@ -51,6 +64,17 @@ function signatureFor(ticketId: string, eventId: string): string | undefined {
     .update(qrSigningInput(QR_VERSION, ticketId, eventId))
     .digest('base64url')
     .slice(0, 32);
+}
+
+/**
+ * The rotating code the wallet should be showing right now, for one window.
+ *
+ * Recomputed at the door from the ticket's own seed. Nothing about the code travels
+ * anywhere except inside the QR, and the seed never leaves the ticket document.
+ */
+function rotationCodeFor(seed: string, ticketId: string, window: number): string {
+  const mac = createHmac('sha256', seed).update(rotationInput(ticketId, window)).digest();
+  return encodeRotationCode(new Uint8Array(mac));
 }
 
 /** Constant-time. A byte-by-byte compare leaks the signature one byte per attempt. */
@@ -121,6 +145,7 @@ export async function redeemAtDoor(
 
       const ticket = snap.data() as {
         eventId: string;
+        rotationSeed?: string;
         reference: string;
         attendeeName?: string;
         tierName?: string;
@@ -155,6 +180,38 @@ export async function redeemAtDoor(
             status: 400,
             kind: 'unsigned',
             error: 'That code did not verify. It may have been altered or issued before signing.',
+            reference: ticket.reference,
+          };
+        }
+      }
+
+      /*
+       * Rotating code.
+       *
+       * Only enforced when the ticket carries a seed, so tickets issued before rotation
+       * existed still scan on their static signature. The current window plus one either
+       * side is accepted: phones drift, and a customer with a slightly slow clock being
+       * refused at a door is a worse outcome than a 30-second-wider forwarding window.
+       *
+       * A wallet that could not compute a code — no Web Crypto, insecure context — sends
+       * none, and falls back to the signature that was already verified above. A ticket
+       * that renders nothing is a person at a door with no way in.
+       */
+      if (ticket.rotationSeed && payload.c) {
+        const now = rotationWindow();
+        const windows = [];
+        for (let d = -ROTATION_SKEW; d <= ROTATION_SKEW; d += 1) windows.push(now + d);
+
+        const matched = windows.some((w) =>
+          signaturesMatch(rotationCodeFor(ticket.rotationSeed!, payload.t, w), payload.c)
+        );
+
+        if (!matched) {
+          return {
+            ok: false,
+            status: 400,
+            kind: 'expired-code',
+            error: 'That code has expired. Ask them to reopen the ticket for a fresh one.',
             reference: ticket.reference,
           };
         }

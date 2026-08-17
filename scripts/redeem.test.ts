@@ -17,6 +17,7 @@ import { createHmac } from 'node:crypto';
 import type { Firestore } from 'firebase-admin/firestore';
 
 import { QR_VERSION, qrSigningInput, type TicketQrPayload } from '../src/shared/tickets/qr';
+import { encodeRotationCode, rotationInput, rotationWindow } from '../src/shared/tickets/rotating';
 
 let passed = 0;
 const failures: string[] = [];
@@ -46,6 +47,16 @@ function sign(ticketId: string, eventId: string): string {
 
 function payload(ticketId: string, eventId = EVENT): TicketQrPayload {
   return { v: QR_VERSION, t: ticketId, e: eventId, r: 'REF-1234', s: sign(ticketId, eventId) };
+}
+
+const SEED = 'rotation-seed-for-tests';
+
+/** The code a wallet holding this seed would be showing in the given window. */
+function rotatingCode(ticketId: string, windowOffset = 0): string {
+  const mac = createHmac('sha256', SEED)
+    .update(rotationInput(ticketId, rotationWindow() + windowOffset))
+    .digest();
+  return encodeRotationCode(new Uint8Array(mac));
 }
 
 let db: Firestore;
@@ -211,6 +222,78 @@ async function run() {
       Array.from({ length: 5 }, () => redeemAtDoor(payload('t-race5'), EVENT, ORGANISER))
     );
     assert.equal(results.filter((r) => r.ok).length, 1);
+  });
+
+  console.log('\nRotating codes\n');
+
+  await test('a current rotating code is admitted', async () => {
+    await seed('t-rot', { rotationSeed: SEED });
+    const result = await redeemAtDoor(
+      { ...payload('t-rot'), c: rotatingCode('t-rot') },
+      EVENT,
+      ORGANISER
+    );
+    assert.equal(result.ok, true);
+  });
+
+  await test('a code from the previous window still scans', async () => {
+    // Phones drift. A customer with a slightly slow clock must not be refused.
+    await seed('t-rot-prev', { rotationSeed: SEED });
+    const result = await redeemAtDoor(
+      { ...payload('t-rot-prev'), c: rotatingCode('t-rot-prev', -1) },
+      EVENT,
+      ORGANISER
+    );
+    assert.equal(result.ok, true);
+  });
+
+  await test('a screenshot from ten minutes ago is refused', async () => {
+    // The whole point: a forwarded picture is stale long before it arrives.
+    await seed('t-rot-old', { rotationSeed: SEED });
+    const result = await redeemAtDoor(
+      { ...payload('t-rot-old'), c: rotatingCode('t-rot-old', -20) },
+      EVENT,
+      ORGANISER
+    );
+    assertRefused(result, 'expired-code');
+    assert.equal(await statusOf('t-rot-old'), 'valid');
+  });
+
+  await test('a code from another ticket is refused', async () => {
+    // The ticket id is inside the hashed input, so one seed cannot cover two tickets.
+    await seed('t-rot-a', { rotationSeed: SEED });
+    await seed('t-rot-b', { rotationSeed: SEED });
+    const result = await redeemAtDoor(
+      { ...payload('t-rot-a'), c: rotatingCode('t-rot-b') },
+      EVENT,
+      ORGANISER
+    );
+    assertRefused(result, 'expired-code');
+  });
+
+  await test('an invented code is refused', async () => {
+    await seed('t-rot-forge', { rotationSeed: SEED });
+    const result = await redeemAtDoor(
+      { ...payload('t-rot-forge'), c: 'AAAAAAAA' },
+      EVENT,
+      ORGANISER
+    );
+    assertRefused(result, 'expired-code');
+  });
+
+  await test('a ticket with no seed still scans on its signature alone', async () => {
+    // Backward compatibility: tickets issued before rotation existed must keep working.
+    await seed('t-rot-legacy');
+    const result = await redeemAtDoor(payload('t-rot-legacy'), EVENT, ORGANISER);
+    assert.equal(result.ok, true);
+  });
+
+  await test('a wallet with no Web Crypto falls back to the signature', async () => {
+    // Sends no code at all. Refusing here would strand a customer at a door because
+    // their browser is old, which is a worse outcome than a weaker code.
+    await seed('t-rot-nocrypto', { rotationSeed: SEED });
+    const result = await redeemAtDoor(payload('t-rot-nocrypto'), EVENT, ORGANISER);
+    assert.equal(result.ok, true);
   });
 
   console.log(`\n${passed}/${passed + failures.length} passed\n`);

@@ -1,7 +1,12 @@
 import 'server-only';
 
 import { QR_VERSION as APP_VERSION, qrSigningInput as appSigningInput } from '@/shared/tickets/qr';
-import { QR_VERSION as FN_VERSION, qrSigningInput as fnSigningInput } from '../../../functions/src/qr';
+import { rotationInput as appRotationInput } from '@/shared/tickets/rotating';
+import {
+  QR_VERSION as FN_VERSION,
+  qrSigningInput as fnSigningInput,
+  rotationInput as fnRotationInput,
+} from '../../../functions/src/qr';
 
 /**
  * Compile-time guard against the two QR signing implementations drifting.
@@ -30,6 +35,14 @@ if (PROBE !== fnSigningInput(FN_VERSION, 'ticket-probe', 'event-probe')) {
   throw new Error(
     'QR signing input formats have diverged between src/shared/tickets/qr.ts and ' +
       'functions/src/qr.ts. Every genuine ticket would be refused at the door.'
+  );
+}
+
+const ROTATION_PROBE = appRotationInput('ticket-probe', 42);
+if (ROTATION_PROBE !== fnRotationInput('ticket-probe', 42)) {
+  throw new Error(
+    'Rotating-code input formats have diverged between src/shared/tickets/rotating.ts ' +
+      'and functions/src/qr.ts. Every rotating ticket would be refused at the door.'
   );
 }
 

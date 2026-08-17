@@ -198,6 +198,12 @@ export interface Ticket {
    * tickets issued before signing existed, and when `QR_SIGNING_KEY` is unset.
    */
   qrSignature?: string;
+  /**
+   * Per-ticket HMAC seed for rotating codes. The wallet computes codes from it locally
+   * so a ticket works without signal; `firestore.rules` already restricts ticket reads
+   * to the owner, the event's organiser and administrators.
+   */
+  rotationSeed?: string;
 
   tierId?: string;
   tierName: string;

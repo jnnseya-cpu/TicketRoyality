@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 /**
  * Ticket QR signing, function side.
@@ -51,4 +51,27 @@ export function verifyTicketSignature(
   const b = Buffer.from(signature);
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
+}
+
+/* ------------------------------------------------------------------------- */
+/* Rotating codes                                                             */
+/* ------------------------------------------------------------------------- */
+
+export const ROTATION_VERSION = 3;
+export const ROTATION_WINDOW_SECONDS = 30;
+
+/** Must stay byte-identical to `rotationInput` in `src/shared/tickets/rotating.ts`. */
+export function rotationInput(ticketId: string, window: number): string {
+  return `${ROTATION_VERSION}|${ticketId}|${window}`;
+}
+
+/**
+ * A per-ticket rotation seed.
+ *
+ * Random per ticket rather than derived from the signing key: a derived seed means one
+ * leaked key regenerates codes for every ticket ever issued, while a random one is worth
+ * exactly the ticket it belongs to. 32 bytes because it is an HMAC key, not a password.
+ */
+export function generateRotationSeed(): string {
+  return randomBytes(32).toString('base64url');
 }

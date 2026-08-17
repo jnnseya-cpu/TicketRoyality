@@ -40,6 +40,11 @@ export interface TicketQrPayload {
   r: string;
   /** HMAC-SHA256 of `v|t|e`, base64url, truncated. Absent on v1 tickets. */
   s?: string;
+  /**
+   * The rotating code for the current 30-second window. Absent on tickets issued before
+   * rotation existed, and when the wallet has no Web Crypto to compute it with.
+   */
+  c?: string;
 }
 
 /**
@@ -87,6 +92,7 @@ export function decodeTicketQr(raw: string): QrDecode {
       e: typeof p.e === 'string' ? p.e : '',
       r: typeof p.r === 'string' ? p.r : p.t,
       s: typeof p.s === 'string' ? p.s : undefined,
+      c: typeof p.c === 'string' ? p.c : undefined,
     },
   };
 }

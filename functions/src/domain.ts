@@ -40,6 +40,11 @@ export interface TicketDoc {
    * issued, and the door route records the difference rather than failing silently.
    */
   qrSignature?: string;
+  /**
+   * Per-ticket HMAC seed for rotating codes. Readable by the ticket's owner — which is
+   * the point, since the wallet computes codes offline from it — and by nobody else.
+   */
+  rotationSeed?: string;
 }
 
 export interface TicketTierDoc {
