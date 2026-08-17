@@ -35,9 +35,19 @@ export function acuToUsd(acu: number) {
   return acu * ACU_USD_RATE;
 }
 
-/** Platform commission defaults, overridable per organiser by the superuser. */
-export const DEFAULT_COMMISSION_PERCENT = 5;
-export const DEFAULT_ADMIN_FEE = 0.5;
+/**
+ * Organiser commission. Zero, and no longer a default that anyone negotiates away from.
+ *
+ * The platform used to charge organisers 5% + 50p per paid ticket. It now charges them
+ * nothing at all and pays them 100% of face value; all standard platform revenue is the
+ * buyer-side service fee in `shared/fees.ts`.
+ *
+ * These two constants are kept rather than deleted because `commissionTermsFor()` still
+ * honours a per-organiser override, and a bespoke agreement is a real thing a superuser
+ * may one day set. What changed is the floor everyone starts on.
+ */
+export const DEFAULT_COMMISSION_PERCENT = 0;
+export const DEFAULT_ADMIN_FEE = 0;
 
 /** Offline (Congolese mobile money) payment settings. */
 export const OFFLINE_SERVICE_FEE_PERCENT = 2;

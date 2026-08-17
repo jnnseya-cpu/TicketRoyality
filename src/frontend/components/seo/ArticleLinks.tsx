@@ -4,7 +4,9 @@ import { ArrowRight } from 'lucide-react';
 import type { LinkSlot } from '@/shared/content/articles';
 import type { Event } from '@/shared/types';
 import { leadPrice } from '@/shared/pricing';
-import { formatCurrency, formatEventDate } from '@/shared/utils';
+import { formatEventDate } from '@/shared/utils';
+import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
+import { toMinor } from '@/shared/fees';
 
 /**
  * A dynamic link block inside an article.
@@ -33,9 +35,11 @@ export function ArticleLinks({ slot, events }: { slot: LinkSlot; events: Event[]
                 </span>
               </span>
               <span className="shrink-0 text-sm font-semibold text-primary">
-                {leadPrice(event) === 0
-                  ? 'Free'
-                  : formatCurrency(leadPrice(event), event.currency)}
+                <TicketPrice
+                  faceMinor={toMinor(leadPrice(event))}
+                  currency={event.currency}
+                  variant="lead"
+                />
               </span>
             </Link>
           </li>

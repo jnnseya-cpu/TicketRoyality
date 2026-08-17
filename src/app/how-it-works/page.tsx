@@ -21,13 +21,11 @@ import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent } from '@/frontend/components/ui/card';
 import { Separator } from '@/frontend/components/ui/separator';
 import {
-  DEFAULT_ADMIN_FEE,
   DEFAULT_COMMISSION_PERCENT,
   TOPUP_PACKAGES_USD,
   OFFLINE_SERVICE_FEE_PERCENT,
   WELCOME_BONUS_ACU,
 } from '@/shared/constants/billing';
-import { formatCurrency } from '@/shared/utils';
 
 export const metadata: Metadata = {
   title: 'How it works',
@@ -157,12 +155,14 @@ export default function HowItWorksPage() {
           <Card>
             <CardContent className="p-6">
               <CreditCard className="mb-3 h-5 w-5 text-primary" />
-              <h3 className="font-headline text-base font-semibold">Ticket commission</h3>
+              <h3 className="font-headline text-base font-semibold">Organiser commission</h3>
               <p className="mt-2 font-headline text-2xl font-bold text-primary">
-                {DEFAULT_COMMISSION_PERCENT}% + {formatCurrency(DEFAULT_ADMIN_FEE)}
+                {DEFAULT_COMMISSION_PERCENT}%
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Per ticket sold. Bespoke rates available for high-volume partners.
+                You set the ticket value and you keep all of it. Buyers pay one
+                TicketRoyality Service Fee — 3.99% + 49p per paid ticket, minimum 79p —
+                and it is inside every price we show them, never added at checkout.
               </p>
             </CardContent>
           </Card>
@@ -175,7 +175,8 @@ export default function HowItWorksPage() {
                 {OFFLINE_SERVICE_FEE_PERCENT}%
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Service charge on offline mobile-money payments, paid by the customer.
+                Service charge on Congolese mobile-money payments, paid by the customer
+                and already inside the advertised price. Not yet live.
               </p>
             </CardContent>
           </Card>

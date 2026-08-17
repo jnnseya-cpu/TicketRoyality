@@ -36,6 +36,7 @@ import {
 import { Separator } from '@/frontend/components/ui/separator';
 import { Textarea } from '@/frontend/components/ui/textarea';
 import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
+import { TierEconomics } from '@/frontend/components/pricing/TierEconomics';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { createEvent, updateEvent } from '@/shared/data/repositories';
 import { CATEGORY_GROUPS, categoryValue, parseCategoryValue } from '@/shared/constants/categories';
@@ -691,6 +692,15 @@ export function CreateEventForm({
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
+                </div>
+
+                {/* Shown while they type the price, because "£50 stays £50" contradicts
+                    what every other platform has taught them to expect. */}
+                <div className="sm:col-span-4 rounded-md bg-secondary/50 p-3">
+                  <TierEconomics
+                    price={Number(form.watch(`ticketTiers.${index}.price`)) || 0}
+                    currency={currency}
+                  />
                 </div>
               </div>
             ))}

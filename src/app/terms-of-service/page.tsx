@@ -3,12 +3,13 @@ import type { Metadata } from 'next';
 
 import { Separator } from '@/frontend/components/ui/separator';
 import {
-  DEFAULT_ADMIN_FEE,
-  DEFAULT_COMMISSION_PERCENT,
   ACU_USD_RATE,
   OFFLINE_SERVICE_FEE_PERCENT,
 } from '@/shared/constants/billing';
+import { ZERO_FEE_CONFIG } from '@/shared/constants/fees';
 import { formatCurrency } from '@/shared/utils';
+
+const UK_FEES = ZERO_FEE_CONFIG.countries.GB;
 
 export const metadata: Metadata = {
   title: 'Terms of service',
@@ -55,7 +56,10 @@ const SECTIONS: Array<{ heading: string; paragraphs: string[] }> = [
     heading: '5. Payments, fees and payouts',
     paragraphs: [
       `Card payments are processed by Stripe and wallet payments by Bitripay; each is governed by its own terms. Mobile-money payments carry a ${OFFLINE_SERVICE_FEE_PERCENT}% service charge and are released only after we verify the transaction reference. Submitting a reference does not itself entitle you to a ticket.`,
-      `We deduct a platform commission of ${DEFAULT_COMMISSION_PERCENT}% plus ${formatCurrency(DEFAULT_ADMIN_FEE)} per ticket sold, unless a different rate is agreed in writing. Commission is withheld at the point of sale and shown on your statement.`,
+      // Built from the live config, never typed by hand. A terms page that names a
+      // different fee from the one the engine charges is the same class of failure as a
+      // card that names a different price from the checkout.
+      `We deduct no commission from your ticket sales. You receive 100% of the face value of every ticket, subject only to refunds, chargebacks, taxes and any deduction required by law. Our revenue is a TicketRoyality Service Fee paid by the ticket buyer — ${UK_FEES.buyerServicePct}% plus ${formatCurrency(UK_FEES.buyerFixedFeeMinor / 100)} per paid ticket, minimum ${formatCurrency((UK_FEES.minimumServiceFeeMinor ?? 0) / 100)}, VAT included — which is shown inside the total price wherever a ticket is advertised and is never added at checkout. Free tickets carry no fee to anyone.`,
       'Payouts are made to the payout method on your account, subject to a minimum balance and to our right to withhold funds where we reasonably suspect fraud, chargeback risk, or an undelivered event.',
     ],
   },

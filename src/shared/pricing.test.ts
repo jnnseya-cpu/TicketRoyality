@@ -39,11 +39,13 @@ const pennies = (value: number) => Math.round(value * 100);
 
 console.log('\nPricing\n');
 
-test('defaults are 5% + 50p', () => {
+test('the organiser is charged nothing by default', () => {
+  // Was 5% + 50p. The platform now takes no commission at all and pays the organiser
+  // 100% of face value; all standard revenue is the buyer-side fee in `fees.ts`.
   assert.equal(terms.percent, DEFAULT_COMMISSION_PERCENT);
   assert.equal(terms.adminFee, DEFAULT_ADMIN_FEE);
-  assert.equal(terms.percent, 5);
-  assert.equal(terms.adminFee, 0.5);
+  assert.equal(terms.percent, 0);
+  assert.equal(terms.adminFee, 0);
 });
 
 test('a free ticket costs the organiser nothing', () => {
@@ -58,20 +60,29 @@ test('a 300-place free guest list is free, not £150', () => {
   assert.equal(pennies(result.net), 0);
 });
 
-test('a paid ticket is still charged 5% + 50p', () => {
-  // £20 → £1.00 commission + £0.50 admin = £1.50
-  assert.equal(pennies(platformCutForTicket(20, terms)), 150);
+test('a paid ticket costs the organiser nothing either', () => {
+  // The whole promise, as one assertion: £20 in, £20 out.
+  assert.equal(pennies(platformCutForTicket(20, terms)), 0);
 });
 
-test('a mixed list charges the admin fee only on the paid tickets', () => {
+test('a settlement pays out every penny of gross', () => {
   const lines = [{ price: 0 }, { price: 0 }, { price: 20 }];
   const result = settle(lines, terms);
-  // gross £20 → commission £1.00, one admin fee £0.50
   assert.equal(pennies(result.gross), 2000);
-  assert.equal(pennies(result.commission), 100);
-  assert.equal(pennies(result.adminFees), 50);
+  assert.equal(pennies(result.commission), 0);
+  assert.equal(pennies(result.adminFees), 0);
+  assert.equal(pennies(result.platformTotal), 0);
+  assert.equal(pennies(result.net), 2000, 'net must equal gross — that is the promise');
+});
+
+test('the free-ticket rule still holds under a bespoke agreement', () => {
+  // The 0% default is not what protects a free ticket. A superuser can still negotiate
+  // a rate, and a £0 guest list must cost nothing under that rate too — this is the
+  // regression that once charged a 300-place wedding list £150.
+  const bespoke = commissionTermsFor({ commissionPercent: 5, adminFee: 0.5 });
+  const result = settle([{ price: 0 }, { price: 0 }, { price: 20 }], bespoke);
+  assert.equal(pennies(result.adminFees), 50, 'one paid ticket, one admin fee');
   assert.equal(pennies(result.platformTotal), 150);
-  assert.equal(pennies(result.net), 1850);
 });
 
 test('settle equals the sum of the per-ticket cut, so reports and payouts agree', () => {
@@ -86,8 +97,11 @@ test('settle equals the sum of the per-ticket cut, so reports and payouts agree'
 });
 
 test('a donation tier above zero is a paid ticket', () => {
-  // The free-ticket rule must not swallow a £1 contribution.
-  assert.equal(pennies(platformCutForTicket(1, terms)), 55); // 5p + 50p
+  // Nothing to charge at the 0% default, so the distinction is asserted where it still
+  // has an effect: under a negotiated rate, £1 is charged and £0 is not.
+  const bespoke = commissionTermsFor({ commissionPercent: 5, adminFee: 0.5 });
+  assert.equal(pennies(platformCutForTicket(1, bespoke)), 55); // 5p + 50p
+  assert.equal(pennies(platformCutForTicket(0, bespoke)), 0);
 });
 
 test('negotiated terms override the defaults', () => {

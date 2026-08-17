@@ -38,9 +38,15 @@ function test(name: string, fn: () => void) {
 
 console.log('\nPricing engine — price integrity\n');
 
-/** §22, verbatim. face → fee. */
+/**
+ * §22's worked examples, with the one agreed departure.
+ *
+ * £5 → £0.79 rather than the published £0.69: 69p cannot reach the 2× cost multiple on
+ * any rail, and 79p is the lowest floor that does. Every other figure is the brief's
+ * exactly. The floor binds below about £7.50 and changes nothing above it.
+ */
 const WORKED: Array<[number, number]> = [
-  [500, 69],
+  [500, 79],
   [1000, 89],
   [2500, 149],
   [5000, 249],
@@ -105,8 +111,8 @@ test('a free ticket in a paid order does not attract a fee of its own', () => {
 });
 
 test('the minimum fee floors a very cheap ticket', () => {
-  // 3.99% + 49p on £1 is 53p; the floor lifts it to 69p.
-  assert.equal(serviceFeeForTicket(100), 69);
+  // 3.99% + 49p on £1 is 53p; the floor lifts it to 79p.
+  assert.equal(serviceFeeForTicket(100), 79);
 });
 
 test('there is no cap — a £250 ticket pays the full percentage', () => {
@@ -149,55 +155,23 @@ test('no canonical basket loses money on any rail', () => {
   );
 });
 
-test('exactly the known cheap-ticket cases sit below the 2× target', () => {
-  /*
-   * Pinned rather than asserted empty, and this is the point of the test.
-   *
-   * A £5 ticket carries the brief's own published 69p fee. Net of VAT that is 58p
-   * against 31p of attributable cost — 1.87×, a 27p contribution, and below the 2×
-   * target. No fee at that level reaches 2×, because the 20p card fixed cost does not
-   * shrink with the ticket. §18's bands call this WARNING, not a breach.
-   *
-   * Pinning the list means a config change that pushes a £25 or £50 basket under the
-   * line fails here, in a diff, instead of surfacing in a quarterly account.
-   */
-  const { belowTarget } = validateFeeConfig();
-  const seen = [...new Set(belowTarget.map((b) => b.basket))].sort();
-  assert.deepEqual(seen, ['1 × £1 (worst case)', '1 × £5']);
-  assert.ok(
-    belowTarget.every((b) => b.contributionMinor > 0),
-    'a below-target basket must still contribute'
-  );
-  assert.ok(
-    belowTarget.every((b) => b.rail.startsWith('stripe')),
-    'only the card rails carry a fixed cost large enough to do this'
+test('every basket clears the 2× cost multiple', () => {
+  // True only because the floor is 79p. At the brief's published 69p, a £1 and a £5
+  // ticket both ran at 1.87× — profitable, but under target.
+  const { losses, belowTarget } = validateFeeConfig();
+  assert.deepEqual(losses, []);
+  assert.deepEqual(
+    belowTarget,
+    [],
+    `below target: ${belowTarget.map((b) => `${b.basket}/${b.rail} at ${b.costMultiple.toFixed(2)}×`).join(', ')}`
   );
 });
 
-test('79p is the minimum fee that would clear the 2× target everywhere', () => {
-  /*
-   * Evidence for the commercial decision, kept next to the problem it solves rather
-   * than in a message that scrolls away.
-   *
-   * 79p, not 75p: an international card costs 3.25% + 20p, so the fee that clears the
-   * target on a UK card still misses it on a foreign one. Whoever decides whether to
-   * raise the floor should be looking at the number that actually works on every rail.
-   *
-   * The cost: the published "£5 ticket → £0.69" example becomes £0.79, and the £5–£7.50
-   * band gets 10p dearer for the buyer. Below that, nothing changes for anyone.
-   */
-  const raised = structuredClone(ZERO_FEE_CONFIG);
-  raised.countries.GB.minimumServiceFeeMinor = 79;
-  const { losses, belowTarget } = validateFeeConfig(raised);
-  assert.deepEqual(losses, []);
-  assert.deepEqual(belowTarget, []);
-
+test('79p is the boundary, not a round number picked for comfort', () => {
+  // 78p still misses on an international card, which is why 75p was not enough either.
   const short = structuredClone(ZERO_FEE_CONFIG);
   short.countries.GB.minimumServiceFeeMinor = 78;
-  assert.ok(
-    validateFeeConfig(short).belowTarget.length > 0,
-    '79p must be the boundary, not a round number picked for comfort'
-  );
+  assert.ok(validateFeeConfig(short).belowTarget.length > 0, '78p should still miss');
 });
 
 test('an international card costs more and is still not a loss', () => {

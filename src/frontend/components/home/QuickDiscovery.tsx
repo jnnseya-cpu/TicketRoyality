@@ -5,7 +5,8 @@ import { Flame, MapPin, Moon, Sparkles, Ticket } from 'lucide-react';
 import { Badge } from '@/frontend/components/ui/badge';
 import type { Event } from '@/shared/types';
 import { leadPrice } from '@/shared/pricing';
-import { formatCurrency } from '@/shared/utils';
+import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
+import { toMinor } from '@/shared/fees';
 
 /**
  * Fast discovery for people who are deciding what to do, not researching (docs/04 M26).
@@ -117,9 +118,12 @@ export function QuickDiscovery({ events }: { events: Event[] }) {
                         variant="gold"
                         className="absolute bottom-2 left-2 text-xs font-semibold"
                       >
-                        {leadPrice(event) === 0
-                          ? 'Free'
-                          : `from ${formatCurrency(leadPrice(event), event.currency)}`}
+                        {/* All-in. A homepage badge is the first price impression. */}
+                        <TicketPrice
+                          faceMinor={toMinor(leadPrice(event))}
+                          currency={event.currency}
+                          variant="lead"
+                        />
                       </Badge>
                     </div>
                     <div className="space-y-1 p-3">

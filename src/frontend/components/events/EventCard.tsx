@@ -4,7 +4,9 @@ import { CalendarDays, MapPin, Radio, Video } from 'lucide-react';
 
 import { Badge } from '@/frontend/components/ui/badge';
 import { Card, CardContent } from '@/frontend/components/ui/card';
-import { cn, formatCurrency, formatEventDate } from '@/shared/utils';
+import { cn, formatEventDate } from '@/shared/utils';
+import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
+import { toMinor } from '@/shared/fees';
 import type { Event } from '@/shared/types';
 
 function locationLabel(event: Event) {
@@ -50,7 +52,13 @@ export function EventCard({ event, className }: { event: Event; className?: stri
           </div>
           <div className="absolute bottom-3 right-3">
             <Badge variant={isFree ? 'success' : 'default'} className="text-xs font-semibold">
-              {isFree ? 'Free' : `From ${formatCurrency(event.price, event.currency)}`}
+              {/* All-in, always. A card showing a bare face value next to a Buy button
+                  is the drip-pricing pattern itself. */}
+              <TicketPrice
+                faceMinor={toMinor(event.price)}
+                currency={event.currency}
+                variant="lead"
+              />
             </Badge>
           </div>
         </div>

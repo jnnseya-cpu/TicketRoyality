@@ -61,8 +61,10 @@ const NO_MORE = [
  * ten million tickets.
  */
 const HEADLINE_STATS = [
-  // src/shared/constants/billing.ts — DEFAULT_COMMISSION_PERCENT, DEFAULT_ADMIN_FEE.
-  { value: '5% + 50p', label: 'Platform fee per ticket, published' },
+  // src/shared/constants/billing.ts — DEFAULT_COMMISSION_PERCENT and DEFAULT_ADMIN_FEE
+  // are both 0. The organiser is charged nothing and is paid the whole face value;
+  // `shared/fees.ts` carries the buyer-side service fee that replaced it.
+  { value: '0%', label: 'Organiser commission. You keep 100% of your ticket value' },
   // firestore.rules only permits valid -> redeemed, on the status field alone, so a
   // ticket cannot be reset and reused even by the organiser who owns the event.
   { value: '1', label: 'Scan per ticket, enforced in the database' },

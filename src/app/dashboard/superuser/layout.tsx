@@ -11,6 +11,7 @@ import {
   Percent,
   Smartphone,
   Sparkles,
+  TrendingUp,
   UserCog,
   Users,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ const NAV = [
   { href: '/dashboard/superuser/users', label: 'Accounts', icon: Users },
   { href: '/dashboard/superuser/approvals', label: 'Organiser approvals', icon: BadgeCheck },
   { href: '/dashboard/superuser/offline-payments', label: 'Offline payments', icon: Smartphone },
+  { href: '/dashboard/superuser/profitability', label: 'Unit economics', icon: TrendingUp },
   { href: '/dashboard/superuser/commissions', label: 'Commissions', icon: Percent },
   { href: '/dashboard/superuser/acu', label: 'ACU console', icon: Sparkles },
   { href: '/dashboard/superuser/profile', label: 'My profile', icon: UserCog },

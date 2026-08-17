@@ -8,6 +8,10 @@
  * 3.99% + £0.49 **per paid ticket**, floors it at £0.69, and says explicitly not to
  * introduce a cap before conversion data supports one. They cannot both be true.
  *
+ * The later brief is implemented, with **one deliberate departure**: the minimum fee is
+ * 79p rather than the published 69p, because 69p cannot reach the 2× cost multiple on
+ * any rail. That was raised as a finding and decided; the reasoning sits on the field.
+ *
  * The later brief is implemented, for three reasons: it is the more recent instruction,
  * its worked examples (£5 → £0.69, £10 → £0.89, £25 → £1.49, £50 → £2.49, £100 → £4.48)
  * are internally consistent and reproduced exactly by this config, and it corrects the
@@ -71,8 +75,7 @@ export interface CountryPricing {
   /** Flat amount per paid ticket, in minor units. */
   buyerFixedFeeMinor: number;
   /**
-   * Floor on the fee for any paid ticket. £0.69 in the UK — which is what 3.99% + 49p
-   * comes to on a £5 ticket, so it binds only below that.
+   * Floor on the fee for any paid ticket. 79p in the UK, so it binds below about £7.50.
    */
   minimumServiceFeeMinor: number | null;
   /**
@@ -149,7 +152,14 @@ const UK: CountryPricing = {
   organiserFixedFeeMinor: 0,
   buyerServicePct: 3.99,
   buyerFixedFeeMinor: 49,
-  minimumServiceFeeMinor: 69,
+  // 79p, not the 69p the brief published.
+  //
+  // 69p cannot reach the 2× cost multiple: net of VAT it is 58p against 31p of
+  // attributable cost, a 1.87× multiple. 79p is the lowest floor that clears the target
+  // on **every** rail — 75p clears a UK card and still misses an international one. The
+  // cost is that the brief's "£5 → £0.69" example becomes £0.79, and the £5–£7.50 band
+  // is 10p dearer for the buyer. Below and above that band nothing changes.
+  minimumServiceFeeMinor: 79,
   maximumServiceFeeMinor: null,
   // Empty, deliberately: a UK consumer card surcharge is unlawful, and there is no
   // mobile-money corridor here to justify one on any other rail.
@@ -184,7 +194,7 @@ const DRC: CountryPricing = {
   organiserFixedFeeMinor: 0,
   buyerServicePct: 3.99,
   buyerFixedFeeMinor: 49,
-  minimumServiceFeeMinor: 69,
+  minimumServiceFeeMinor: 79,
   maximumServiceFeeMinor: null,
   buyerRailSurchargePct: { bitripay_momo: 2 },
   // Flagged as an open item for finance review; `not_applicable` records that no VAT

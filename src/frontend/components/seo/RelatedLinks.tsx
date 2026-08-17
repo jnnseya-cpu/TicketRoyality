@@ -4,6 +4,8 @@ import { ArrowRight } from 'lucide-react';
 import type { RelatedGroup } from '@/shared/related';
 import { formatEventDate } from '@/shared/utils';
 import { leadPrice } from '@/shared/pricing';
+import { allInPriceLabel } from '@/frontend/components/pricing/TicketPrice';
+import { toMinor } from '@/shared/fees';
 
 /**
  * Contextual internal links, rendered as real navigation rather than an SEO widget.
@@ -38,9 +40,12 @@ export function RelatedLinks({ groups }: { groups: RelatedGroup[] }) {
                       {event.title}
                     </span>
                     <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {formatEventDate(event.date)} · {event.location} · from{' '}
-                      {event.currency === 'GBP' ? '£' : ''}
-                      {leadPrice(event).toFixed(2)}
+                      {/* All-in. This strip links straight to a purchase page, so a bare
+                          face value here is the same violation as one on the card — and
+                          it hand-rolled its own currency symbol, which is how it escaped
+                          the sweep in the first place. */}
+                      {formatEventDate(event.date)} · {event.location} ·{' '}
+                      {allInPriceLabel(toMinor(leadPrice(event)), event.currency)}
                     </span>
                   </Link>
                 </li>

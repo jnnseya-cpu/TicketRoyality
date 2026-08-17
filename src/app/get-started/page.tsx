@@ -5,8 +5,7 @@ import { ArrowRight, Check, Rocket, Ticket, Users } from 'lucide-react';
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent } from '@/frontend/components/ui/card';
-import { DEFAULT_ADMIN_FEE, DEFAULT_COMMISSION_PERCENT } from '@/shared/constants/billing';
-import { formatCurrency } from '@/shared/utils';
+import { DEFAULT_COMMISSION_PERCENT } from '@/shared/constants/billing';
 
 export const metadata: Metadata = {
   title: 'Get started',
@@ -32,7 +31,7 @@ const PATHS = [
     body: 'Create your first event in minutes. Describe it and let the platform build the draft, or fill it in yourself. You review everything before it goes live.',
     cta: { label: 'Create an organiser account', href: '/register/organiser' },
     points: [
-      `${DEFAULT_COMMISSION_PERCENT}% + ${formatCurrency(DEFAULT_ADMIN_FEE)} per ticket, itemised`,
+      `${DEFAULT_COMMISSION_PERCENT}% commission — you keep 100% of your ticket value`,
       'Free events cost nothing at all',
       'Seat maps, tiers, coupons and door scanning included',
     ],

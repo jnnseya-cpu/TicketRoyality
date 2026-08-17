@@ -1,5 +1,6 @@
 import type { Event } from '@/shared/types';
 import { leadPrice } from '@/shared/pricing';
+import { allInTicketPriceMinor, toMajor, toMinor } from '@/shared/fees';
 import { SITE_NAME, siteUrl } from '@/shared/site';
 
 /**
@@ -32,7 +33,10 @@ const ATTENDANCE_MODE: Record<Event['eventType'], string> = {
 
 export function EventStructuredData({ event }: { event: Event }) {
   const base = siteUrl();
-  const price = leadPrice(event);
+  // The all-in price, not face value. This figure is quoted directly in search results
+  // and rich snippets — a bare face value here is the same drip-pricing failure as a
+  // bare face value on the card, reproduced by Google on the platform's behalf.
+  const price = toMajor(allInTicketPriceMinor(toMinor(leadPrice(event))));
 
   const location =
     event.eventType === 'physical'

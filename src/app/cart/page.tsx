@@ -15,6 +15,7 @@ import { useCart } from '@/frontend/hooks/use-cart';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { findCouponByCode } from '@/shared/data/repositories';
 import { formatCurrency, formatEventDate } from '@/shared/utils';
+import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import type { Coupon } from '@/shared/types';
 
 export default function CartPage() {
@@ -35,6 +36,20 @@ export default function CartPage() {
   }, [coupon, subtotal]);
 
   const total = Math.max(0, subtotal - discount);
+
+  /*
+   * The fee, from the one engine.
+   *
+   * Priced on the discounted total rather than per original line: a coupon lowers what
+   * the buyer actually pays for the ticket, and charging a percentage of a price nobody
+   * paid would be the fee quietly outgrowing its own rule. Modelled as a single line
+   * because a cart-wide discount cannot be attributed back to individual tickets
+   * without inventing an allocation.
+   */
+  const quote = React.useMemo(
+    () => computeOrderFees([{ faceMinor: toMinor(total), qty: 1 }]),
+    [total]
+  );
 
   const applyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -215,19 +230,34 @@ export default function CartPage() {
 
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span>{formatCurrency(subtotal, currency)}</span>
+                <span className="text-muted-foreground">Ticket value</span>
+                <span className="tabular-nums">{formatCurrency(subtotal, currency)}</span>
               </div>
               {coupon && (
                 <div className="flex justify-between text-success">
                   <span>Discount ({coupon.code})</span>
-                  <span>-{formatCurrency(discount, currency)}</span>
+                  <span className="tabular-nums">-{formatCurrency(discount, currency)}</span>
+                </div>
+              )}
+              {quote.serviceFeeMinor > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">TicketRoyality Service Fee</span>
+                  <span className="tabular-nums">
+                    {formatCurrency(toMajor(quote.serviceFeeMinor), currency)}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between border-t border-border pt-2 font-semibold">
                 <span>Total</span>
-                <span className="text-primary">{formatCurrency(total, currency)}</span>
+                <span className="tabular-nums text-primary">
+                  {formatCurrency(toMajor(quote.buyerTotalMinor), currency)}
+                </span>
               </div>
+              {total > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Organisers receive 100% of the ticket value. We charge them nothing.
+                </p>
+              )}
             </div>
 
             <form action="/api/checkout" method="POST">

@@ -14,6 +14,8 @@ import { useAuth } from '@/frontend/hooks/use-auth';
 import { useCart } from '@/frontend/hooks/use-cart';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { formatCurrency } from '@/shared/utils';
+import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
+import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import type { Event } from '@/shared/types';
 
 /**
@@ -31,6 +33,8 @@ export function TicketBox({ event }: { event: Event }) {
 
   const tier = event.ticketTiers.find((t) => t.id === tierId) ?? event.ticketTiers[0];
   const lineTotal = (tier?.price ?? 0) * quantity;
+  // One engine, so this total and the server's charge cannot disagree.
+  const quote = computeOrderFees([{ faceMinor: toMinor(tier?.price ?? 0), qty: quantity }]);
   const isFree = (tier?.price ?? 0) === 0;
 
   const handleAddToCart = () => {
@@ -109,7 +113,7 @@ export function TicketBox({ event }: { event: Event }) {
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-medium">{option.name}</span>
                     <span className="shrink-0 font-semibold text-primary">
-                      {option.price === 0 ? 'Free' : formatCurrency(option.price, event.currency)}
+                      <TicketPrice faceMinor={toMinor(option.price)} currency={event.currency} />
                     </span>
                   </div>
                   {option.description && (
@@ -153,11 +157,41 @@ export function TicketBox({ event }: { event: Event }) {
 
         <Separator />
 
-        <div className="flex items-baseline justify-between">
-          <span className="text-sm text-muted-foreground">Total</span>
-          <span className="font-headline text-2xl font-bold text-primary">
-            {isFree ? 'Free' : formatCurrency(lineTotal, event.currency)}
-          </span>
+        {/*
+          The all-in total, itemised. Nothing compulsory may appear after this point —
+          the price shown here is the price charged, and the checkout below sends the
+          same figures to the server, which recomputes them from the event rather than
+          trusting anything this form says.
+        */}
+        <div className="space-y-1">
+          <div className="flex items-baseline justify-between text-sm">
+            <span className="text-muted-foreground">
+              {quantity} × ticket value
+            </span>
+            <span className="tabular-nums">
+              {isFree ? 'Free' : formatCurrency(lineTotal, event.currency)}
+            </span>
+          </div>
+          {quote.serviceFeeMinor > 0 && (
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="text-muted-foreground">TicketRoyality Service Fee</span>
+              <span className="tabular-nums">
+                {formatCurrency(toMajor(quote.serviceFeeMinor), event.currency)}
+              </span>
+            </div>
+          )}
+          <div className="flex items-baseline justify-between pt-1">
+            <span className="text-sm font-medium">Total</span>
+            <span className="font-headline text-2xl font-bold text-primary">
+              {isFree ? 'Free' : formatCurrency(toMajor(quote.buyerTotalMinor), event.currency)}
+            </span>
+          </div>
+          {!isFree && (
+            <p className="text-xs text-muted-foreground">
+              The organiser receives {formatCurrency(lineTotal, event.currency)} — 100% of the
+              ticket value. We charge them nothing.
+            </p>
+          )}
         </div>
 
         <Button variant="royal" className="w-full" onClick={handleAddToCart}>
