@@ -8,6 +8,7 @@ import {
   BadgeCheck,
   LayoutDashboard,
   Menu,
+  MessageSquare,
   Percent,
   Smartphone,
   Sparkles,
@@ -40,6 +41,9 @@ const NAV = [
   { href: '/dashboard/superuser/profitability', label: 'Unit economics', icon: TrendingUp },
   { href: '/dashboard/superuser/commissions', label: 'Commissions', icon: Percent },
   { href: '/dashboard/superuser/acu', label: 'ACU console', icon: Sparkles },
+  // Was built and then orphaned: the page existed but nothing linked to it, so it was
+  // reachable only by typing the URL.
+  { href: '/dashboard/superuser/comms', label: 'Communications', icon: MessageSquare },
   { href: '/dashboard/superuser/profile', label: 'My profile', icon: UserCog },
 ];
 
