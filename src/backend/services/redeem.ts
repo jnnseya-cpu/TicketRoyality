@@ -4,6 +4,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { QR_VERSION, qrSigningInput, type TicketQrPayload } from '@/shared/tickets/qr';
+// Importing the guard here means the door cannot start with a drifted signing format.
+import '@/backend/services/qr-contract';
 
 /**
  * Door redemption. Server-side, atomic, and authorised.

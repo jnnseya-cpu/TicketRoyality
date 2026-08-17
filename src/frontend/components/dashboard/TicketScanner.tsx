@@ -6,7 +6,8 @@ import { CheckCircle2, Loader2, ScanLine, ShieldAlert, XCircle } from 'lucide-re
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
-import { redeemTicket } from '@/shared/data/repositories';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
+import { decodeTicketQr } from '@/shared/tickets/qr';
 
 type ScanOutcome =
   | { kind: 'valid'; reference: string; attendee: string }
@@ -38,38 +39,53 @@ export function TicketScanner({ eventId, eventTitle }: { eventId: string; eventT
       busyRef.current = true;
 
       try {
-        // Guard against empty/garbage frames — JSON.parse(undefined) throws.
-        if (!raw || !raw.trim()) throw new Error('Empty QR payload');
-
-        const parsed = JSON.parse(raw) as { t?: string; e?: string; r?: string };
-        if (!parsed?.t) throw new Error('Not a TicketRoyality ticket');
-
-        if (parsed.e && parsed.e !== eventId) {
-          setOutcome({ kind: 'wrong-event', reference: parsed.r ?? parsed.t });
+        // Decoded here only to fail fast on a shop receipt. The server re-decodes the
+        // same raw string and makes every decision that matters — this parse is a
+        // convenience, never an authorisation.
+        const decoded = decodeTicketQr(raw);
+        if (!decoded.ok) {
+          setOutcome({
+            kind: 'invalid',
+            detail:
+              decoded.reason === 'empty'
+                ? 'Nothing scanned.'
+                : 'That is not a TicketRoyality ticket.',
+          });
           return;
         }
 
-        const { result, ticket } = await redeemTicket(parsed.t, eventId);
-        switch (result) {
-          case 'valid':
-            setOutcome({
-              kind: 'valid',
-              reference: ticket?.reference ?? parsed.t,
-              attendee: ticket?.attendeeName ?? 'Attendee',
-            });
-            break;
+        // One POST. The signature check, the ownership check, the status check and the
+        // write all happen inside one server-side transaction, which is what stops two
+        // doors admitting the same ticket at the same moment.
+        const response = await authedFetch('/api/tickets/redeem', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw, eventId }),
+        });
+        const body = await response.json();
+
+        if (response.ok) {
+          setOutcome({
+            kind: 'valid',
+            reference: body.reference,
+            attendee: body.attendee ?? 'Attendee',
+          });
+          return;
+        }
+
+        switch (body.kind) {
           case 'already-used':
             setOutcome({
               kind: 'already-used',
-              reference: ticket?.reference ?? parsed.t,
-              redeemedAt: ticket?.redeemedAt,
+              reference: body.reference ?? decoded.payload.r,
+              redeemedAt: body.redeemedAt,
             });
             break;
           case 'wrong-event':
-            setOutcome({ kind: 'wrong-event', reference: ticket?.reference ?? parsed.t });
+            setOutcome({ kind: 'wrong-event', reference: body.reference ?? decoded.payload.r });
             break;
           default:
-            setOutcome({ kind: 'invalid', detail: 'Ticket not found or cancelled.' });
+            setOutcome({ kind: 'invalid', detail: body.error ?? 'Ticket not found or cancelled.' });
         }
       } catch (error) {
         setOutcome({

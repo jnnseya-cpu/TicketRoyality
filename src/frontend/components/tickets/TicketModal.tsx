@@ -17,18 +17,24 @@ import {
 import { Logo } from '@/frontend/components/common/Logo';
 import { formatCurrency, formatEventDate } from '@/shared/utils';
 import type { Ticket } from '@/shared/types';
+import { QR_VERSION, encodeTicketQr } from '@/shared/tickets/qr';
 
 /**
- * The customer's ticket. The QR payload carries only identifiers — scanning it
- * validates entry for one specific event, it never grants any account access.
+ * The customer's ticket QR.
+ *
+ * Carries identifiers plus the signature written at issuance. Scanning it validates
+ * entry for one specific event and never grants any account access.
+ *
+ * `userId` was in here and has been removed: nothing read it, and anyone who
+ * photographed a ticket learned the buyer's account id for free.
  */
 export function ticketQrPayload(ticket: Ticket) {
-  return JSON.stringify({
-    v: 1,
+  return encodeTicketQr({
+    v: QR_VERSION,
     t: ticket.id,
     e: ticket.eventId,
-    u: ticket.userId,
     r: ticket.reference,
+    s: ticket.qrSignature,
   });
 }
 

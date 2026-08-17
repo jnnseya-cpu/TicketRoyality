@@ -186,6 +186,11 @@ export interface Ticket {
   userId: string;
   attendeeName: string;
   attendeeEmail: string;
+  /**
+   * HMAC over the ticket id and event id, written at issuance by `functions/`. Absent on
+   * tickets issued before signing existed, and when `QR_SIGNING_KEY` is unset.
+   */
+  qrSignature?: string;
 
   tierId?: string;
   tierName: string;
