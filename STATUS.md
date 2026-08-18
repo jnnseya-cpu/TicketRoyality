@@ -311,6 +311,49 @@ after their transactions commit; `seat.held` per-hold events are refused on purp
 a firehose that costs every integrator money and says nothing an inventory read does
 not. All nine §89 acceptance boxes now pass.
 
+### P0 from live testing — a priced event sold its tickets for £0
+
+Found by the user buying their own event's ticket and landing on "Payment received …
+via free" without ever seeing a card. Root cause: in the attendee-type editor, every
+row after the first defaulted to **£0.00**, and a type's price *is* the price for
+whoever picks it — so one untouched field silently replaced the tier price with
+nothing, the buy box honestly showed "Free", and the free-claim path (correctly, by
+its own rules) issued without payment. Four layers fixed, none of them blaming the
+buyer: (1) new attendee-type rows now seed from the tier's own price — free types are
+made free deliberately; (2) a zero-priced type on a priced tier shows a loud amber
+warning in the editor; (3) the form refuses to save a fixed tier priced above zero
+whose types are ALL £0 — contradictory data, not configuration; (4) the checkout
+route refuses to sell that state on events saved before the fix ("prices are
+misconfigured — contact the organiser"), and the buy box says the same before the
+round trip. Mixed pricing (free Under-5s beside a paid Adult) is untouched. The
+success page also no longer says "Payment received … via free" for a claim — free
+claims read "Tickets claimed — nothing to pay". Typecheck, lint, build, 48/48
+pricing tests green. **The affected live event still carries £0 types until the
+organiser re-saves its prices.**
+
+### P0 from live testing — the door refused real tickets ("QR not validating")
+
+The scanner refused the user's own ticket. Root cause: once the app holds
+`QR_SIGNING_KEY`, the door demanded a matching signature on **both** the QR payload
+and the ticket document — but tickets issued before signing existed, or by the
+functions deploy that has not yet been pushed with the key, carry no stored signature
+at all, so every one of them was refused as "altered". Fixed to the rule the rotating
+code has always used: a stored signature is always enforced; a ticket without one
+validates on its own existence and status, exactly as the platform validated before
+signing (a forger still needs a real, unguessable ticket id). New emulator test: "a
+ticket issued before signing still admits" — 30/30. **The lasting fix is the pending
+functions deploy with `QR_SIGNING_KEY` set, so every new ticket is signed.**
+
+### Ticket branding + printed cross-promotion (user request, live test day)
+
+The ticket modal now opens with the event's main picture above the QR (fetched from
+the event on open, so every already-issued ticket gets the artwork and an organiser's
+artwork swap follows without a migration), a £0 ticket's status reads "Free · Valid"
+instead of "Paid · Valid", and the **printed** ticket carries three upcoming platform
+events the holder is most likely to attend — ranked by the existing `recommend` AI
+task, category-and-date fallback when the model is unavailable, never this event,
+never past events. Print-only by CSS: on screen the whole site is one tap away.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

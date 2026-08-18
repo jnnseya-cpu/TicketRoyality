@@ -111,6 +111,27 @@ const ticketTierSchema = z.object({
       })
     )
     .optional(),
+}).superRefine((tier, ctx) => {
+  /*
+   * A priced tier whose attendee types are ALL free is a contradiction, not a
+   * configuration: the tier says £X, and every buyer pays £0 because a type price is
+   * the price for whoever picks it. This exact state once sold a live event's tickets
+   * for nothing. Mixed is fine (free Under-5s beside a paid Adult); all-free beside a
+   * price is refused at save, where it is one field away from fixed.
+   */
+  const types = tier.attendeeTypes ?? [];
+  if (
+    tier.pricing === 'fixed' &&
+    tier.price > 0 &&
+    types.length > 0 &&
+    types.every((type) => type.price === 0)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['attendeeTypes'],
+      message: `Every attendee type is £0 while the tier costs money — buyers would pay nothing. Set the type prices (they are what buyers actually pay), or remove the types to sell at the tier price.`,
+    });
+  }
 });
 
 const seatingSchema = z.object({
@@ -1677,7 +1698,7 @@ export function CreateEventForm({
                           a single-price tier.
                         </FormDescription>
                         {types.map((type, typeIndex) => (
-                          <div key={type.id} className="flex items-center gap-2">
+                          <div key={type.id} className="flex flex-wrap items-center gap-2">
                             <Input
                               placeholder="Adult"
                               value={type.name}
@@ -1761,6 +1782,17 @@ export function CreateEventForm({
                                 }
                               />
                             ) : null}
+                            {/* Loud, because this is exactly how a priced event once
+                                sold for nothing: a type at £0.00 IS the price for
+                                anyone who picks it, whatever the tier says above. */}
+                            {Number(type.price) === 0 &&
+                            Number(watchedTiers[index]?.price) > 0 ? (
+                              <p className="w-full text-xs font-medium text-amber-600 dark:text-amber-500">
+                                {type.name || 'This type'} is FREE — buyers choosing it pay
+                                nothing, regardless of the tier price. Set a price unless
+                                that is deliberate.
+                              </p>
+                            ) : null}
                           </div>
                         ))}
                         <Button
@@ -1772,13 +1804,14 @@ export function CreateEventForm({
                               ...types,
                               {
                                 id: `type-${types.length + 1}-${index}`,
-                                // The first row seeds from the tier's own price, which is
-                                // almost always the adult rate.
                                 name: types.length === 0 ? 'Adult' : '',
-                                price:
-                                  types.length === 0
-                                    ? Number(watchedTiers[index]?.price) || 0
-                                    : 0,
+                                // Every row seeds from the tier's own price. Rows after
+                                // the first used to default to £0.00 — and a type priced
+                                // zero silently replaces the tier price at checkout, so
+                                // one untouched field sold a priced event for nothing.
+                                // Free types (Under-5s) are made free deliberately, not
+                                // by omission.
+                                price: Number(watchedTiers[index]?.price) || 0,
                               },
                             ])
                           }

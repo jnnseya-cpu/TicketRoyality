@@ -216,6 +216,17 @@ export function TicketBox({ event }: { event: Event }) {
 
   const isFree = hasTypes ? lineTotal === 0 : unitPrice === 0;
 
+  /*
+   * A priced tier whose chosen types are all £0 is broken data, not a free event — the
+   * checkout route refuses it with the same reasoning, so surfacing it here saves the
+   * buyer a round trip to a cancel page. See the guard in /api/checkout.
+   */
+  const misconfiguredFree =
+    isFree &&
+    hasTypes &&
+    tier?.pricing !== 'choose' &&
+    (tier?.price ?? 0) > 0;
+
   const handleAddToCart = () => {
     if (!tier) return;
     addItem({
@@ -709,7 +720,14 @@ export function TicketBox({ event }: { event: Event }) {
           form as the paid path, same server-side re-pricing, same holds; the route sees
           the zero total and issues instead of charging.
         */}
-        {isFree && selectedWindow.onSale && loyaltyOk && donationMinor === 0 && (
+        {misconfiguredFree && selectedWindow.onSale && (
+          <p className="rounded-md border border-dashed border-border p-3 text-center text-sm text-muted-foreground">
+            The prices on this ticket type are not set up correctly — please contact the
+            organiser.
+          </p>
+        )}
+
+        {isFree && !misconfiguredFree && selectedWindow.onSale && loyaltyOk && donationMinor === 0 && (
           <form action="/api/checkout" method="POST">
             <input type="hidden" name="name" value={`${event.title} — ${tier.name}`} />
             <input type="hidden" name="amount" value={0} />

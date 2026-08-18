@@ -76,9 +76,105 @@
 | §89 core-seating acceptance | **All nine boxes now pass**, the last (real-time map) closed by §86 above |
 | §90 builder acceptance | Straight/curved/arc, generators-by-spec, draft flow: pass. Manual placement, rotate, tables-on-canvas, multi-select, mirror, undo/redo, publish/version: the phase-3 canvas, next |
 
+## Part 5 of the spec (§91–115) — reconciliation
+
+The closing part: five acceptance lists, the fifteen-module build order, and the agent
+instruction. Scored honestly against the repo, box by box.
+
+### §91 event inventory
+
+| Box | State |
+| --- | --- |
+| Venue layout reused across events | **Phase 4** — the venue/event split. Today a layout lives on its event |
+| One event blocks seats without touching a venue master | Satisfied trivially today (the event owns its seating); becomes a real requirement only after the split, where it is the split's central design rule |
+| Inventory statuses event-specific | Pass — locks, tickets and counters are all keyed by eventId |
+| GA capacity counters | Pass — unseated tiers sell by `sold`/`heldBack` counters |
+| Reserved + GA coexist | Pass — seated and unseated tiers on one event |
+| Tables + seats coexist | Hospitality packages sell tables alongside seated tiers; tables as canvas objects = phase 3 |
+| Sponsor/promoter allocations | Partial — `unavailableSeats` holds seats back; *named* allocations with auto-release are the next build item (§104) |
+| Production kill | **Pass** — built, tested 6/6 |
+
+### §92 family/group
+
+Pass: party request (2 adults + 2 children), adjacent search, per-seat type
+assignment ("who sits where"), companion rules, configurable orphan prevention.
+Open: wheelchair-companion linkage (§31, unchanged), cross-row fallback when one row
+cannot fit the party, and a human-readable "why these seats" explanation.
+
+### §93 transactions
+
+**Pass, and already proven in the emulator** — the A10 race is literally a test:
+concurrent holds leave exactly one winner, the loser gets `seat-taken` as a 409
+(retryable, nothing wrong with the request), and two paid orders for one seat are
+impossible twice over — the lock document id *is* the seat, and issuance is idempotent
+by provider event id.
+
+### §94 reseating
+
+Pass throughout, with one box satisfied differently by design: quotes and eligible
+alternatives, new seat held before anything moves, price difference collected before
+the move lands, old seat back on sale, `upgrade_events` as the audit trail. "Old
+credential invalidated / new issued" — the credential here never encoded the seat, so
+the ticket and its rotating code survive the move untouched. That is stronger, not
+weaker: a reseated holder's phone keeps working without a re-download.
+
+### §95 access
+
+Pass: signature check, duplicate rejection, wrong-event rejection, zone rules, revoked
+tickets, offline validation and later sync, zone-level re-entry. Open, both already
+queued: ticket-level INSIDE/OUTSIDE at the main gate (§52/§79), and the scanner device
+registry so the audit record names a trusted device (§50).
+
+### §96 security
+
+Pass on all boxes but one: QR carries no personal data, credentials are HMAC-signed
+and verified, ticket status/inventory/issuance/refunds are server-only, tenants are
+isolated in rules (tested), admin actions role-gated. The partial: "critical
+modifications audited" is true per domain (bids, upgrades, reseats, comms) — the
+*unified* audit_log is queued (§84).
+
+### §97–111 module order → this codebase
+
+| Module | State |
+| --- | --- |
+| 01 Foundation | Built (types, org scoping, rules, shared utilities) |
+| 02 Venue Engine | **Phase 4** — the venue/event split with version management |
+| 03 Venue Builder | **Phase 3** — canvas: manual placement, rotate, multi-select, undo/redo |
+| 04 Event Layout Engine | Follows 02; today event-owns-layout covers it |
+| 05 Ticket Types & Pricing | Built — the mandatory A10-Adult/A11-Child test passes in `pricing.test.ts` |
+| 06 Hold Engine | Built, concurrency-tested |
+| 07 Customer Seat Selector | Built (desktop + mobile, live map) |
+| 08 Allocation Engine | **Next** — reserve/release exist as held-back seats; named allocations + auto-release now |
+| 09 Family / Best Available | Built (scoring explanation open) |
+| 10 Accessibility | Partial — held-back accessible seats; companion linkage open |
+| 11 Reseating & Upgrade | Built |
+| 12 Access Engine | Built minus device trust + main-gate anti-passback (queued) |
+| 13 Command Centre | Queued — a display over data already recorded |
+| 14 AI Venue Engine | Its own precondition ("only after deterministic services are stable; AI calls existing services, no parallel AI logic") is already this platform's standing contract |
+| 15 Revenue Intelligence | Waits for telemetry — models before data is the 16-articles mistake |
+
+### §112–113 the agent instruction and the non-negotiables
+
+Filed as confirmation, not as new law: §112 is CLAUDE.md restated (inspect before
+writing, reuse, server decides, idempotency, audit, never rebuild what works), and
+§113's three forbidden fields already cannot exist here — there is no `seat.price`
+(price = tier × attendee type × fee engine), no permanent `seat.ticketType` (the type
+sits on the ticket sold, not the chair), and no `seat.sold` flag anywhere (sold =
+counters + locks + ticket documents, per event).
+
+### §114–115 product model and success
+
+The Royal-branded module map is filed as vocabulary; code keeps its own names
+(docs/24 decision). Of §115's seventeen success steps, thirteen work today; the four
+open are the known queue: canvas geometry (phase 3), venue reuse (phase 4),
+promoter/sponsor allocations (next), command centre (queued).
+
 ## Standing decisions
 
 1. No parallel collections. New vocabulary lands as fields and modules on the live
    model, or waits for phase 4's venue/event split where a real migration is designed.
 2. Every adopted piece ships with emulator tests and a STATUS row, same as everything
    else today.
+3. §112/§113 are adopted as *confirmation* of existing law (CLAUDE.md), not a second
+   rulebook. Where the two texts differ in wording, CLAUDE.md remains the one that
+   binds.

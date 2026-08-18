@@ -182,9 +182,18 @@ export async function redeemAtDoor(
        * Recomputing rather than trusting `ticket.qrSignature` alone means a signature
        * written under a rotated key, or copied onto a ticket by a database write that
        * should not have happened, still fails.
+       *
+       * Only enforced when the ticket document itself carries a signature — the same
+       * rule the rotating code below has always used. A ticket with none was issued
+       * before signing existed, or by a functions deploy that did not yet hold the
+       * key, and refusing every one of those at the door turns a key rollout into a
+       * queue of real customers being turned away for a deployment they cannot see.
+       * An unsigned ticket validates exactly as the platform validated before signing:
+       * on the ticket's own existence and status, which a forger would still need a
+       * real, unguessable ticket id to reach.
        */
       const expected = signatureFor(payload.t, ticket.eventId);
-      if (expected) {
+      if (expected && ticket.qrSignature) {
         if (!signaturesMatch(expected, payload.s) || !signaturesMatch(expected, ticket.qrSignature)) {
           return {
             ok: false,

@@ -82,7 +82,7 @@ function assertRefused(result: Awaited<ReturnType<typeof redeemAtDoor>>, kind?: 
 }
 
 async function seed(id: string, overrides: Record<string, unknown> = {}, eventId = EVENT) {
-  await db.collection('tickets').doc(id).set({
+  const doc: Record<string, unknown> = {
     reference: `REF-${id}`,
     eventId,
     eventTitle: 'Royal Night Live',
@@ -96,7 +96,11 @@ async function seed(id: string, overrides: Record<string, unknown> = {}, eventId
     purchasedAt: new Date().toISOString(),
     qrSignature: sign(id, eventId),
     ...overrides,
-  });
+  };
+  // An override of undefined removes the field — Firestore refuses undefined values,
+  // and "this ticket has no signature" is a state the pre-signing tests need to build.
+  for (const key of Object.keys(doc)) if (doc[key] === undefined) delete doc[key];
+  await db.collection('tickets').doc(id).set(doc);
 }
 
 async function statusOf(id: string): Promise<string> {
@@ -168,6 +172,18 @@ async function run() {
     await seed('t-dbtamper', { qrSignature: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' });
     assertRefused(await redeemAtDoor(payload('t-dbtamper'), EVENT, ORGANISER), 'unsigned');
     assert.equal(await statusOf('t-dbtamper'), 'valid');
+  });
+
+  await test('a ticket issued before signing still admits', async () => {
+    // The live failure of 18 Aug: the app held QR_SIGNING_KEY, the functions deploy
+    // that issued the ticket did not, and the door refused every real customer for a
+    // deployment they could not see. No stored signature = validate as the platform
+    // did before signing; a stored signature is always enforced.
+    await seed('t-presigning', { qrSignature: undefined });
+    const bare = { ...payload('t-presigning'), s: undefined };
+    const result = await redeemAtDoor(bare, EVENT, ORGANISER);
+    assert.equal(result.ok, true, 'an unsigned ticket must admit');
+    assert.equal(await statusOf('t-presigning'), 'redeemed');
   });
 
   await test('an invented ticket id is refused', async () => {

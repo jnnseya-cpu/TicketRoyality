@@ -291,6 +291,24 @@ export async function POST(request: Request) {
           const resolved = resolveMix(tier, requestedMix);
           if (!resolved.ok) return fail(resolved.error);
 
+          /*
+           * Contradiction guard: a fixed tier priced above zero whose chosen types are
+           * ALL free would issue a paid event's tickets for nothing — which happened,
+           * live, when attendee-type rows defaulted to £0.00. The editor now refuses to
+           * save that state; this refuses to sell it on events saved before the fix.
+           * A mix with any paid entry passes untouched (free Under-5s beside a paid
+           * Adult is deliberate pricing, not an accident).
+           */
+          if (
+            tier.pricing !== 'choose' &&
+            tier.price > 0 &&
+            resolved.entries.every((entry) => entry.price === 0)
+          ) {
+            return fail(
+              'The prices on this ticket type are misconfigured — please contact the organiser'
+            );
+          }
+
           mixEntries = resolved.entries;
           for (const entry of resolved.entries) {
             lines.push({

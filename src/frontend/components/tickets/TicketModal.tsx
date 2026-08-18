@@ -16,7 +16,8 @@ import {
 } from '@/frontend/components/ui/dialog';
 import { Logo } from '@/frontend/components/common/Logo';
 import { formatCurrency, formatEventDate } from '@/shared/utils';
-import type { Ticket } from '@/shared/types';
+import { getEventById, getEvents } from '@/shared/data/repositories';
+import type { Event, Ticket } from '@/shared/types';
 import { QR_VERSION, encodeTicketQr } from '@/shared/tickets/qr';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { TransferTicket } from '@/frontend/components/tickets/TransferTicket';
@@ -106,6 +107,85 @@ export function TicketModal({
 }) {
   const printRef = React.useRef<HTMLDivElement>(null);
   const rotating = useRotatingCode(ticket);
+  const [open, setOpen] = React.useState(false);
+
+  /*
+   * The event behind the ticket, for its main picture. Fetched on open rather than
+   * stored on the ticket: every ticket already issued gets the branding too, and an
+   * organiser who swaps their artwork sees the ticket follow without a migration.
+   */
+  const [event, setEvent] = React.useState<Event | null>(null);
+  React.useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    getEventById(ticket.eventId)
+      .then((found) => {
+        if (!cancelled) setEvent(found);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [open, ticket.eventId]);
+
+  /*
+   * Three upcoming events for the printed ticket's footer — the paper in someone's
+   * pocket is the cheapest advert the platform owns. Ranked by the AI recommender when
+   * it answers, by shared category otherwise; never this event, never the past. Screen
+   * users already have the whole site, so the block is print-only.
+   */
+  const [suggested, setSuggested] = React.useState<Event[]>([]);
+  React.useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+
+    const load = async () => {
+      const all = await getEvents();
+      const upcoming = all.filter(
+        (e) => e.id !== ticket.eventId && new Date(e.date).getTime() > Date.now()
+      );
+      if (upcoming.length === 0) return;
+
+      const fallback = [...upcoming].sort((a, b) => {
+        const aScore = a.category === event?.category ? 0 : 1;
+        const bScore = b.category === event?.category ? 0 : 1;
+        return aScore - bScore || a.date.localeCompare(b.date);
+      });
+
+      try {
+        const response = await fetch('/api/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            task: 'recommend',
+            input: {
+              interests: `events like ${ticket.eventTitle}`,
+              max: 3,
+              events: upcoming.slice(0, 40).map((e) => ({
+                id: e.id,
+                title: e.title,
+                category: e.category,
+                location: e.location,
+                date: e.date,
+              })),
+            },
+          }),
+        });
+        const data = (await response.json()) as { eventIds?: string[] };
+        const picks = (data.eventIds ?? [])
+          .map((id) => upcoming.find((e) => e.id === id))
+          .filter((e): e is Event => Boolean(e));
+        if (!cancelled) setSuggested((picks.length > 0 ? picks : fallback).slice(0, 3));
+      } catch {
+        if (!cancelled) setSuggested(fallback.slice(0, 3));
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, ticket.eventId, ticket.eventTitle, event?.category]);
 
   const handleDownload = () => {
     const canvas = printRef.current?.querySelector('canvas');
@@ -117,7 +197,7 @@ export function TicketModal({
   };
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger ?? (
           <Button variant="outline" size="sm">
@@ -136,6 +216,18 @@ export function TicketModal({
         </DialogHeader>
 
         <div ref={printRef} className="space-y-4">
+          {/* The event's own artwork, on screen and on paper — a ticket is the event's
+              face, not a database printout. Plain <img>: next/image would proxy the
+              organiser's Storage URL through the app for no gain on a one-off render. */}
+          {event?.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={event.imageUrl}
+              alt={ticket.eventTitle}
+              className="h-32 w-full rounded-lg object-cover"
+            />
+          ) : null}
+
           <div className="flex justify-center rounded-lg bg-white p-4">
             <QRCodeCanvas
               value={ticketQrPayload(ticket, rotating.code)}
@@ -209,7 +301,11 @@ export function TicketModal({
                   }
                 >
                   {ticket.status === 'valid'
-                    ? 'Paid · Valid'
+                    ? // A £0 ticket saying "Paid" reads like a billing error to the
+                      // person holding it and to the steward reading over their shoulder.
+                      ticket.price === 0
+                      ? 'Free · Valid'
+                      : 'Paid · Valid'
                     : ticket.status === 'redeemed'
                       ? 'Checked in'
                       : ticket.status}
@@ -221,6 +317,31 @@ export function TicketModal({
           <p className="border-t border-dashed border-border pt-3 text-center text-[11px] text-muted-foreground">
             Valid for one entry to this event only. Do not share this code.
           </p>
+
+          {/*
+            Paper only. The printed ticket travels — a fridge door, a jacket pocket, a
+            colleague's desk — and three well-chosen events on it are the cheapest
+            advertising the platform will ever buy. On screen the whole site is one tap
+            away, so there it would just be noise under someone's QR code.
+          */}
+          {suggested.length > 0 && (
+            <div className="print-only border-t border-dashed border-border pt-3">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                You might also like — ticketroyality.com
+              </p>
+              {suggested.map((pick) => (
+                <p key={pick.id} className="mt-1 text-[11px]">
+                  <span className="font-medium">{pick.title}</span>
+                  {' — '}
+                  {formatEventDate(pick.date)} · {pick.location}
+                  <br />
+                  <span className="text-muted-foreground">
+                    ticketroyality.com/events/{pick.id}
+                  </span>
+                </p>
+              ))}
+            </div>
+          )}
         </div>
 
         <DialogFooter className="print-hidden">
