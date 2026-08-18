@@ -13,6 +13,7 @@ import {
 // Importing the guard here means the door cannot start with a drifted signing format.
 import '@/backend/services/qr-contract';
 import { reportError } from '@/backend/observability/report-error';
+import { queueEvent } from '@/backend/services/webhooks';
 import { blockedBy } from '@/backend/services/blocklist';
 
 /**
@@ -102,17 +103,24 @@ export async function redeemAtDoor(
   // an administrator. Checked server-side because the scanner page cannot be trusted to
   // have checked it.
   let isAdmin = false;
+  /* The event's owner, so a redemption webhook is queued for the organiser rather than
+     for whoever happened to be holding the scanner — an administrator scanning somebody
+     else's door must not send the event to their own endpoints. */
+  let eventOwnerId = '';
   try {
     const caller = await db.collection('users').doc(callerUid).get();
     const type = caller.data()?.userType;
     isAdmin = type === 'superuser';
 
+    // Read once and used twice: for the ownership check, and for the webhook's audience.
+    const event = await db.collection('events').doc(eventId).get();
+    eventOwnerId = String(event.data()?.organizerId ?? '');
+
     if (!isAdmin) {
-      const event = await db.collection('events').doc(eventId).get();
       if (!event.exists) {
         return { ok: false, status: 404, kind: 'invalid', error: 'That event does not exist.' };
       }
-      if (event.data()?.organizerId !== callerUid) {
+      if (eventOwnerId !== callerUid) {
         return {
           ok: false,
           status: 403,
@@ -138,7 +146,7 @@ export async function redeemAtDoor(
   const ticketRef = db.collection('tickets').doc(payload.t);
 
   try {
-    return await db.runTransaction<RedeemResult>(async (tx) => {
+    const outcome = await db.runTransaction<RedeemResult>(async (tx) => {
       const snap = await tx.get(ticketRef);
       if (!snap.exists) {
         return { ok: false, status: 404, kind: 'invalid', error: 'No such ticket.' };
@@ -290,6 +298,25 @@ export async function redeemAtDoor(
         ...(ticket.seat ? { seat: ticket.seat } : {}),
       };
     });
+
+    /*
+     * `ticket.redeemed`, for anyone integrating against us.
+     *
+     * **After** the transaction, never inside it. A Firestore transaction can be retried
+     * automatically, and a queue write inside one would be duplicated on every retry —
+     * an integrator would see the same person admitted three times. Queued rather than
+     * sent, and its failure never turns an admitted person away.
+     */
+    if (outcome.ok) {
+      await queueEvent(eventOwnerId, 'ticket.redeemed', {
+        reference: outcome.reference,
+        eventId,
+        tierName: outcome.tierName,
+        seat: outcome.seat ?? null,
+      }).catch(() => undefined);
+    }
+
+    return outcome;
   } catch (error) {
     reportError(error, { scope: 'redeem', ticketId: payload.t, eventId });
     return {

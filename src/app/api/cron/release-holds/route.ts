@@ -5,6 +5,7 @@ import { clearConsumedSeatLocks, expireHolds } from '@/backend/services/holds';
 import { expireLapsedBookings } from '@/backend/services/hospitality';
 import { purgeSpentAttestations } from '@/backend/security/attestation';
 import { closeDueLots } from '@/backend/services/auctions';
+import { deliverDue } from '@/backend/services/webhooks';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,8 +57,24 @@ export async function GET(request: Request) {
    */
   const lotsClosed = (await closeDueLots()).length;
 
+  /*
+   * Outbound webhooks that are due — first attempts and retries alike.
+   *
+   * Sent from here rather than from the sale path: a ticket is issued whether or not
+   * somebody else's server answers, and nothing that takes money may wait on it.
+   */
+  const webhooks = await deliverDue();
+
   return NextResponse.json(
-    { released, bookingsExpired, seatLocksCleared, attestationsPurged, lotsClosed, implemented: true },
+    {
+      released,
+      bookingsExpired,
+      seatLocksCleared,
+      attestationsPurged,
+      lotsClosed,
+      webhooks,
+      implemented: true,
+    },
     { headers: { 'Cache-Control': 'no-store' } }
   );
 }

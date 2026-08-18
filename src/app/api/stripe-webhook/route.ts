@@ -12,6 +12,7 @@ import { recordBookingPayment } from '@/backend/services/hospitality';
 import { recordAttribution } from '@/backend/services/partners';
 import { recordDonation } from '@/backend/services/donations';
 import { recordContribution } from '@/backend/services/registry';
+import { queueEvent } from '@/backend/services/webhooks';
 import { settlePassPurchase } from '@/backend/services/season-passes';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
@@ -94,6 +95,16 @@ export async function POST(request: Request) {
             reportError(new Error('donation not recorded'), {
               scope: 'stripe.donation',
               stripeEventId: event.id,
+            });
+          }
+
+          if (recorded === 'recorded') {
+            // Queued, never sent from here: a gift is recorded whether or not somebody
+            // else's server is up.
+            await queueEvent(checkout.donationOrganiserId, 'donation.received', {
+              amountMinor: checkout.donationMinor,
+              currency: checkout.currency,
+              eventId: checkout.eventId ?? null,
             });
           }
         }
@@ -272,6 +283,30 @@ export async function POST(request: Request) {
           // what should happen — the alternative is acknowledging a payment whose
           // ticket will never be issued.
           return NextResponse.json({ error: 'datastore_unavailable' }, { status: 500 });
+        }
+
+        /*
+         * `order.completed`, for anyone integrating against us.
+         *
+         * Queued after the payment is safely recorded and never instead of it, and it
+         * says the money arrived rather than that tickets exist — issuance runs in
+         * `functions/`, so claiming otherwise from here would be a guess about something
+         * that has not happened yet.
+         */
+        try {
+          const organizerId = await organiserOf(checkout.eventId);
+          if (organizerId) {
+            await queueEvent(organizerId, 'order.completed', {
+              eventId: checkout.eventId,
+              tierId: checkout.tierId,
+              quantity: checkout.quantity,
+              amountMinor: Math.round(checkout.amountTotal * 100),
+              currency: checkout.currency,
+            });
+          }
+        } catch (error) {
+          // A webhook nobody can queue must never cost a customer their ticket.
+          reportError(error, { scope: 'stripe.queueOrder', stripeEventId: event.id });
         }
 
         /*

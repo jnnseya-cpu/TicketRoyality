@@ -17,52 +17,51 @@ import {
 export const metadata: Metadata = {
   title: 'Developers',
   description:
-    'REST API, signed webhooks, sandbox keys and SDKs. Build ticketing, entry and payment verification on TicketRoyality.',
+    'A read API over your events and tickets, signed webhooks, and a sandbox key that touches nothing real.',
 };
 
 const ENDPOINTS = [
-  { method: 'POST', path: '/events', auth: 'Organiser', note: 'Creates a draft. Never publishes.' },
-  { method: 'GET', path: '/events', auth: 'Public', note: 'Cursor-paginated listing.' },
-  { method: 'GET', path: '/events/:id', auth: 'Public', note: 'Tiers, venue, organiser.' },
-  { method: 'POST', path: '/events/:id/publish', auth: 'Organiser', note: 'Runs the pre-publish checklist.' },
-  { method: 'POST', path: '/events/:id/cancel', auth: 'Organiser', note: 'Requires confirmed totals.' },
-  { method: 'POST', path: '/orders', auth: 'Customer', note: 'Idempotency-Key required.' },
-  { method: 'POST', path: '/orders/:id/pay', auth: 'Customer', note: 'Idempotency-Key required.' },
-  { method: 'POST', path: '/orders/:id/refund', auth: 'Organiser', note: 'Line-scoped, policy-checked.' },
-  { method: 'POST', path: '/tickets/:id/transfer', auth: 'Customer', note: 'Refused if non-transferable.' },
-  { method: 'POST', path: '/scans', auth: 'Gate staff', note: 'Verifies the signed QR server-side.' },
+  {
+    method: 'GET',
+    path: '/events',
+    auth: 'events:read',
+    note: 'Your own events, with tier prices and how many are sold.',
+  },
+  {
+    method: 'GET',
+    path: '/tickets',
+    auth: 'tickets:read',
+    note: 'Filter with ?event_id= and ?limit=. Names and emails need attendees:read too.',
+  },
 ];
 
 const WEBHOOKS = [
-  { type: 'order.completed', payload: 'order_id, event_id, user_id, amount, currency, ticket_ids[]' },
-  { type: 'ticket.scanned', payload: 'ticket_id, gate_id, status, timestamp, event_id' },
-  { type: 'payout.completed', payload: 'payout_id, org_id, amount, currency, provider_ref' },
-  { type: 'refund.processed', payload: 'refund_id, order_id, amount, reason' },
-  { type: 'fraud.alert', payload: 'transaction_id, fraud_score, rule_triggered, recommended_action' },
-  { type: 'kyb.approved / kyb.rejected', payload: 'org_id, kyb_status, review_notes' },
-  { type: 'verification.matched', payload: 'expectation_id, amount, payer_msisdn, provider_reference' },
+  { type: 'order.completed', payload: 'event_id, tier_id, quantity, amount_minor, currency' },
+  { type: 'ticket.redeemed', payload: 'reference, event_id, tier_name, seat' },
+  { type: 'ticket.refunded', payload: 'reference, event_id' },
+  { type: 'donation.received', payload: 'amount_minor, currency, event_id' },
 ];
 
 const PRINCIPLES = [
   {
     icon: KeyRound,
     title: 'Sandbox first',
-    body: 'Sandbox keys are issued immediately, before verification finishes. The sandbox reproduces every failure mode, not just the happy path — including partial and ambiguous payment verification.',
+    body: 'A tr_test_ key reads fixture data and touches nothing real — including a sold-out tier, a refunded ticket and a redeemed one, which a fresh live account has none of. Live and test are different keys rather than a header, so a request cannot reach real data by leaving something out.',
   },
   {
     icon: Webhook,
     title: 'Signed webhooks',
-    body: 'HMAC-SHA256 over timestamp.body with your secret. Reject anything older than five minutes or a captured payload can be replayed forever. Retries back off for 24 hours.',
+    body: 'HMAC-SHA256 over timestamp.body with your endpoint’s own secret, in a TicketRoyality-Signature header. Reject anything older than five minutes, or a captured payload can be replayed forever. Failures retry with an increasing delay and stay in your delivery log either way.',
   },
   {
     icon: Braces,
-    title: 'Idempotent by default',
-    body: 'Every mutating request accepts an Idempotency-Key. Replaying one returns the original response and never creates a second resource. Required on orders, payments and scans.',
+    title: 'Scoped keys',
+    body: 'A key carries only the scopes you give it. Attendee names and emails sit behind attendees:read, so a reporting key can count tickets without ever being able to export a mailing list.',
   },
   {
     icon: TerminalSquare,
-    title: 'Versioned, with a window',
-    body: 'Everything is under /api/v1. Breaking changes get /v2 and both stay live through a published deprecation window. We do not change a response shape underneath you.',
+    title: 'Read-only, and honest about it',
+    body: 'Everything is under /api/v1 and every endpoint is a GET. There is no write API yet — no creating events, no placing orders, no scanning through the API — and no SDKs. When those exist they will be on this page and not before.',
   },
 ];
 
@@ -75,9 +74,8 @@ export default function DevelopersPage() {
         </Badge>
         <h1 className="font-headline text-3xl font-bold sm:text-5xl">Build on the OS</h1>
         <p className="mt-4 text-lg text-muted-foreground">
-          A REST API over events, orders, tickets, entry and payment verification.
-          Sandbox keys in a minute, SDKs in four languages, webhooks that are signed and
-          replay-safe.
+          Read your events and tickets from your own systems, and get told when something
+          happens. A sandbox key in a minute, webhooks that are signed and replay-safe.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button asChild size="lg">
@@ -107,7 +105,8 @@ export default function DevelopersPage() {
         <h2 className="font-headline text-2xl font-bold">Core endpoints</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           All paths are prefixed with <code className="text-primary">/api/v1</code>.
-          Bearer JWT in the <code className="text-primary">Authorization</code> header.
+          Your API key in the <code className="text-primary">Authorization: Bearer</code> header.
+          Create one under Developers in your organiser dashboard.
         </p>
         <Card className="mt-4">
           <CardContent className="overflow-x-auto p-0">
@@ -174,20 +173,24 @@ export default function DevelopersPage() {
       <div className="mt-14 grid gap-6 lg:grid-cols-2">
         <Card>
           <CardContent className="space-y-3 pt-6">
-            <h2 className="font-headline text-xl font-semibold">SDKs</h2>
+            <h2 className="font-headline text-xl font-semibold">Verifying a signature</h2>
             <p className="text-sm text-muted-foreground">
-              Node.js, Python, PHP and React Native, with code samples for every flow.
-              OpenAPI 3.0 specification with a Postman collection export.
+              Split the header on commas into <code>t</code> and <code>v1</code>. Compute
+              HMAC-SHA256 of <code>{'`${t}.${rawBody}`'}</code> with your endpoint secret and
+              compare it to <code>v1</code> in constant time. Reject anything where{' '}
+              <code>t</code> is more than five minutes old.
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="space-y-3 pt-6">
-            <h2 className="font-headline text-xl font-semibold">Rate limits</h2>
+            {/* Said plainly rather than promised. A developer who plans around a rate
+                limit that does not exist finds out under load. */}
+            <h2 className="font-headline text-xl font-semibold">Not built yet</h2>
             <p className="text-sm text-muted-foreground">
-              Per key and per principal, enforced at the gateway. Limits and remaining
-              quota are returned on every response, so you never have to guess where you
-              are.
+              No write endpoints, no SDKs, no OpenAPI file, no published rate limits and no
+              cursor pagination — <code>/tickets</code> takes a <code>limit</code> and tops
+              out at 500. Ask for what you need and it goes on the list.
             </p>
           </CardContent>
         </Card>

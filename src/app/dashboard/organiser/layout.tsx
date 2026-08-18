@@ -7,6 +7,7 @@ import {
   BarChart3,
   CalendarDays,
   CalendarRange,
+  Code2,
   LayoutDashboard,
   LineChart,
   Handshake,
@@ -51,6 +52,7 @@ const NAV = [
   { href: '/dashboard/organiser/partners', label: 'Partners', icon: Handshake },
   { href: '/dashboard/organiser/promotions', label: 'Promotions', icon: Megaphone },
   { href: '/dashboard/organiser/ai-studio', label: 'AI studio', icon: Sparkles },
+  { href: '/dashboard/organiser/developer', label: 'Developers', icon: Code2 },
   { href: '/dashboard/organiser/settings', label: 'Settings', icon: Settings },
 ];
 

@@ -439,6 +439,24 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* API keys and webhook endpoints.
+       Closed absolutely. The key documents carry the HMAC a key is matched against and the
+       endpoint documents carry the secret every delivery is signed with — a client that
+       could read either could impersonate the platform to a customer's own server. Managed
+       through /api/developer behind a signed-in session, never a bearer token: a key that
+       can mint more keys is a key whose theft is unrecoverable. */
+    match /api_keys/{id} {
+      allow read, write: if false;
+    }
+
+    match /webhook_endpoints/{id} {
+      allow read, write: if false;
+    }
+
+    match /webhook_deliveries/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }
