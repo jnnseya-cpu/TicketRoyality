@@ -96,3 +96,43 @@ export const DynamicPricingOutputSchema = z.object({
   summary: z.string().describe('One or two sentences on the overall read of demand.'),
 });
 export type DynamicPricingOutput = z.infer<typeof DynamicPricingOutputSchema>;
+
+/**
+ * AI event drafting.
+ *
+ * The organiser describes the event in a sentence or two; the model returns a filled
+ * draft they then edit. It writes into the form rather than into the database — nothing
+ * here is authoritative, and every field stays editable, because a model inventing a
+ * ticket price that gets published unread is exactly the failure mode to avoid.
+ */
+export const EventDraftInputSchema = z.object({
+  brief: z.string().min(10).max(1200),
+  /** Constrains the model to the real taxonomy instead of inventing a category. */
+  categories: z.array(z.string()).min(1),
+  city: z.string().optional(),
+  currency: z.string().optional(),
+  eventType: z.enum(['physical', 'online', 'hybrid']).optional(),
+});
+export type EventDraftInput = z.infer<typeof EventDraftInputSchema>;
+
+export const EventDraftOutputSchema = z.object({
+  title: z.string().describe('An event title under 80 characters.'),
+  description: z
+    .string()
+    .describe('Two to four short paragraphs a buyer would read before booking.'),
+  category: z.string().describe('Exactly one value from the supplied list.'),
+  tiers: z
+    .array(
+      z.object({
+        name: z.string(),
+        /** Major units, matching what the form's price inputs hold. */
+        price: z.number().min(0),
+        quantity: z.number().int().min(1),
+        description: z.string().optional(),
+      })
+    )
+    .min(1)
+    .max(4)
+    .describe('One to four ticket tiers, cheapest first.'),
+});
+export type EventDraftOutput = z.infer<typeof EventDraftOutputSchema>;

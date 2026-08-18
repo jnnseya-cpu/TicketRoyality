@@ -113,6 +113,10 @@ export const COMMS_CATALOGUE: CommsCategory[] = [
       { key: 'event.sold_out', label: 'Sold out', subject: '{{event}} is sold out', severity: 'success', channels: ['email', 'push', 'inapp'], audience: ['organiser'] },
       { key: 'event.slow_sales', label: 'Sales behind forecast', subject: '{{event}} is tracking below forecast', severity: 'warning', channels: ['email', 'inapp'], audience: ['organiser'], note: 'cro.v1 — docs/03 §3.3' },
       { key: 'event.publish_blocked', label: 'Publish blocked', subject: '{{event}} cannot go live yet', severity: 'warning', channels: ['inapp'], audience: ['organiser'], note: 'Pre-publish checklist — docs/04 M22' },
+      // To the platform inbox, not the organiser. Enquire used to be a mailto: link,
+      // which silently does nothing on any machine without a default mail client — the
+      // enquiry looked sent and no one ever received it.
+      { key: 'promo.placement.enquiry', label: 'Placement enquiry', subject: 'Placement enquiry — {{placement}}', severity: 'info', channels: ['email'], audience: ['organiser'] },
     ],
   },
   {

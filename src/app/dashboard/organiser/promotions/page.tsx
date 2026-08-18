@@ -15,6 +15,8 @@ import {
   SelectValue,
 } from '@/frontend/components/ui/select';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
+import { useToast } from '@/frontend/hooks/use-toast';
 import { getEventsByOrganizer } from '@/shared/data/repositories';
 import { formatCurrency } from '@/shared/utils';
 import type { Event, UserProfile } from '@/shared/types';
@@ -61,7 +63,38 @@ const ANNOUNCEMENTS: Array<{ id: string; title: string; body: string; date: stri
 function Promotions({ profile }: { profile: UserProfile }) {
   const [events, setEvents] = React.useState<Event[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const { toast } = useToast();
   const [selected, setSelected] = React.useState<string>('');
+  const [enquiring, setEnquiring] = React.useState<string | null>(null);
+
+  const sendEnquiry = async (placementTitle: string) => {
+    setEnquiring(placementTitle);
+    try {
+      const response = await authedFetch('/api/partners/enquiry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          placement: placementTitle,
+          eventId: selected,
+          eventTitle: events.find((e) => e.id === selected)?.title ?? '',
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? 'The enquiry could not be sent.');
+      toast({
+        title: 'Enquiry sent',
+        description: 'It has gone to the team inbox — you will get a reply by email with the invoice.',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Enquiry not sent',
+        description: error instanceof Error ? error.message : 'Email info@ticketroyality.com directly.',
+      });
+    } finally {
+      setEnquiring(null);
+    }
+  };
 
   React.useEffect(() => {
     let cancelled = false;
@@ -179,16 +212,23 @@ function Promotions({ profile }: { profile: UserProfile }) {
 
                 Nothing is charged again until there is something to fulfil.
               */}
-              <Button asChild variant="outline" className="w-full">
-                <a
-                  href={`mailto:info@ticketroyality.com?subject=${encodeURIComponent(
-                    `Placement enquiry — ${placement.title}`
-                  )}&body=${encodeURIComponent(
-                    `Event: ${events.find((e) => e.id === selected)?.title ?? '(choose one above)'}\nPlacement: ${placement.title}`
-                  )}`}
-                >
-                  Enquire
-                </a>
+              {/*
+                Not a mailto: link any more. On a machine with no default mail client —
+                most office Windows installs — a mailto: click does nothing, silently,
+                so the enquiry looked sent and never existed. This posts through the
+                platform's own SMTP path, the one that already delivers tickets.
+              */}
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={enquiring === placement.title}
+                onClick={() => sendEnquiry(placement.title)}
+              >
+                {enquiring === placement.title ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Enquire'
+                )}
               </Button>
             </CardContent>
           </Card>

@@ -215,6 +215,58 @@ async function main() {
     await assertFails(setDoc(doc(anon, 'users', 'new-7'), signupPayload({ uid: 'new-7' })));
   });
 
+  /*
+   * Featured placement — the field that was free.
+   *
+   * The event form used to write `featured: true` directly, and the homepage queries
+   * exactly that field, so a checkbox granted paid placement to whoever ticked it.
+   * The rules now hold the line: an organiser may *request* (featuredRequested), and
+   * only a superuser may grant (featured).
+   */
+  console.log('\nfirestore.rules — events: featured placement\n');
+
+  const eventBase = {
+    title: 'Test Night',
+    organizerId: ORGANISER.uid,
+    status: 'published',
+    category: 'Concerts',
+    date: '2026-12-01T19:00:00.000Z',
+    currency: 'GBP',
+    ticketTiers: [],
+  };
+
+  await test('an organiser can create an event that merely requests featuring', async () => {
+    await assertSucceeds(
+      setDoc(doc(organiser, 'events', 'evt-req'), {
+        ...eventBase,
+        featured: false,
+        featuredRequested: true,
+      })
+    );
+  });
+
+  await test('an organiser cannot create an event already featured', async () => {
+    await assertFails(
+      setDoc(doc(organiser, 'events', 'evt-self-feat'), { ...eventBase, featured: true })
+    );
+  });
+
+  await test('an organiser cannot flip their own event to featured', async () => {
+    await assertFails(updateDoc(doc(organiser, 'events', 'evt-req'), { featured: true }));
+  });
+
+  await test('an organiser can still edit their event normally', async () => {
+    await assertSucceeds(updateDoc(doc(organiser, 'events', 'evt-req'), { title: 'Renamed Night' }));
+  });
+
+  await test('a superuser can grant the placement', async () => {
+    await assertSucceeds(updateDoc(doc(admin, 'events', 'evt-req'), { featured: true }));
+  });
+
+  await test('the organiser cannot un-feature it either (billing owns that)', async () => {
+    await assertFails(updateDoc(doc(organiser, 'events', 'evt-req'), { featured: false }));
+  });
+
   console.log('\nfirestore.rules — privilege escalation\n');
 
   await test('a user cannot promote themselves to superuser', async () => {

@@ -449,6 +449,52 @@ export async function getLedgerEntries(uid: string): Promise<LedgerEntry[]> {
   }
 }
 
+/**
+ * The featured-placement queue, for the superuser.
+ *
+ * Requests are raised by the organiser form (`featuredRequested`); the grant
+ * (`featured`) is written only here. The two travel together in one update so a granted
+ * request disappears from the queue in the same write that puts it on the homepage —
+ * two writes would leave a moment where both or neither are true.
+ */
+export async function getPlacementQueue(): Promise<{ requested: Event[]; live: Event[] }> {
+  if (!isFirebaseConfigured) return { requested: [], live: [] };
+  try {
+    const [requestedSnap, liveSnap] = await Promise.all([
+      getDocs(query(collection(db, COLLECTIONS.events), where('featuredRequested', '==', true))),
+      getDocs(query(collection(db, COLLECTIONS.events), where('featured', '==', true))),
+    ]);
+    const toEvent = (d: QueryDocumentSnapshot<DocumentData>) => ({ id: d.id, ...d.data() }) as Event;
+    // An event can be in both while a renewal request sits on a live placement; the
+    // queue shows it once, under "requested", which is the one needing a decision.
+    const live = liveSnap.docs.map(toEvent);
+    const liveIds = new Set(live.map((e) => e.id));
+    return {
+      requested: requestedSnap.docs.map(toEvent).filter((e) => !liveIds.has(e.id)),
+      live,
+    };
+  } catch (error) {
+    rethrowAsPermissionError(error, { path: COLLECTIONS.events, operation: 'list' });
+  }
+}
+
+/** Grant or withdraw the homepage placement. Superuser only — the rules enforce it. */
+export async function setEventFeatured(eventId: string, featured: boolean): Promise<void> {
+  try {
+    await updateDoc(doc(db, COLLECTIONS.events, eventId), {
+      featured,
+      // Granting consumes the request; revoking leaves no stale hand raised either.
+      featuredRequested: false,
+    });
+  } catch (error) {
+    rethrowAsPermissionError(error, {
+      path: `${COLLECTIONS.events}/${eventId}`,
+      operation: 'update',
+      requestResourceData: { featured },
+    });
+  }
+}
+
 export async function getPlatformStats(): Promise<{
   totalUsers: number;
   totalEvents: number;

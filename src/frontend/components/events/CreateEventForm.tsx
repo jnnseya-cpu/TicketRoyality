@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { CalendarIcon, Loader2, MapPin, PlusCircle, Trash2 } from 'lucide-react';
+import { CalendarIcon, Loader2, MapPin, PlusCircle, Sparkles, Trash2 } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
 import { Calendar } from '@/frontend/components/ui/calendar';
@@ -40,6 +40,7 @@ import { SeatMapBuilder } from '@/frontend/components/events/SeatMapBuilder';
 import { MediaPicker } from '@/frontend/components/media/MediaPicker';
 import { TierEconomics } from '@/frontend/components/pricing/TierEconomics';
 import { Switch } from '@/frontend/components/ui/switch';
+import { describeError } from '@/shared/errors';
 import { cn } from '@/shared/utils';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
@@ -492,7 +493,7 @@ function defaultsFor(event?: Event): FormValues {
     isRecurring: Boolean(event.recurrence),
     recurrenceFrequency: event.recurrence?.frequency,
     recurrenceEndDate: event.recurrence ? new Date(event.recurrence.endDate) : undefined,
-    featured: event.featured ?? false,
+    featured: event.featuredRequested ?? false,
     publish: event.status === 'published',
   };
 }
@@ -541,6 +542,79 @@ export function CreateEventForm({
    * path costs no interaction at all; the button re-runs it after a correction, and
    * either can be overridden by simply typing over the result.
    */
+  /*
+   * The AI draft.
+   *
+   * The platform has advertised AI help with event creation since the gateway landed,
+   * and the only task behind the claim wrote ad copy for events that already existed.
+   * This is the missing half: describe the event in a sentence or two, and the form
+   * below fills in — title, description, category, tiers — every field still editable,
+   * nothing saved until the organiser submits. The model proposes; the organiser
+   * decides; the server-side tier validation treats the result exactly like typed input.
+   */
+  const [aiBrief, setAiBrief] = React.useState('');
+  const [aiDrafting, setAiDrafting] = React.useState(false);
+
+  const draftWithAi = async () => {
+    if (aiBrief.trim().length < 10) {
+      toast({ variant: 'destructive', title: 'Describe the event first', description: 'A sentence or two is enough.' });
+      return;
+    }
+    setAiDrafting(true);
+    try {
+      const response = await authedFetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          task: 'event-draft',
+          input: {
+            brief: aiBrief,
+            categories: CATEGORY_GROUPS.flatMap((g) => g.categories),
+            eventType: form.getValues('eventType') === 'livestream' ? 'online' : form.getValues('eventType'),
+            currency: form.getValues('currency'),
+          },
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? 'The draft could not be generated.');
+
+      const draft = body.result ?? body;
+      form.setValue('title', draft.title, { shouldDirty: true });
+      form.setValue('description', draft.description, { shouldDirty: true });
+
+      const group = CATEGORY_GROUPS.find((g) => g.categories.includes(draft.category));
+      if (group) {
+        form.setValue('category', categoryValue(group.label, draft.category), { shouldDirty: true });
+      }
+
+      // Replace, not append: the default seed tier is a placeholder, and appending to it
+      // would leave "General Admission £25 × 200" nobody asked for at the top.
+      tiers.replace(
+        draft.tiers.map((tier: { name: string; price: number; quantity: number; description?: string }, index: number) => ({
+          id: `tier-${index + 1}`,
+          name: tier.name,
+          description: tier.description ?? '',
+          price: tier.price,
+          quantity: tier.quantity,
+          pricing: 'fixed' as const,
+          minPrice: 0,
+          suggestedPrice: 0,
+          visibility: 'public' as const,
+          accessCode: '',
+          salesStart: '',
+          salesEnd: '',
+          minLoyaltyTier: 'none' as const,
+        }))
+      );
+
+      toast({ title: 'Draft filled in', description: 'Everything below is editable — check the prices before publishing.' });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Could not draft the event', description: describeError(error) });
+    } finally {
+      setAiDrafting(false);
+    }
+  };
+
   const [geocoding, setGeocoding] = React.useState(false);
   const [geocodeNote, setGeocodeNote] = React.useState<string | null>(null);
 
@@ -766,7 +840,16 @@ export function CreateEventForm({
                 endDate: values.recurrenceEndDate.toISOString(),
               }
             : undefined,
-        featured: values.featured,
+        /*
+         * A request, not the placement itself.
+         *
+         * This used to write `featured: values.featured` — the exact field the homepage
+         * queries — so ticking a checkbox labelled "billed on approval" granted the
+         * placement instantly, free, with nobody approving anything. The organiser form
+         * can now only raise its hand; `featured` is set by a superuser from the
+         * operations screen, and `firestore.rules` refuses it from anyone else.
+         */
+        featuredRequested: values.featured,
         // Organisers self-approve: publishing is theirs to control, subject to
         // their account being approved at the platform level.
         status: values.publish ? 'published' : 'draft',
@@ -826,6 +909,33 @@ export function CreateEventForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {!existingEvent && (
+          <Card className="border-primary/40">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" /> Start with AI
+              </CardTitle>
+              <CardDescription>
+                Describe the event in a sentence or two and the form is filled in for you —
+                title, description, category and ticket tiers. Everything stays editable and
+                nothing is saved until you submit.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Textarea
+                rows={2}
+                placeholder="A rooftop Afrobeats night in Kinshasa for young professionals, about 300 people, VIP tables and general entry…"
+                value={aiBrief}
+                onChange={(event) => setAiBrief(event.target.value)}
+              />
+              <Button type="button" variant="royal" onClick={draftWithAi} disabled={aiDrafting}>
+                {aiDrafting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {aiDrafting ? 'Drafting…' : 'Draft it for me'}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* --------------------------------------------------------------- */}
         <Card>
           <CardHeader>
@@ -2473,10 +2583,35 @@ export function CreateEventForm({
                   name={`sponsors.${index}.logoUrl`}
                   render={({ field: f }) => (
                     <FormItem>
-                      <FormLabel>Logo URL</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://…" {...f} />
-                      </FormControl>
+                      <FormLabel>Logo</FormLabel>
+                      {/*
+                        Uploaded, not pasted. A URL box asks the sponsor's logo to already
+                        be hosted somewhere — the same demand the organiser branding step
+                        made until it moved to file pickers, and the same person asked for
+                        the same fix here. The picker uploads into the organiser's media
+                        library, so a sponsor used on three events is one file, not three.
+                      */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        {f.value ? (
+                          // Any host — the optimiser only accepts allowlisted ones.
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={f.value}
+                            alt=""
+                            className="h-12 w-12 rounded-md border border-border object-contain"
+                          />
+                        ) : null}
+                        <MediaPicker
+                          organiserId={profile.uid}
+                          value={f.value}
+                          onChange={(url) => f.onChange(url)}
+                        />
+                        {f.value ? (
+                          <Button type="button" variant="ghost" size="sm" onClick={() => f.onChange('')}>
+                            Remove
+                          </Button>
+                        ) : null}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -2701,7 +2836,8 @@ export function CreateEventForm({
                     <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                   </FormControl>
                   <Label className="cursor-pointer">
-                    Request featured homepage placement (billed on approval)
+                    Request featured homepage placement — reviewed and billed before it
+                    goes live; ticking this does not feature the event by itself
                   </Label>
                 </FormItem>
               )}

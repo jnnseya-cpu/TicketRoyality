@@ -4,6 +4,10 @@ import {
   AdCopyInputSchema,
   AdCopyOutputSchema,
   DynamicPricingOutputSchema,
+  EventDraftInputSchema,
+  EventDraftOutputSchema,
+  type EventDraftInput,
+  type EventDraftOutput,
   type DynamicPricingInput,
   type DynamicPricingOutput,
   RecommendationInputSchema,
@@ -213,12 +217,98 @@ ${JSON_RULE}`,
 /** Input schemas, used to reject a malformed request before it reaches a provider. */
 export const TASK_INPUT_SCHEMAS = {
   'ad-copy': AdCopyInputSchema,
+  'event-draft': EventDraftInputSchema,
   recommend: RecommendationInputSchema,
   similar: SimilarEventsInputSchema,
 } as const;
 
+/**
+ * A first draft of an event, from a sentence describing it.
+ *
+ * The platform has offered AI help to organisers since the gateway landed, and the only
+ * task behind that promise was ad copy — written *after* an event already existed. The
+ * blank event form was the point where help was actually wanted and where none was
+ * available.
+ *
+ * Everything it produces lands in the form as editable values. Nothing is written to the
+ * database, nothing is published, and the prices in particular are a starting point for
+ * the organiser to accept or overwrite — a model setting a price that goes live unread
+ * is the failure this shape is designed to make impossible.
+ */
+export const eventDraftTask: AiTask<EventDraftInput, EventDraftOutput> = {
+  name: 'event-draft',
+  system:
+    'You are an experienced live-events producer who writes clear, specific event listings. ' +
+    'You never invent facts the organiser did not give you: no named performers, no venue ' +
+    'names, no dates, no claims about who is appearing. If the brief does not say it, it ' +
+    'does not go in the listing.',
+  outputSchema: EventDraftOutputSchema,
+  outputShape: `{
+  "title": string,           // under 80 characters
+  "description": string,     // 2-4 short paragraphs, plain text, no markdown
+  "category": string,        // EXACTLY one value from the supplied list
+  "tiers": [                 // 1-4 entries, cheapest first
+    { "name": string, "price": number, "quantity": number, "description": string }
+  ]
+}`,
+  render: (input) => {
+    const lines = [
+      JSON_RULE,
+      '',
+      'Draft a ticketed event listing from this brief:',
+      input.brief,
+      '',
+      `Choose the category from exactly this list, copying one value verbatim: ${input.categories.join(' | ')}`,
+    ];
+
+    if (input.city) lines.push(`The event takes place in or near: ${input.city}`);
+    if (input.eventType) lines.push(`Format: ${input.eventType}`);
+    if (input.currency) {
+      lines.push(
+        `Prices are in ${input.currency}, as plain numbers in major units — no symbols, no thousands separators.`
+      );
+    }
+
+    lines.push(
+      '',
+      'Keep the description concrete and free of superlatives. Do not name performers, ' +
+        'venues or dates unless the brief names them.'
+    );
+
+    return lines.join('\n');
+  },
+  /*
+   * A valid-but-wrong answer, narrowed.
+   *
+   * Models reliably return a category that is *nearly* one of the supplied values —
+   * different case, or pluralised. Rather than reject the whole draft over it, an
+   * unrecognised category falls back to the first supplied value and the organiser
+   * changes it in one click; a refused draft helps nobody.
+   */
+  clamp: (output, input) => {
+    const match =
+      input.categories.find((c) => c === output.category) ??
+      input.categories.find((c) => c.toLowerCase() === output.category.trim().toLowerCase());
+
+    return {
+      ...output,
+      category: match ?? input.categories[0],
+      tiers: output.tiers
+        .slice(0, 4)
+        .map((tier) => ({
+          ...tier,
+          // Negative or absurd values are the model's, not the organiser's.
+          price: Math.max(0, Math.round(tier.price * 100) / 100),
+          quantity: Math.max(1, Math.round(tier.quantity)),
+        }))
+        .sort((a, b) => a.price - b.price),
+    };
+  },
+};
+
 export const TASKS = {
   'ad-copy': adCopyTask,
+  'event-draft': eventDraftTask,
   recommend: recommendTask,
   similar: similarTask,
 } as const;

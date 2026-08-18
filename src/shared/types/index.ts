@@ -456,6 +456,12 @@ export interface Event {
   dynamicPricing?: DynamicPricing;
 
   featured?: boolean;
+  /**
+   * The organiser asked for homepage placement. `featured` itself is granted by a
+   * superuser (and billed); the form can only ever set this flag. The two are separate
+   * fields precisely so the security rules can allow one and refuse the other.
+   */
+  featuredRequested?: boolean;
   videoAdUrl?: string;
   status: 'draft' | 'published' | 'cancelled';
   createdAt: string;

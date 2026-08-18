@@ -7,7 +7,6 @@ import {
   BadgeCheck,
   CalendarDays,
   Loader2,
-  PoundSterling,
   Smartphone,
   TicketIcon,
   Users,
@@ -15,13 +14,13 @@ import {
 
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import { FeaturedPlacements } from '@/frontend/components/dashboard/FeaturedPlacements';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import {
   getOrganisers,
   getPendingOfflinePayments,
   getPlatformStats,
 } from '@/shared/data/repositories';
-import { formatCurrency } from '@/shared/utils';
 
 function AdminOverview() {
   const [stats, setStats] = React.useState({ totalUsers: 0, totalEvents: 0, totalTickets: 0 });
@@ -56,20 +55,11 @@ function AdminOverview() {
     );
   }
 
-  // Revenue streams derived from the platform's three commercial lines.
-  const commissionRevenue = stats.totalTickets * 2.45;
-  const featuredRevenue = 149 * Math.max(0, Math.floor(stats.totalEvents / 4));
-  const videoAdRevenue = 249 * Math.max(0, Math.floor(stats.totalEvents / 7));
 
   const metrics = [
     { icon: Users, label: 'Total users', value: stats.totalUsers },
     { icon: CalendarDays, label: 'Total events', value: stats.totalEvents },
     { icon: TicketIcon, label: 'Tickets issued', value: stats.totalTickets },
-    {
-      icon: PoundSterling,
-      label: 'Commission revenue',
-      value: formatCurrency(commissionRevenue),
-    },
   ];
 
   const actions = [
@@ -133,27 +123,14 @@ function AdminOverview() {
         ))}
       </div>
 
-      <div>
-        <h2 className="mb-4 font-headline text-xl font-semibold">Revenue streams</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[
-            ['Ticket commission', commissionRevenue],
-            ['Featured placements', featuredRevenue],
-            ['Video ad slots', videoAdRevenue],
-          ].map(([label, value]) => (
-            <Card key={label as string}>
-              <CardContent className="p-5">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {label as string}
-                </p>
-                <p className="mt-1 font-headline text-2xl font-bold text-primary">
-                  {formatCurrency(value as number)}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
+      {/*
+        This section used to be "Revenue streams": ticket count × £2.45, plus two
+        formulas inventing placement income from the number of events on the platform.
+        None of those figures were earned by anything — the commission is 0 by design,
+        and placements were, at the time, free to anyone who ticked a checkbox. An
+        administrator making decisions from that screen was being lied to by it.
+      */}
+      <FeaturedPlacements />
     </div>
   );
 }

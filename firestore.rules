@@ -93,13 +93,20 @@ service cloud.firestore {
                        || isSuperuser()
                        || (isSignedIn() && resource.data.organizerId == request.auth.uid);
 
+      // `featured` is the homepage placement — reviewed and billed, granted by a
+      // superuser. The organiser form writes `featuredRequested`; before this guard the
+      // form wrote `featured` itself, so a checkbox labelled "billed on approval"
+      // granted the placement instantly, free, with nobody approving anything.
       allow create: if isApprovedOrganiser()
-                    && request.resource.data.organizerId == request.auth.uid;
+                    && request.resource.data.organizerId == request.auth.uid
+                    && request.resource.data.get('featured', false) == false;
 
       allow update, delete: if isSuperuser()
                             || (isApprovedOrganiser()
                                 && resource.data.organizerId == request.auth.uid
-                                && request.resource.data.organizerId == request.auth.uid);
+                                && request.resource.data.organizerId == request.auth.uid
+                                && request.resource.data.get('featured', false)
+                                     == resource.data.get('featured', false));
     }
 
     /* ---------------------------------------------------------------- */
