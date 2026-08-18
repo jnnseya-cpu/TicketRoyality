@@ -488,6 +488,45 @@ export function TicketBox({ event }: { event: Event }) {
           </p>
         )}
 
+        {/*
+          The free claim, direct. A free tier used to offer only "Add to cart", and the
+          cart's one exit was a Stripe session — which refuses a zero total. The same
+          form as the paid path, same server-side re-pricing, same holds; the route sees
+          the zero total and issues instead of charging.
+        */}
+        {isFree && selectedWindow.onSale && loyaltyOk && donationMinor === 0 && (
+          <form action="/api/checkout" method="POST">
+            <input type="hidden" name="name" value={`${event.title} — ${tier.name}`} />
+            <input type="hidden" name="amount" value={0} />
+            <input type="hidden" name="quantity" value={quantity} />
+            <input type="hidden" name="currency" value={event.currency} />
+            <input type="hidden" name="eventId" value={event.id} />
+            <input type="hidden" name="tierId" value={tier.id} />
+            <input type="hidden" name="userId" value={user?.uid ?? ''} />
+            <input type="hidden" name="accessCode" value={accessCode} />
+            <input type="hidden" name="seats" value={selectedSeats.join(',')} />
+            {user ? (
+              <Button
+                type="submit"
+                variant="royal"
+                className="w-full"
+                disabled={isSeated && !seatsChosen}
+              >
+                {isSeated && !seatsChosen
+                  ? `Choose ${quantity - selectedSeats.length} more seat${quantity - selectedSeats.length === 1 ? '' : 's'}`
+                  : `Get ${quantity} free ticket${quantity === 1 ? '' : 's'}`}
+              </Button>
+            ) : (
+              <p className="text-center text-sm text-muted-foreground">
+                <Link href="/login" className="text-primary hover:underline">
+                  Log in
+                </Link>{' '}
+                to claim free tickets — they need an account to live in.
+              </p>
+            )}
+          </form>
+        )}
+
         {!isFree && selectedWindow.onSale && loyaltyOk && (
           <>
             <div className="relative">

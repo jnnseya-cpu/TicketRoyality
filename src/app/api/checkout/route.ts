@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { createCheckoutSession, isStripeConfigured, type CheckoutLine } from '@/backend/payments/stripe';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
+import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { placeHold, releaseHold } from '@/backend/services/holds';
 import type { Coupon, TicketTier } from '@/shared/types';
@@ -46,7 +47,6 @@ export async function POST(request: Request) {
       status: 303,
     });
 
-  if (!isStripeConfigured()) return fail('Stripe is not configured');
 
   /*
    * The partner who sent this buyer, from the first-party cookie the tracked link set.
@@ -72,6 +72,14 @@ export async function POST(request: Request) {
     .split(',')
     .map((seat) => seat.trim().toUpperCase())
     .filter(Boolean);
+
+  /*
+   * Every line that maps to a real tier, kept so a wholly free order can be issued
+   * without a card. Payment lines and claim lines are the same thing priced
+   * differently; this list is what lets the zero-price case skip the card instead of
+   * dying inside Stripe, which refuses zero-amount sessions.
+   */
+  const claimables: Array<{ eventId: string; tierId: string; quantity: number; currency: string }> = [];
 
   // `items` is a JSON array for cart checkout; single-event checkout sends flat fields.
   const rawItems = form.get('items');
@@ -146,6 +154,9 @@ export async function POST(request: Request) {
       }
 
       lines.push({ name, amount, quantity, currency });
+      if (item.eventId && item.tierId) {
+        claimables.push({ eventId: item.eventId, tierId: item.tierId, quantity, currency });
+      }
     }
 
     /*
@@ -257,6 +268,7 @@ export async function POST(request: Request) {
     }
 
     lines.push({ name, amount, quantity, currency });
+    if (eventId && tierId) claimables.push({ eventId, tierId, quantity, currency });
   }
 
   /*
@@ -356,6 +368,76 @@ export async function POST(request: Request) {
     const hold = await placeHold(holdEventId, holdTierId, quantity, undefined, chosenSeats);
     if (!hold.ok) return fail(hold.error);
     holdId = hold.holdId;
+  }
+
+  /*
+   * A wholly free order never sees a card.
+   *
+   * Free tiers only offered "Add to cart", and the cart's one exit was Stripe — which
+   * refuses a zero-amount session. So a free event's tickets could be assembled into a
+   * basket and then could not be obtained at all: the platform's free tier was a door
+   * painted on a wall. The claim below writes the same `payment_events` document a paid
+   * webhook writes (provider 'free', price 0), so ONE issuance path serves both and the
+   * oversell guard, seat locks and hold release all apply to a free claim exactly as
+   * they do to a paid one.
+   */
+  if (
+    quote.buyerTotalMinor === 0 &&
+    donationMinor === 0 &&
+    registryMinor === 0 &&
+    claimables.length > 0
+  ) {
+    const claimUserId = String(form.get('userId') ?? '');
+    if (!claimUserId) {
+      if (holdId) await releaseHold(holdId, 'abandoned');
+      return fail('Sign in to claim free tickets');
+    }
+    if (!isAdminConfigured()) {
+      if (holdId) await releaseHold(holdId, 'abandoned');
+      return fail('Ticket issue is not configured');
+    }
+
+    try {
+      const buyer = await getAdminDb().collection('users').doc(claimUserId).get();
+      const buyerData = buyer.data() as { fullName?: string; email?: string } | undefined;
+      if (!buyerData?.email) {
+        if (holdId) await releaseHold(holdId, 'abandoned');
+        return fail('Sign in to claim free tickets');
+      }
+
+      for (const [index, claim] of claimables.entries()) {
+        await recordPaymentEvent({
+          // Random, deliberately: a deterministic id would refuse the same person a
+          // second pair of free tickets forever. Duplicate protection against a
+          // double-submit is the hold (single path) and the cart clearing on redirect.
+          providerEventId: `free_${crypto.randomUUID()}`,
+          provider: 'free',
+          providerType: 'free.claim',
+          intent: 'issue',
+          eventId: claim.eventId,
+          tierId: claim.tierId,
+          userId: claimUserId,
+          quantity: claim.quantity,
+          price: 0,
+          currency: claim.currency,
+          attendeeName: buyerData.fullName ?? 'Guest',
+          attendeeEmail: buyerData.email,
+          // Seats and the hold belong to the single-event path's first line only.
+          seats: index === 0 && chosenSeats.length > 0 ? chosenSeats : undefined,
+          holdId: index === 0 && holdId ? holdId : undefined,
+        });
+      }
+
+      return NextResponse.redirect(`${siteUrl}/checkout/success?provider=free`, { status: 303 });
+    } catch (error) {
+      if (holdId) await releaseHold(holdId, 'abandoned');
+      return fail(error instanceof Error ? error.message : 'Could not claim the tickets');
+    }
+  }
+
+  if (!isStripeConfigured()) {
+    if (holdId) await releaseHold(holdId, 'abandoned');
+    return fail('Stripe is not configured');
   }
 
   try {
