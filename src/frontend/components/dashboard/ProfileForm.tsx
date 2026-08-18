@@ -25,8 +25,11 @@ export function ProfileForm({
   const { toast } = useToast();
   const [editing, setEditing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const organiser = profile.userType === 'organiser';
+
   const [values, setValues] = React.useState({
     fullName: profile.fullName,
+    companyName: profile.companyName ?? '',
     phone: profile.phone ?? '',
     line1: profile.address?.line1 ?? '',
     city: profile.address?.city ?? '',
@@ -42,6 +45,10 @@ export function ProfileForm({
     try {
       await updateUserProfile(profile.uid, {
         fullName: values.fullName,
+        // Organisers only. Writing it for a customer would put a field on their document
+        // that nothing reads and that `accountDisplayName` would then prefer over their
+        // own name.
+        ...(organiser ? { companyName: values.companyName } : {}),
         phone: values.phone,
         address: {
           line1: values.line1,
@@ -64,8 +71,17 @@ export function ProfileForm({
     }
   };
 
+  /*
+   * Company name is collected at registration and, until now, could never be changed
+   * afterwards — it was not on this form at all. It is also the name the account trades
+   * under, so leaving it uneditable meant an organiser whose company was mistyped, or
+   * who rebranded, was stuck with it on every event they published.
+   */
   const fields: Array<[keyof typeof values, string]> = [
-    ['fullName', 'Full name'],
+    ...(organiser
+      ? ([['companyName', 'Company or promoter name']] as Array<[keyof typeof values, string]>)
+      : []),
+    ['fullName', organiser ? 'Your name (contact)' : 'Full name'],
     ['phone', 'Phone'],
     ['line1', 'Address'],
     ['city', 'City'],

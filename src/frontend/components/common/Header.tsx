@@ -36,7 +36,7 @@ import {
 } from '@/frontend/components/ui/sheet';
 import { dashboardPathFor, useAuth } from '@/frontend/hooks/use-auth';
 import { useCart } from '@/frontend/hooks/use-cart';
-import { cn } from '@/shared/utils';
+import { accountDisplayName, cn } from '@/shared/utils';
 
 const NAV_LINKS = [
   { label: 'All Events', href: '/events' },
@@ -124,13 +124,13 @@ export function Header() {
                       <UserIcon className="h-4 w-4" />
                     )}
                     <span className="max-w-[10rem] truncate">
-                      {userProfile?.fullName ?? user.email}
+                      {accountDisplayName(userProfile ?? { email: user.email ?? undefined })}
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel className="font-normal">
-                    <p className="text-sm font-medium">{userProfile?.fullName ?? 'Account'}</p>
+                    <p className="text-sm font-medium">{accountDisplayName(userProfile)}</p>
                     <p className="text-xs text-muted-foreground">{user.email}</p>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />

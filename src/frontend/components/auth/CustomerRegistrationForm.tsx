@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/frontend/components/ui/select';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { useAuth } from '@/frontend/hooks/use-auth';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { describeError } from '@/shared/errors';
@@ -126,6 +127,16 @@ export function CustomerRegistrationForm() {
           },
         },
       });
+
+      /*
+       * The welcome email, after the profile exists and never blocking on it.
+       *
+       * Deliberately not awaited into the failure path: a mail server that is slow or
+       * down must not turn a completed registration into "Registration failed" and send
+       * somebody round the loop again. `/api/account/welcome` claims a flag before it
+       * sends, so this cannot go out twice.
+       */
+      void authedFetch('/api/account/welcome', { method: 'POST' }).catch(() => undefined);
       toast({
         title: 'Welcome to TicketRoyality',
         description: 'Your account is ready. Payment methods are managed from your dashboard.',

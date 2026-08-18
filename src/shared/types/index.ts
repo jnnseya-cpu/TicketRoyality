@@ -49,6 +49,13 @@ export interface UserProfile {
   welcomeBonusGranted?: boolean;
 
   /**
+   * Set by `/api/account/welcome` before it sends, and cleared again if the send fails.
+   * Its presence is what stops a double-submit or a resumed registration from sending
+   * the welcome email twice.
+   */
+  welcomeEmailSentAt?: string;
+
+  /**
    * Marketing consent.
    *
    * Absent means "not yet asked", which `resolveChannels` treats as sendable — that is

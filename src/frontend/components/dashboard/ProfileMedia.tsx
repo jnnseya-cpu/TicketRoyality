@@ -9,7 +9,7 @@ import { Button } from '@/frontend/components/ui/button';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { isFirebaseConfigured, storage } from '@/shared/firebase/client';
 import { updateUserProfile } from '@/shared/data/repositories';
-import { cn } from '@/shared/utils';
+import { accountDisplayName, cn } from '@/shared/utils';
 import type { UserProfile } from '@/shared/types';
 
 /**
@@ -178,7 +178,7 @@ export function ProfileMedia({
   };
 
   const initials =
-    profile.fullName
+    accountDisplayName(profile)
       .split(' ')
       .filter(Boolean)
       .slice(0, 2)
@@ -259,7 +259,7 @@ export function ProfileMedia({
             {avatarUrl ? (
               <Image
                 src={avatarUrl}
-                alt={profile.fullName}
+                alt={accountDisplayName(profile)}
                 fill
                 sizes="80px"
                 className="object-cover"
@@ -273,7 +273,7 @@ export function ProfileMedia({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate font-medium">{profile.fullName || profile.email}</p>
+            <p className="truncate font-medium">{accountDisplayName(profile)}</p>
             <p className="text-xs text-muted-foreground">
               A square picture works best. Anything larger is resized before it is uploaded.
             </p>

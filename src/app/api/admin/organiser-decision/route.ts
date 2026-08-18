@@ -100,7 +100,21 @@ export async function POST(request: Request) {
         ? [
             `Good news — your organiser account on TicketRoyality has been approved.`,
             'You can publish events, sell tiered and VIP tickets, run door check-in and track revenue from your dashboard.',
-            'Free tickets carry no commission. Paid tickets are 5% plus 50p, and that is the whole fee.',
+            /*
+             * The terms as the code actually implements them. This line said "Paid
+             * tickets are 5% plus 50p, and that is the whole fee" — the model the
+             * platform moved off. `DEFAULT_COMMISSION_PERCENT` and `DEFAULT_ADMIN_FEE`
+             * are both 0, and `constants/fees.ts` sets organiserCommissionPct and
+             * organiserFixedFeeMinor to 0 for every country, so it was quoting a charge
+             * that no longer exists to the people being charged it.
+             *
+             * No buyer-fee figures here on purpose: they live in `constants/fees.ts` and
+             * can be tuned per country, and a number copied into an email is a number
+             * that goes stale without anybody noticing. The organiser-side terms are what
+             * this email is for, and those are stable.
+             */
+            'You are charged no commission and no per-ticket fee — you keep 100% of every ticket’s face value.',
+            'Buyers see one all-in price with the service fee already inside it, so nothing is added at checkout.',
           ]
         : [
             'We have reviewed your organiser application and are not able to approve it at this time.',

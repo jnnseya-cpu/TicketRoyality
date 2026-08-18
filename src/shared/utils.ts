@@ -60,3 +60,29 @@ export function generateTicketReference() {
     Array.from({ length: 4 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
   return `TR-${block()}-${block()}`;
 }
+
+/**
+ * The name an account is known by.
+ *
+ * An organiser trades as their company, so that is the name that belongs on the header,
+ * the avatar menu and anywhere else the account is identified — the individual who
+ * happens to administer it is not who the public is buying from. A sole trader with no
+ * company name is not a special case: the fallback lands on their own name, which is
+ * exactly right for them.
+ *
+ * This rule already existed twice, inline, in CreateEventForm and the organiser
+ * dashboard header, while the site header used `fullName` alone — so an organiser saw
+ * their company on their events and their personal name in the top-right corner of the
+ * same page.
+ */
+export function accountDisplayName(profile?: {
+  companyName?: string;
+  fullName?: string;
+  email?: string;
+} | null): string {
+  const company = profile?.companyName?.trim();
+  if (company) return company;
+  const full = profile?.fullName?.trim();
+  if (full) return full;
+  return profile?.email ?? 'Account';
+}
