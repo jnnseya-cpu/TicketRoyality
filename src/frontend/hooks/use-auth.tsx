@@ -113,7 +113,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     void report('succeeded');
-    const profile = await getUserProfile(credential.user.uid);
+
+    /*
+     * The sign-in has already succeeded by this point. Reading the profile is a second
+     * operation against a different service, and it must not be able to report the first
+     * one as a failure.
+     *
+     * It could before: `getUserProfile` rethrows anything that goes wrong as a permission
+     * error, which is not a Firebase auth code, so the caller's error mapping fell through
+     * to "Something went wrong. Please try again." — while the person was, in fact,
+     * signed in. The header greeted them by name on a page telling them login had failed,
+     * and trying again produced the same thing forever.
+     *
+     * A missing or unreadable profile is a real state with a real screen: the route guard
+     * says the sign-up was interrupted and links to the form that finishes it. Getting
+     * there requires the login to be allowed to succeed.
+     */
+    let profile: UserProfile | null = null;
+    try {
+      profile = await getUserProfile(credential.user.uid);
+    } catch (error) {
+      console.error('[auth] signed in, but the profile could not be read', error);
+    }
+
     setUserProfile(profile);
     return profile;
   }, []);
