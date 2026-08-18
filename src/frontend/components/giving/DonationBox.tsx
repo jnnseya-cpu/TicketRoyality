@@ -36,10 +36,13 @@ import type { Event } from '@/shared/types';
 export function DonationBox({
   event,
   onAmountChange,
+  userId,
 }: {
   event: Event;
   /** Minor units, handed up so the checkout form can carry it as a hidden field. */
   onAmountChange: (minor: number) => void;
+  /** Carried into a monthly gift so it can be stopped from the donor's own account. */
+  userId?: string;
 }) {
   const { toast } = useToast();
   const [amount, setAmount] = React.useState(0);
@@ -246,6 +249,24 @@ export function DonationBox({
             </div>
           )}
         </>
+      )}
+
+      {minor > 0 && (
+        /*
+         * A monthly gift leaves the ticket purchase alone entirely: it is its own Stripe
+         * subscription, so this is a separate form rather than another hidden field. A
+         * donor choosing it still buys their ticket with the button below — the two are
+         * not alternatives, and one must never quietly cancel the other.
+         */
+        <form action="/api/giving/recurring" method="POST" className="pt-1">
+          <input type="hidden" name="organiserId" value={event.organizerId} />
+          <input type="hidden" name="amountMinor" value={minor} />
+          <input type="hidden" name="currency" value={event.currency} />
+          <input type="hidden" name="userId" value={userId ?? ''} />
+          <Button type="submit" variant="ghost" size="sm" className="h-auto p-0 text-xs">
+            Give {formatCurrency(amount, event.currency)} every month instead
+          </Button>
+        </form>
       )}
 
       {giving.charityNumber && (

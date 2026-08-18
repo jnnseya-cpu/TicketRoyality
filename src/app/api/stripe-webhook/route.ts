@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import type Stripe from 'stripe';
 
-import { isStripeConfigured, readCheckoutSession, verifyWebhook } from '@/backend/payments/stripe';
+import {
+  isStripeConfigured,
+  readCheckoutSession,
+  readSubscription,
+  verifyWebhook,
+} from '@/backend/payments/stripe';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { recordBookingPayment } from '@/backend/services/hospitality';
 import { recordAttribution } from '@/backend/services/partners';
@@ -95,6 +100,16 @@ export async function POST(request: Request) {
         // A gift on its own — no tickets to issue, nothing further to do here.
         if (checkout.donationMinor > 0 && !checkout.eventId && !checkout.bookingId && !checkout.passId) {
           return NextResponse.json({ received: true, donation: true });
+        }
+
+        /*
+         * A monthly gift starting. The money for it arrives as `invoice.paid`, including
+         * the first month, so there is deliberately nothing to record here — and without
+         * this the session would fall through to the ticket branch and be logged as an
+         * error for missing metadata it was never supposed to have.
+         */
+        if ((event.data.object as Stripe.Checkout.Session).mode === 'subscription') {
+          return NextResponse.json({ received: true, recurring: 'started' });
         }
 
         /*
@@ -262,6 +277,61 @@ export async function POST(request: Request) {
         }
 
         return NextResponse.json({ received: true, queued: outcome });
+      }
+
+      /*
+       * A month of a standing gift.
+       *
+       * `invoice.paid` arrives every month for the life of the subscription, including
+       * the first one — so the checkout that started it records nothing, and every
+       * instalment including the first comes through here. Two paths recording the first
+       * month would double it, which is exactly the kind of error a donor notices on their
+       * statement and a charity never notices at all.
+       *
+       * The charity comes from the **subscription's** metadata rather than the invoice's:
+       * by month eleven the checkout session that carried it no longer exists.
+       */
+      case 'invoice.paid': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscriptionId =
+          typeof invoice.subscription === 'string'
+            ? invoice.subscription
+            : (invoice.subscription?.id ?? '');
+
+        if (!subscriptionId) return NextResponse.json({ received: true, recurring: false });
+
+        let subscription: Awaited<ReturnType<typeof readSubscription>>;
+        try {
+          subscription = await readSubscription(subscriptionId);
+        } catch (error) {
+          // 500 so Stripe redelivers: the donor has been charged and we cannot yet say
+          // who for, which is a gift that would otherwise vanish.
+          reportError(error, { scope: 'stripe.subscription', subscriptionId });
+          return NextResponse.json({ error: 'subscription_unreadable' }, { status: 500 });
+        }
+
+        if (!subscription.organiserId) {
+          console.error('[stripe] invoice.paid with no charity', { subscriptionId });
+          return NextResponse.json({ received: true, recurring: false }, { status: 202 });
+        }
+
+        const recorded = await recordDonation({
+          // The Stripe event id, so a redelivered invoice records one gift and not two.
+          providerEventId: event.id,
+          organizerId: subscription.organiserId,
+          userId: subscription.userId,
+          donorName: invoice.customer_name ?? 'Anonymous',
+          donorEmail: invoice.customer_email ?? '',
+          amountMinor: invoice.amount_paid ?? 0,
+          currency: (invoice.currency ?? 'gbp').toUpperCase(),
+          recurringId: subscriptionId,
+        });
+
+        if (recorded === 'unavailable') {
+          return NextResponse.json({ error: 'datastore_unavailable' }, { status: 500 });
+        }
+
+        return NextResponse.json({ received: true, recurring: recorded });
       }
 
       case 'charge.refunded': {

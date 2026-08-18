@@ -65,6 +65,83 @@ export async function createCheckoutSession(request: CheckoutRequest): Promise<s
 }
 
 /**
+ * A standing monthly gift.
+ *
+ * ## Why this is a different function rather than a flag
+ *
+ * A subscription is not a purchase with `mode` set differently. Nothing is issued, no
+ * inventory is held, no hold is consumed, and the money arrives every month from an
+ * invoice rather than once from a session — a different event, a different idempotency
+ * key, a different record. Folding it into `createCheckoutSession` would mean every
+ * ticket sale carrying branches for a thing it never does.
+ *
+ * The customer's email is collected by Stripe and comes back on the invoice, which is
+ * what ties each month's gift to the donor's Gift Aid declaration.
+ */
+export async function createRecurringDonation(request: {
+  amountMinor: number;
+  currency: string;
+  organiserId: string;
+  organiserName: string;
+  successUrl: string;
+  cancelUrl: string;
+  userId?: string;
+}): Promise<string> {
+  const stripe = client();
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: request.currency.toLowerCase(),
+          unit_amount: Math.round(request.amountMinor),
+          recurring: { interval: 'month' },
+          product_data: { name: `Monthly donation — ${request.organiserName}` },
+        },
+      },
+    ],
+    success_url: request.successUrl,
+    cancel_url: request.cancelUrl,
+    /*
+     * Copied onto the subscription itself, not just this checkout. Every future invoice
+     * carries it, which is the only way month eleven knows which charity it belongs to —
+     * the checkout session that started it is long gone by then.
+     */
+    subscription_data: {
+      metadata: {
+        donationOrganiserId: request.organiserId,
+        userId: request.userId ?? '',
+      },
+    },
+    metadata: {
+      donationOrganiserId: request.organiserId,
+      userId: request.userId ?? '',
+    },
+  });
+
+  if (!session.url) throw new Error('Stripe did not return a checkout URL.');
+  return session.url;
+}
+
+/** Stop a standing gift. The donor's own decision, so it takes effect immediately. */
+export async function cancelRecurringDonation(subscriptionId: string): Promise<void> {
+  await client().subscriptions.cancel(subscriptionId);
+}
+
+/** The subscription behind an invoice, and who it belongs to. */
+export async function readSubscription(subscriptionId: string) {
+  const subscription = await client().subscriptions.retrieve(subscriptionId);
+  return {
+    id: subscription.id,
+    organiserId: subscription.metadata?.donationOrganiserId || undefined,
+    userId: subscription.metadata?.userId || undefined,
+    status: subscription.status,
+  };
+}
+
+/**
  * Verifies a webhook signature and returns the parsed event.
  * Throws on any tampering — the caller must respond 400 and must not process it.
  */

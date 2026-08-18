@@ -399,7 +399,7 @@ export function TicketBox({ event }: { event: Event }) {
           amount below the total it just showed is doing the exact thing the drip-pricing
           rules exist to stop, optional or not.
         */}
-        <DonationBox event={event} onAmountChange={setDonationMinor} />
+        <DonationBox event={event} onAmountChange={setDonationMinor} userId={user?.uid} />
 
         <Separator />
 
