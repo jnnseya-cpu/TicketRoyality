@@ -146,8 +146,13 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                   The stream begins at {formatEventDate(event.date)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Ticket holders get the player, live chat, Q&amp;A polling and on-demand replay.
+                  Ticket holders watch here, with live chat
+                  {event.streamDetails.replayUrl ? ' and a replay afterwards' : ''}. The player
+                  opens shortly before the start.
                 </p>
+                <Button variant="royal" asChild>
+                  <Link href={`/events/${event.id}/watch`}>Open the player</Link>
+                </Button>
               </CardContent>
             </Card>
           )}

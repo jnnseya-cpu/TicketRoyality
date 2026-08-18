@@ -368,6 +368,21 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Stream chat. Written only through the API, which re-checks the caller holds a ticket
+       and takes the display name from that ticket — otherwise anybody could post as the
+       organiser. Read by signed-in users: the rules cannot cheaply prove ticket ownership
+       on a read, and chat is not the sensitive part. The **stream URL** is, and that never
+       leaves the server without a ticket. */
+    match /stream_chat/{id} {
+      allow get, list: if isSignedIn();
+      allow write: if false;
+    }
+
+    /* Who opened a stream, and how many times. An organiser's own audience data. */
+    match /stream_views/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }

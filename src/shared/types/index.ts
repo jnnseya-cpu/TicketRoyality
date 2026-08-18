@@ -313,10 +313,36 @@ export interface TicketTier {
   held?: number;
 }
 
+/**
+ * A livestream attached to an event.
+ *
+ * ## What is gated, and what honestly cannot be
+ *
+ * `streamUrl` is an embed the organiser supplies — an unlisted YouTube or Vimeo link,
+ * usually. It **never reaches a browser that does not hold a valid ticket**: the watch
+ * page asks the server, the server checks for a ticket, and only then is the URL in the
+ * response at all. Putting it in the page and hiding the player would be theatre; anyone
+ * can read a page source.
+ *
+ * What that does *not* do is stop a ticket holder pasting the link into a group chat.
+ * Preventing that needs signed, short-lived playback URLs from a streaming provider, and
+ * a streaming provider is a sixth vendor. Until that decision is taken, the honest
+ * position — stated here, on the organiser's form and on the watch page — is that access
+ * is gated at the door, not at the pixel.
+ *
+ * `streamKey` is the organiser's own broadcast credential and is **never** returned to
+ * any client, including the organiser's own browser after it is set.
+ */
 export interface StreamDetails {
   streamUrl: string;
   streamKey?: string;
   chatEnabled: boolean;
+  /** Watchable after the event, for holders. Absent means the stream ends with the event. */
+  replayUrl?: string;
+  /** When the replay stops being available. Absent means indefinitely. */
+  replayUntil?: string;
+  /** Minutes before the start that the player opens. Doors, for a stream. */
+  openMinutesBefore?: number;
 }
 
 export interface Recurrence {

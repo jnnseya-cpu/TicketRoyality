@@ -212,6 +212,9 @@ const schema = z
     onlineLink: z.string().url('Enter a valid URL.').optional().or(z.literal('')),
     streamUrl: z.string().url('Enter a valid URL.').optional().or(z.literal('')),
     streamKey: z.string().optional(),
+    replayUrl: z.string().url('Enter a valid URL.').optional().or(z.literal('')),
+    replayUntil: z.string().optional(),
+    chatEnabled: z.boolean(),
     currency: z.string().min(3),
     ticketTiers: z.array(ticketTierSchema).min(1, 'Add at least one ticket tier.'),
     seating: z.array(seatingSchema),
@@ -335,6 +338,9 @@ function defaultsFor(event?: Event): FormValues {
       onlineLink: '',
       streamUrl: '',
       streamKey: '',
+      replayUrl: '',
+      replayUntil: '',
+      chatEnabled: true,
       currency: 'GBP',
       ticketTiers: [
         {
@@ -380,7 +386,12 @@ function defaultsFor(event?: Event): FormValues {
     lng: event.coordinates ? String(event.coordinates.lng) : '',
     onlineLink: event.onlineLink ?? '',
     streamUrl: event.streamDetails?.streamUrl ?? '',
-    streamKey: event.streamDetails?.streamKey ?? '',
+    // Deliberately blank: a broadcast credential is never sent back to a browser, not
+    // even the organiser's. Leaving it empty means "keep what is stored".
+    streamKey: '',
+    replayUrl: event.streamDetails?.replayUrl ?? '',
+    replayUntil: event.streamDetails?.replayUntil ? toLocalInput(event.streamDetails.replayUntil) : '',
+    chatEnabled: event.streamDetails?.chatEnabled ?? true,
     currency: event.currency,
     ticketTiers: event.ticketTiers.map((tier) => ({
       id: tier.id,
@@ -515,7 +526,11 @@ export function CreateEventForm({
             ? {
                 streamUrl: values.streamUrl ?? '',
                 streamKey: values.streamKey || undefined,
-                chatEnabled: true,
+                chatEnabled: values.chatEnabled,
+                ...(values.replayUrl ? { replayUrl: values.replayUrl } : {}),
+                ...(values.replayUntil
+                  ? { replayUntil: new Date(values.replayUntil).toISOString() }
+                  : {}),
               }
             : undefined,
         price: Number.isFinite(cheapest) ? cheapest : 0,
@@ -976,11 +991,73 @@ export function CreateEventForm({
                       <FormControl>
                         <PasswordInput {...field} />
                       </FormControl>
-                      <FormDescription>Kept private, never shown to attendees.</FormDescription>
+                      <FormDescription>
+                        Never sent back to any browser, including yours. Leave blank to keep the
+                        one you set.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="replayUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Replay URL (optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://…" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Shown to ticket holders after the event instead of the live embed.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="replayUntil"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Replay available until (optional)</FormLabel>
+                      <FormControl>
+                        <Input type="datetime-local" {...field} />
+                      </FormControl>
+                      <FormDescription>Blank means indefinitely.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="chatEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col justify-center sm:col-span-2">
+                      <FormLabel>Live chat</FormLabel>
+                      <div className="flex items-center gap-2">
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                        <span className="text-sm text-muted-foreground">
+                          {field.value ? 'Ticket holders can chat during the stream' : 'Chat off'}
+                        </span>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                {/*
+                  The limit, said before they rely on it rather than after somebody shares the
+                  link. Being straight about this is cheaper than a support conversation on the
+                  night of a paid stream.
+                */}
+                <p className="text-xs text-muted-foreground sm:col-span-2">
+                  Only ticket holders receive the stream address — it is never in a page a
+                  non-holder can load. It cannot stop a holder forwarding the link; that needs
+                  signed playback URLs from a streaming provider, which we do not use. We count
+                  how many places each ticket opens the stream from, so unusual sharing is visible.
+                </p>
               </>
             )}
           </CardContent>

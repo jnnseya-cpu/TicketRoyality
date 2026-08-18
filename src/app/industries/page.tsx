@@ -84,8 +84,8 @@ const SEGMENTS = [
     name: 'Conferences',
     need: 'Physical, online and livestream from one event',
     detail:
-      'One event can be in-person, online or livestreamed, with speakers listed on the page and the same entry validation and revenue reporting across all three formats. Publish an agenda of talks and workshops, cap the ones with limited places, and let attendees reserve a seat against the ticket they already hold — clashes and capacity are settled server-side.',
-    next: 'Certificates of attendance, per-session check-in and speaker portals are not built.',
+      'One event can be in-person, online or livestreamed, with a ticket-gated player, live chat and an optional replay, and the same entry validation and revenue reporting across all three formats. Publish an agenda of talks and workshops, cap the ones with limited places, and let attendees reserve a seat against the ticket they already hold — clashes and capacity are settled server-side.',
+    next: 'Certificates of attendance, per-session check-in and speaker portals are not built. The stream is gated at the door — we cannot stop a ticket holder forwarding the link, which would need a streaming provider we do not use.',
   },
   {
     icon: Wine,
