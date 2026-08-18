@@ -1,8 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, Wand2 } from 'lucide-react';
 
+import { Button } from '@/frontend/components/ui/button';
+import { sectionRows, sectionSeats, type Allocation } from '@/shared/seating';
 import { cn } from '@/shared/utils';
 import type { SeatingSection } from '@/shared/types';
 
@@ -44,6 +46,7 @@ export function SeatPicker({
   const [taken, setTaken] = React.useState<Set<string>>(new Set());
   const [loading, setLoading] = React.useState(true);
   const [failed, setFailed] = React.useState(false);
+  const [split, setSplit] = React.useState(0);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -74,6 +77,42 @@ export function SeatPicker({
 
   const mine = new Set(selected);
   const forThisTier = sections.filter((section) => section.tierId === tierId);
+
+  /**
+   * "Just give me the best seats" — which is the request most people actually want to
+   * make, and the one a grid of two hundred squares does not answer.
+   *
+   * The choosing happens on the server against the *current* map. Doing it here from the
+   * list this component fetched would confidently recommend a seat that sold two minutes
+   * ago, and the buyer would be refused at the till having been told these were the best
+   * available. The seats are not reserved by asking — checkout still takes them — so the
+   * fresh `taken` list that comes back is applied too.
+   */
+  const pickBest = async () => {
+    setSplit(0);
+    try {
+      const response = await fetch(
+        `/api/events/${eventId}/seats?tierId=${encodeURIComponent(tierId)}&quantity=${quantity}`,
+        { cache: 'no-store' }
+      );
+      if (!response.ok) throw new Error('unavailable');
+
+      const data = (await response.json()) as { taken?: string[]; suggestion?: Allocation | null };
+      setTaken(new Set((data.taken ?? []).map((s) => s.toUpperCase())));
+
+      if (!data.suggestion) {
+        // Not enough seats left is a different answer from a bad suggestion, and saying
+        // nothing would look like the button was broken.
+        setSplit(-1);
+        return;
+      }
+
+      onChange(data.suggestion.seats);
+      if (!data.suggestion.together) setSplit(data.suggestion.blocks);
+    } catch {
+      setFailed(true);
+    }
+  };
 
   if (forThisTier.length === 0) return null;
 
@@ -110,9 +149,16 @@ export function SeatPicker({
       )}
 
       {forThisTier.map((section) => {
-        const startCode = section.startRow.toUpperCase().charCodeAt(0);
         const unavailable = new Set((section.unavailableSeats ?? []).map((s) => s.toUpperCase()));
         const accessible = new Set((section.accessibleSeats ?? []).map((s) => s.toUpperCase()));
+
+        /*
+         * Drawn from the same function the server chooses from, so a room with a gangway,
+         * a missing seat or rows of different lengths looks on screen like what is
+         * actually sold. A second layout routine here would drift from that one silently.
+         */
+        const seats = sectionSeats(section);
+        const rows = sectionRows(section);
 
         return (
           <div key={section.id} className="space-y-1.5">
@@ -126,62 +172,73 @@ export function SeatPicker({
             </div>
 
             <div className="space-y-1 overflow-x-auto">
-              {Array.from({ length: section.rows }).map((_, rowIndex) => {
-                const rowLetter = String.fromCharCode(startCode + rowIndex);
+              {rows.map((row) => {
+                const rowLetter = row.name.toUpperCase();
                 return (
                   <div key={rowLetter} className="flex items-center gap-1">
-                    <span className="w-4 shrink-0 text-[10px] font-medium text-muted-foreground">
+                    <span className="w-8 shrink-0 truncate text-[10px] font-medium text-muted-foreground">
                       {rowLetter}
                     </span>
-                    <div className="flex gap-1">
-                      {Array.from({ length: section.seatsPerRow }).map((__, seatIndex) => {
-                        const label = `${rowLetter}${seatIndex + 1}`;
-                        const isMine = mine.has(label);
-                        /*
-                         * Three ways a seat is not for sale, kept distinct because they
-                         * mean different things to the person asking at the box office:
-                         * somebody has it, nobody can use it, or it is being held for a
-                         * wheelchair user and is booked by phone.
-                         */
-                        const state: 'free' | 'taken' | 'held-back' = taken.has(label)
-                          ? 'taken'
-                          : unavailable.has(label) || accessible.has(label)
-                            ? 'held-back'
-                            : 'free';
+                    <div
+                      className="flex gap-1"
+                      // A staggered or curved room is indented row by row, in half-seat
+                      // units, so the drawing matches what somebody sees walking in.
+                      style={{ marginLeft: `${(row.offset ?? 0) * 10}px` }}
+                    >
+                      {seats
+                        .filter((seat) => seat.row === rowLetter)
+                        .map((seat) => {
+                          const label = seat.label;
+                          const isMine = mine.has(label);
+                          /*
+                           * Three ways a seat is not for sale, kept distinct because they
+                           * mean different things to the person asking at the box office:
+                           * somebody has it, nobody can use it, or it is being held for a
+                           * wheelchair user and is booked by phone.
+                           */
+                          const state: 'free' | 'taken' | 'held-back' = taken.has(label)
+                            ? 'taken'
+                            : unavailable.has(label) || accessible.has(label)
+                              ? 'held-back'
+                              : 'free';
 
-                        return (
-                          <button
-                            key={label}
-                            type="button"
-                            title={
-                              state === 'taken'
-                                ? `${label} — sold`
-                                : accessible.has(label)
-                                  ? `${label} — accessible seat, booked by phone`
-                                  : unavailable.has(label)
-                                    ? `${label} — not sold (restricted view)`
-                                    : label
-                            }
-                            aria-label={`Seat ${label}`}
-                            aria-pressed={isMine}
-                            disabled={state !== 'free'}
-                            onClick={() => toggle(label, state)}
-                            className={cn(
-                              'h-4 w-4 rounded-[3px] transition-transform',
-                              state === 'free' && 'hover:scale-125',
-                              state === 'taken' && 'cursor-not-allowed bg-muted opacity-40',
-                              state === 'held-back' &&
-                                'cursor-not-allowed border border-dashed border-muted-foreground/50 bg-transparent',
-                              isMine && 'ring-2 ring-primary ring-offset-1 ring-offset-background'
-                            )}
-                            style={
-                              state === 'free'
-                                ? { backgroundColor: section.color, opacity: isMine ? 1 : 0.8 }
-                                : undefined
-                            }
-                          />
-                        );
-                      })}
+                          return (
+                            <button
+                              key={label}
+                              type="button"
+                              title={
+                                state === 'taken'
+                                  ? `${label} — sold`
+                                  : accessible.has(label)
+                                    ? `${label} — accessible seat, booked by phone`
+                                    : unavailable.has(label)
+                                      ? `${label} — not sold (restricted view)`
+                                      : label
+                              }
+                              aria-label={`Seat ${label}`}
+                              aria-pressed={isMine}
+                              disabled={state !== 'free'}
+                              onClick={() => toggle(label, state)}
+                              className={cn(
+                                'h-4 w-4 rounded-[3px] transition-transform',
+                                state === 'free' && 'hover:scale-125',
+                                state === 'taken' && 'cursor-not-allowed bg-muted opacity-40',
+                                state === 'held-back' &&
+                                  'cursor-not-allowed border border-dashed border-muted-foreground/50 bg-transparent',
+                                isMine && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
+                                // A gangway is a real gap in the room, so it is a real gap
+                                // on screen — and it is why the seats either side of it are
+                                // not offered to a party as seats together.
+                                seat.aisleAfter && 'mr-4'
+                              )}
+                              style={
+                                state === 'free'
+                                  ? { backgroundColor: section.color, opacity: isMine ? 1 : 0.8 }
+                                  : undefined
+                              }
+                            />
+                          );
+                        })}
                     </div>
                   </div>
                 );
@@ -191,11 +248,31 @@ export function SeatPicker({
         );
       })}
 
-      <p className="border-t border-border pt-2 text-xs text-muted-foreground">
-        {selected.length === 0
-          ? `Choose ${quantity} seat${quantity === 1 ? '' : 's'}.`
-          : `${selected.join(', ')} — ${selected.length} of ${quantity} chosen.`}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
+        <p className="text-xs text-muted-foreground">
+          {selected.length === 0
+            ? `Choose ${quantity} seat${quantity === 1 ? '' : 's'}, or let us pick.`
+            : `${selected.join(', ')} — ${selected.length} of ${quantity} chosen.`}
+        </p>
+        <Button type="button" variant="outline" size="sm" onClick={() => void pickBest()}>
+          <Wand2 className="h-3.5 w-3.5" /> Best available
+        </Button>
+      </div>
+
+      {split === -1 && (
+        <p className="text-xs text-destructive">
+          There are not {quantity} seats left in this section. Try fewer, or another ticket type.
+        </p>
+      )}
+
+      {split > 1 && (
+        // Said out loud. Handing back scattered seats and letting somebody discover it on
+        // the tickets is the version of this that generates a complaint on the night.
+        <p className="text-xs text-amber-600 dark:text-amber-500">
+          We could not seat {quantity} of you together — these are {split} separate groups.
+          Choose by hand if you would rather sit apart differently.
+        </p>
+      )}
     </div>
   );
 }

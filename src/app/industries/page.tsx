@@ -31,13 +31,14 @@ export const metadata: Metadata = {
  *
  * Every `detail` string here describes something that is built, and was checked against
  * `/STATUS.md` rather than against `docs/`. That distinction is the whole point of this
- * rewrite: the previous copy promised seat-level inventory, gates that admit only
- * assigned ticket types, sub-promoter settlement waterfalls, presale windows gated by
- * loyalty tier, wristbands, an emergency blocklist, corporate tables with deposits and
- * balances, invite-only ticket types with access codes, and a full seat map editor with
- * obstructed-view tagging. **None of those exist.** `STATUS.md` lists venue zones,
- * hospitality, loyalty, promoter attribution and venue map generation under "Not built",
- * and the seat map row reads "preview/display only — no editor, no generator".
+ * rewrite: an earlier version of this page promised seat-level inventory, gates that
+ * admit only assigned ticket types, promoter settlement, presale windows gated by loyalty
+ * tier, wristbands, an emergency blocklist, corporate tables with deposits and balances,
+ * invite-only ticket types with access codes and a seat map editor — at a time when
+ * `STATUS.md` listed every one of them under "Not built". They have since been built and
+ * each carries a `STATUS.md` row and its tests, which is the only reason the claims are
+ * here now. The rule that produced this comment has not changed: **a line goes on this
+ * page after the row exists in `STATUS.md`, never before.**
  *
  * So `detail` is what an organiser in that segment can do today, and `next` is the thing
  * they will ask for that is not there yet, said plainly. A prospect who buys on a
@@ -53,7 +54,7 @@ const SEGMENTS = [
     need: 'Tiered inventory, fast entry, one revenue picture',
     detail:
       'Price the ground in tiers — general, premium, VIP — each with its own capacity, and let issuance enforce it: a tier cannot be oversold even under a simultaneous rush. Define doors within the ground that admit only the tiers you assign to them, each with its own limit and its own re-entry rule, and sell hospitality tables as inventory alongside the tickets.',
-    next: 'Best-available automatic allocation is not built — a buyer picks their own seats from the map.',
+    next: 'Automatic upgrades between tiers when a section sells out are not built — a move stays within the tier that was paid for.',
   },
   {
     icon: Tent,
@@ -100,8 +101,8 @@ const SEGMENTS = [
     name: 'Theatres',
     need: 'Sections, rows and repeat performances',
     detail:
-      'Define colour-coded sections with lettered rows, seats per row and a price each, then point a section at a ticket type and buyers choose their own seats — held while they pay, so two people cannot take F12. Tag restricted-view seats out of sale and hold accessible seats back for booking with you directly. Repeat a production across a run without rebuilding it each night.',
-    next: 'Best-available automatic allocation, seat swaps after purchase and a drag-and-drop map builder for irregular rooms are not built. Sections are still grids of rows.',
+      'Define colour-coded sections and point them at a ticket type, and buyers choose their own seats — held while they pay, so two people cannot take F12. Rooms that are not rectangles are shaped row by row: rows of different lengths, a gangway partway along, a missing seat where a pillar is, numbering that does not start at 1. Or press best available and be seated together — a party is never split without being told, and never seated either side of a gangway. People can move seats after buying, within the ticket type they paid for. Tag restricted-view seats out of sale and hold accessible seats back for booking with you directly.',
+    next: 'The room is shaped as rows with a live preview, not a canvas where individual seats are dragged around a floor plan. Selling a seat into a different ticket type after purchase is a refund and a rebooking, not a move.',
   },
   {
     icon: Church,

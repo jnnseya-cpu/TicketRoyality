@@ -2,7 +2,8 @@ import 'server-only';
 
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
-import type { TicketTier } from '@/shared/types';
+import { seatBelongsToTier } from '@/shared/seating';
+import type { SeatingSection, TicketTier } from '@/shared/types';
 
 /**
  * Checkout inventory holds.
@@ -129,6 +130,27 @@ export async function placeHold(
               ? 'That ticket type just sold out.'
               : `Only ${available} left — someone is checking out with the rest.`,
         };
+      }
+
+      /*
+       * The seat has to be one this tier actually sells.
+       *
+       * The label arrives from a browser. Without this a £20 buyer posts "A1" and sits in
+       * the £200 section — and because the tier count is still right, nothing looks wrong
+       * anywhere until somebody holding a front-row ticket finds it occupied. Checked
+       * against the event document inside the transaction, so it is the same read the
+       * seats are locked against.
+       */
+      const sections = (snap.data()?.seating ?? []) as SeatingSection[];
+      if (seats.length > 0 && sections.length > 0) {
+        const wrong = seats.filter((seat) => !seatBelongsToTier(sections, tierId, seat));
+        if (wrong.length > 0) {
+          return {
+            ok: false,
+            reason: 'seat-taken',
+            error: `${wrong.join(', ')} ${wrong.length === 1 ? 'is not' : 'are not'} on sale with this ticket. Choose again.`,
+          };
+        }
       }
 
       /*

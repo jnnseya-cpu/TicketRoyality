@@ -3,6 +3,8 @@ import 'server-only';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
 import { SEAT_LOCKS } from '@/backend/services/holds';
+import { bestAvailable, type Allocation } from '@/shared/seating';
+import type { SeatingSection } from '@/shared/types';
 
 /**
  * Which seats are gone.
@@ -64,5 +66,46 @@ export async function takenSeats(eventId: string): Promise<string[]> {
      * told no. The route reports the outage instead, and the map says so.
      */
     throw error;
+  }
+}
+
+/**
+ * "Just give me the best seats."
+ *
+ * ## Why this runs on the server
+ *
+ * Not because the arithmetic is secret — `shared/seating.ts` is in the bundle and the
+ * choosing is deliberately explainable. It runs here because the map it chooses from must
+ * be the current one: a browser holding a five-minute-old list would confidently recommend
+ * a seat that sold four minutes ago, and the buyer would be refused at the till having
+ * been told this was the best available.
+ *
+ * ## It reserves nothing
+ *
+ * A suggestion is not a hold. Reserving on a suggestion would let anyone empty a house by
+ * refreshing the page, so the seats are taken at checkout by the same transaction that
+ * takes a hand-picked seat — and if one of them went in between, the buyer is told and
+ * asked again. Returns `null` when the event has no seat map, which is not an error: most
+ * events do not.
+ */
+export async function suggestSeats(
+  eventId: string,
+  tierId: string,
+  quantity: number,
+  taken?: string[]
+): Promise<Allocation | null> {
+  if (!isAdminConfigured()) return null;
+
+  try {
+    const snap = await getAdminDb().collection('events').doc(eventId).get();
+    const sections = (snap.data()?.seating ?? []) as SeatingSection[];
+    if (sections.length === 0) return null;
+
+    return bestAvailable(sections, tierId, quantity, taken ?? (await takenSeats(eventId)));
+  } catch (error) {
+    reportError(error, { scope: 'seats.suggest', eventId, tierId });
+    // The map still works and the buyer can still choose by hand, so this fails to
+    // "no suggestion" rather than taking the whole page down with it.
+    return null;
   }
 }

@@ -1,11 +1,17 @@
 'use client';
 
-import { formatCurrency } from '@/shared/utils';
+import { sectionCapacity, sectionRows, sectionSeats } from '@/shared/seating';
+import { cn, formatCurrency } from '@/shared/utils';
 import type { SeatingSection } from '@/shared/types';
 
 /**
- * Visual venue preview. Each section renders as a grid of individually labelled
- * seats (A1…A20, B1…B20, …) in the section's colour, laid out in front of a stage.
+ * Visual venue preview. Each section renders as its individually labelled seats
+ * (A1…A20, B1…B20, …) in the section's colour, laid out in front of a stage.
+ *
+ * The geometry comes from `shared/seating.ts` — the same function the buyer's map and the
+ * server's allocator use — so a room with a gangway or rows of different lengths previews
+ * as what will actually be sold. Counting `rows × seatsPerRow` here instead would report a
+ * capacity the room does not have the moment a section is shaped.
  */
 export function SeatMapPreview({
   sections,
@@ -14,7 +20,7 @@ export function SeatMapPreview({
   sections: SeatingSection[];
   currency?: string;
 }) {
-  const totalCapacity = sections.reduce((sum, s) => sum + s.rows * s.seatsPerRow, 0);
+  const totalCapacity = sections.reduce((sum, s) => sum + sectionCapacity(s), 0);
 
   if (sections.length === 0) {
     return (
@@ -31,7 +37,7 @@ export function SeatMapPreview({
       </div>
 
       {sections.map((section) => {
-        const startCode = section.startRow.toUpperCase().charCodeAt(0);
+        const seats = sectionSeats(section);
         return (
           <div key={section.id} className="space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -42,28 +48,36 @@ export function SeatMapPreview({
               />
               <span className="font-medium">{section.name}</span>
               <span className="text-muted-foreground">
-                {section.rows * section.seatsPerRow} seats ·{' '}
-                {formatCurrency(section.price, currency)}
+                {seats.length} seats · {formatCurrency(section.price, currency)}
               </span>
             </div>
 
             <div className="space-y-1 overflow-x-auto">
-              {Array.from({ length: section.rows }).map((_, rowIndex) => {
-                const rowLetter = String.fromCharCode(startCode + rowIndex);
+              {sectionRows(section).map((row) => {
+                const rowLetter = row.name.toUpperCase();
                 return (
                   <div key={rowLetter} className="flex items-center gap-1">
-                    <span className="w-5 shrink-0 text-[10px] font-medium text-muted-foreground">
+                    <span className="w-8 shrink-0 truncate text-[10px] font-medium text-muted-foreground">
                       {rowLetter}
                     </span>
-                    <div className="flex gap-1">
-                      {Array.from({ length: section.seatsPerRow }).map((__, seatIndex) => (
-                        <span
-                          key={`${rowLetter}${seatIndex + 1}`}
-                          title={`${rowLetter}${seatIndex + 1}`}
-                          className="h-4 w-4 rounded-[3px] opacity-80"
-                          style={{ backgroundColor: section.color }}
-                        />
-                      ))}
+                    <div
+                      className="flex gap-1"
+                      style={{ marginLeft: `${(row.offset ?? 0) * 10}px` }}
+                    >
+                      {seats
+                        .filter((seat) => seat.row === rowLetter)
+                        .map((seat) => (
+                          <span
+                            key={seat.label}
+                            title={seat.label}
+                            className={cn(
+                              'h-4 w-4 rounded-[3px] opacity-80',
+                              // A gangway is a gap in the room, so it is a gap here too.
+                              seat.aisleAfter && 'mr-4'
+                            )}
+                            style={{ backgroundColor: section.color }}
+                          />
+                        ))}
                     </div>
                   </div>
                 );

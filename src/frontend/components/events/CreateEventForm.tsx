@@ -36,6 +36,7 @@ import {
 import { Separator } from '@/frontend/components/ui/separator';
 import { Textarea } from '@/frontend/components/ui/textarea';
 import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
+import { SeatMapBuilder } from '@/frontend/components/events/SeatMapBuilder';
 import { MediaPicker } from '@/frontend/components/media/MediaPicker';
 import { TierEconomics } from '@/frontend/components/pricing/TierEconomics';
 import { Switch } from '@/frontend/components/ui/switch';
@@ -109,6 +110,24 @@ const seatingSchema = z.object({
    * they do not.
    */
   tierId: z.string().optional(),
+  /**
+   * The room, when it is not a rectangle.
+   *
+   * Absent means the rectangle above is the room, which is true of most of them and is
+   * exactly what every section built before this existed keeps doing.
+   */
+  rowSpec: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        seats: z.coerce.number().int().min(1).max(80),
+        from: z.coerce.number().int().min(1).optional(),
+        missing: z.array(z.coerce.number().int().min(1)).optional(),
+        aisleAfter: z.array(z.coerce.number().int().min(1)).optional(),
+        offset: z.coerce.number().int().min(0).max(20).optional(),
+      })
+    )
+    .optional(),
   /** Comma-separated labels. Sold to nobody. */
   unavailableSeats: z.string().optional(),
   accessibleSeats: z.string().optional(),
@@ -570,6 +589,11 @@ export function CreateEventForm({
                 rows: section.rows,
                 seatsPerRow: section.seatsPerRow,
                 ...(section.tierId ? { tierId: section.tierId } : {}),
+                // Only written when the room actually has a shape: an empty array would
+                // turn every rectangle into an irregular map holding no seats.
+                ...(section.rowSpec && section.rowSpec.length > 0
+                  ? { rowSpec: section.rowSpec }
+                  : {}),
                 ...(parseSeatList(section.unavailableSeats).length > 0
                   ? { unavailableSeats: parseSeatList(section.unavailableSeats) }
                   : {}),
@@ -1934,6 +1958,27 @@ export function CreateEventForm({
                         and booked with you directly, never sold out from under someone who
                         needs them.
                       </FormDescription>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`seating.${index}.rowSpec`}
+                  render={({ field: f }) => (
+                    <FormItem className="sm:col-span-4">
+                      <FormLabel>Room shape</FormLabel>
+                      <SeatMapBuilder
+                        section={{
+                          name: watchedSeating?.[index]?.name ?? '',
+                          color: watchedSeating?.[index]?.color ?? '#b8860b',
+                          startRow: watchedSeating?.[index]?.startRow ?? 'A',
+                          rows: Number(watchedSeating?.[index]?.rows) || 1,
+                          seatsPerRow: Number(watchedSeating?.[index]?.seatsPerRow) || 1,
+                        }}
+                        value={f.value}
+                        onChange={f.onChange}
+                      />
                     </FormItem>
                   )}
                 />

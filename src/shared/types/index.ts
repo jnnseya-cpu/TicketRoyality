@@ -244,6 +244,25 @@ export interface SeatingSection {
    * Absent on sections created before seat selection existed; those stay display-only.
    */
   tierId?: string;
+  /**
+   * The room, when the room is not a rectangle.
+   *
+   * `rows × seatsPerRow` is a spreadsheet. A stalls curves outwards so the back rows are
+   * longer, a gangway splits row F, a pillar removes D7, and a cabaret room is rows of six
+   * around tables. When this is present it is the authority and `rows`/`seatsPerRow` are
+   * ignored for layout; when it is absent the rectangle is generated exactly as before, so
+   * every section built before this existed is untouched.
+   *
+   * Shaped by `SeatRowSpec` in `shared/seating.ts`, which is also where adjacency lives.
+   */
+  rowSpec?: {
+    name: string;
+    seats: number;
+    from?: number;
+    missing?: number[];
+    aisleAfter?: number[];
+    offset?: number;
+  }[];
   /** Seats sold but not admitted — obstructed view, a pillar, a camera position. */
   unavailableSeats?: string[];
   /** Seats held back for wheelchair users and companions, never sold online. */

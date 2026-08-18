@@ -19,6 +19,7 @@ import { formatCurrency, formatEventDate } from '@/shared/utils';
 import type { Ticket } from '@/shared/types';
 import { QR_VERSION, encodeTicketQr } from '@/shared/tickets/qr';
 import { TransferTicket } from '@/frontend/components/tickets/TransferTicket';
+import { ChangeSeat } from '@/frontend/components/tickets/ChangeSeat';
 import {
   ROTATION_WINDOW_SECONDS,
   computeRotationCodeInBrowser,
@@ -156,7 +157,13 @@ export function TicketModal({
           {/* Only while the ticket can still be used. A redeemed ticket cannot move —
               the holder is already inside — and offering the control anyway would be a
               button that always errors. */}
-          {ticket.status === 'valid' && <TransferTicket ticket={ticket} />}
+          {ticket.status === 'valid' && (
+            <div className="space-y-2">
+              <TransferTicket ticket={ticket} />
+              {/* Renders nothing for general admission, which is most events. */}
+              <ChangeSeat ticket={ticket} />
+            </div>
+          )}
 
           <div className="border-t border-dashed border-border pt-4">
             <h3 className="text-center font-headline text-lg font-semibold">{ticket.eventTitle}</h3>
