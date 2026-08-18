@@ -34,6 +34,13 @@ setGlobalOptions({ region: 'europe-west2', maxInstances: 10 });
  *   firebase functions:secrets:set SMTP_PASSWORD
  */
 const smtpPassword = defineSecret('SMTP_PASSWORD');
+/*
+ * The ticket-signing key, shared byte-for-byte with the app (apphosting.yaml). It was
+ * never bound here, so every ticket this package issued was unsigned even when the
+ * app's door held the key — which the door then refused wholesale until it learned to
+ * accept legacy-unsigned tickets. Binding it makes new tickets verifiable end-to-end.
+ */
+const qrSigningKey = defineSecret('QR_SIGNING_KEY');
 
 /** The canonical origin, for links in outbound mail. */
 function siteUrl(): string {
@@ -245,7 +252,13 @@ export const onPaymentEvent = onDocumentCreated(
   // sends would silently record `skipped:smtp-unconfigured` — the customer whose
   // payment produced no ticket would be told nothing, which is the exact failure the
   // notice exists to prevent.
-  { document: 'payment_events/{providerEventId}', retry: true, secrets: [smtpPassword] },
+  {
+    document: 'payment_events/{providerEventId}',
+    retry: true,
+    // qrSigningKey because this function issues tickets: without it every ticket comes
+    // out unsigned and loses its tamper-binding at the door.
+    secrets: [smtpPassword, qrSigningKey],
+  },
   async (event) => {
     await processPaymentEvent(event.params.providerEventId);
   }
@@ -341,9 +354,9 @@ export const onTicketsIssued = onDocumentCreated(
  * complain. Runs often enough that the worst case is minutes rather than the event.
  */
 export const reconcilePayments = onSchedule(
-  // Same secret, same reason: the sweep runs processPaymentEvent, so it can reach the
-  // same notice paths as the trigger.
-  { schedule: 'every 10 minutes', timeoutSeconds: 300, secrets: [smtpPassword] },
+  // Same secrets, same reason: the sweep runs processPaymentEvent, so it issues (and
+  // signs) tickets and can reach the same notice paths as the trigger.
+  { schedule: 'every 10 minutes', timeoutSeconds: 300, secrets: [smtpPassword, qrSigningKey] },
   async () => {
     const firestore = db();
 

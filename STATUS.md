@@ -344,7 +344,32 @@ signing (a forger still needs a real, unguessable ticket id). New emulator test:
 ticket issued before signing still admits" — 30/30. **The lasting fix is the pending
 functions deploy with `QR_SIGNING_KEY` set, so every new ticket is signed.**
 
-### Ticket branding + printed cross-promotion (user request, live test day)
+### P0 from live testing — "Invalid ticket: Missing bearer token" at the door
+
+Not a ticket problem at all: `authedFetch` checked `auth.currentUser` directly, which
+is null for the first moments after a page loads (and after a phone brings a
+backgrounded tab back) while Firebase restores the session — so the scan request went
+out with **no Authorization header** and the server's refusal was painted over the
+guest's ticket. Fixed at the source: `authedFetch` now awaits `auth.authStateReady()`
+before deciding there is no user, which fixes every authed call on the platform, not
+just the door. The scanner also now tells the truth on a 401: "This phone is signed
+out — the ticket was NOT checked", instead of blaming the ticket.
+
+Second half, systemic: `functions/` reads `QR_SIGNING_KEY` but never declared it as a
+secret, so even a fresh deploy issued unsigned tickets while the app's door held the
+key. `defineSecret('QR_SIGNING_KEY')` is now bound to `onPaymentEvent` and
+`reconcilePayments`. **Requires on the user's side:** `npx firebase-tools
+functions:secrets:set QR_SIGNING_KEY` with the SAME value the app holds, then the
+functions deploy.
+
+### Scanner: beeps and an always-on status strip (user request, live test day)
+
+Every scan now sounds — two short rising notes for admit, one long low buzz for
+refuse — generated with Web Audio (no files, nothing to download at a door; the
+AudioContext is created inside the Start tap because phones mute audio no gesture
+asked for). A persistent strip under the camera shows what the phone is: Scanning /
+Camera off, which door (Main gate / zone + direction / session), Works offline /
+Online only, and this phone's running tally ("12 in · 2 refused").
 
 The ticket modal now opens with the event's main picture above the QR (fetched from
 the event on open, so every already-issued ticket gets the artwork and an organiser's

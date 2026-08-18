@@ -51,6 +51,28 @@ type ScanOutcome =
 
 const SCANNER_ELEMENT_ID = 'tr-qr-reader';
 
+/** One note. Oscillator + envelope — no audio files, nothing to download at a door. */
+function tone(
+  ctx: AudioContext,
+  frequency: number,
+  at: number,
+  duration: number,
+  shape: OscillatorType = 'sine'
+) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = shape;
+  osc.frequency.value = frequency;
+  // Quick attack/release so the beep does not click at either end.
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.exponentialRampToValueAtTime(0.4, at + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(at);
+  osc.stop(at + duration + 0.05);
+}
+
 /**
  * Door scanner. Bound to exactly one event: a ticket for any other event is
  * rejected, and each ticket can only be accepted once.
@@ -101,6 +123,47 @@ export function TicketScanner({
   const [cameraError, setCameraError] = React.useState<string | null>(null);
   const scannerRef = React.useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
   const busyRef = React.useRef(false);
+
+  /* Running tallies for this phone, this session — the strip's "12 in · 2 refused". */
+  const [tally, setTally] = React.useState({ admitted: 0, refused: 0 });
+
+  /*
+   * Beeps. Door staff look at the queue, not the screen: a scan needs to be heard —
+   * one sound for "admit", a very different one for "stop". The AudioContext is
+   * created inside the Start tap because phones refuse audio that no gesture asked
+   * for; if audio is unavailable the scanner still works silently.
+   */
+  const audioRef = React.useRef<AudioContext | null>(null);
+
+  const beep = React.useCallback((good: boolean) => {
+    const ctx = audioRef.current;
+    if (!ctx) return;
+    void ctx.resume().catch(() => undefined);
+    const at = ctx.currentTime;
+    if (good) {
+      // Two short rising notes — the supermarket "yes".
+      tone(ctx, 1200, at, 0.09);
+      tone(ctx, 1650, at + 0.1, 0.14);
+    } else {
+      // One long low buzz that cannot be mistaken for the other.
+      tone(ctx, 220, at, 0.5, 'square');
+    }
+  }, []);
+
+  /** Every scan lands here: paints the outcome, sounds it, and counts it. */
+  const announce = React.useCallback(
+    (next: ScanOutcome) => {
+      const good = next.kind === 'valid' || next.kind === 'zone';
+      setOutcome(next);
+      beep(good);
+      setTally((current) =>
+        good
+          ? { ...current, admitted: current.admitted + 1 }
+          : { ...current, refused: current.refused + 1 }
+      );
+    },
+    [beep]
+  );
 
   const refreshQueue = React.useCallback(async () => {
     if (!isOfflineSupported()) return;
@@ -201,7 +264,7 @@ export function TicketScanner({
         // convenience, never an authorisation.
         const decoded = decodeTicketQr(raw);
         if (!decoded.ok) {
-          setOutcome({
+          announce({
             kind: 'invalid',
             detail:
               decoded.reason === 'empty'
@@ -235,7 +298,7 @@ export function TicketScanner({
           });
         } catch {
           if (!manifest) {
-            setOutcome({
+            announce({
               kind: 'invalid',
               detail: 'No signal, and no ticket list downloaded for this event.',
             });
@@ -244,7 +307,7 @@ export function TicketScanner({
 
           const decision = await decideOffline(manifest, decoded.payload, admittedRef.current);
           if (!decision.admit) {
-            setOutcome({ kind: 'invalid', detail: decision.error });
+            announce({ kind: 'invalid', detail: decision.error });
             return;
           }
 
@@ -261,7 +324,7 @@ export function TicketScanner({
           admittedRef.current.add(entry.ticketId);
           setQueued((current) => [...current, entry]);
 
-          setOutcome({
+          announce({
             kind: 'valid',
             reference: decision.ticket.reference,
             attendee: decision.ticket.attendeeName,
@@ -271,10 +334,23 @@ export function TicketScanner({
 
         const body = await response.json();
 
+        /*
+         * A 401 is about this phone, not the ticket. Painting it as "Invalid ticket"
+         * sent stewards arguing with guests whose tickets were never even looked at.
+         */
+        if (response.status === 401) {
+          announce({
+            kind: 'invalid',
+            detail:
+              'This phone is signed out — the ticket was NOT checked. Sign back in and scan again.',
+          });
+          return;
+        }
+
         if (response.ok) {
           // A zone scan reports the room rather than the person: the door staff need to
           // know how full it is, and the ticket has not been used up.
-          setOutcome(
+          announce(
             body.zone
               ? {
                   kind: 'zone',
@@ -294,27 +370,27 @@ export function TicketScanner({
 
         switch (body.kind) {
           case 'already-used':
-            setOutcome({
+            announce({
               kind: 'already-used',
               reference: body.reference ?? decoded.payload.r,
               redeemedAt: body.redeemedAt,
             });
             break;
           case 'wrong-event':
-            setOutcome({ kind: 'wrong-event', reference: body.reference ?? decoded.payload.r });
+            announce({ kind: 'wrong-event', reference: body.reference ?? decoded.payload.r });
             break;
           case 'blocked':
-            setOutcome({
+            announce({
               kind: 'blocked',
               reference: body.reference ?? decoded.payload.r,
               reason: body.error ?? 'Refused at the door.',
             });
             break;
           default:
-            setOutcome({ kind: 'invalid', detail: body.error ?? 'Ticket not found or cancelled.' });
+            announce({ kind: 'invalid', detail: body.error ?? 'Ticket not found or cancelled.' });
         }
       } catch (error) {
-        setOutcome({
+        announce({
           kind: 'invalid',
           detail: error instanceof Error ? error.message : 'Unreadable QR code.',
         });
@@ -334,12 +410,23 @@ export function TicketScanner({
     // downloading the ticket list mid-event would leave this callback holding the `null`
     // it captured, so the door would refuse every offline scan while the screen said it
     // was ready. Both are stale-closure bugs the linter catches and a queue does not.
-    [eventId, zoneId, sessionId, direction, manifest]
+    [eventId, zoneId, sessionId, direction, manifest, announce]
   );
 
   const start = React.useCallback(async () => {
     setStarting(true);
     setCameraError(null);
+
+    // Audio must be born inside a user gesture or phones mute it forever. Created once,
+    // resumed per beep; a device without Web Audio simply scans silently.
+    if (!audioRef.current) {
+      try {
+        audioRef.current = new AudioContext();
+      } catch {
+        audioRef.current = null;
+      }
+    }
+
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
       const scanner = new Html5Qrcode(SCANNER_ELEMENT_ID);
@@ -398,6 +485,45 @@ export function TicketScanner({
           id={SCANNER_ELEMENT_ID}
           className="mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-lg border border-border bg-black/40"
         />
+
+        {/*
+          The scanner's state, always on screen. The camera viewport looks the same
+          whether this phone is the main gate or the VIP lounge, online or not — and a
+          steward mid-queue must never have to remember what was tapped ten minutes ago.
+        */}
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-md bg-secondary/50 px-3 py-2 text-xs">
+          <span className={cn('flex items-center gap-1.5 font-medium', scanning ? 'text-success' : 'text-muted-foreground')}>
+            <span
+              className={cn(
+                'inline-block h-2 w-2 rounded-full',
+                scanning ? 'animate-pulse bg-success' : 'bg-muted-foreground/50'
+              )}
+            />
+            {scanning ? 'Scanning' : starting ? 'Starting…' : 'Camera off'}
+          </span>
+          <span className="text-muted-foreground">
+            Door:{' '}
+            <span className="font-medium text-foreground">
+              {sessionId
+                ? (sessions.find((s) => s.id === sessionId)?.title ?? 'Session')
+                : zoneId
+                  ? `${zones.find((z) => z.id === zoneId)?.name ?? 'Zone'} (${direction})`
+                  : 'Main gate'}
+            </span>
+          </span>
+          <span className="text-muted-foreground">
+            {manifest ? 'Works offline' : 'Online only'}
+          </span>
+          {(tally.admitted > 0 || tally.refused > 0) && (
+            <span>
+              <span className="font-medium text-success">{tally.admitted} in</span>
+              {' · '}
+              <span className={cn('font-medium', tally.refused > 0 ? 'text-destructive' : 'text-muted-foreground')}>
+                {tally.refused} refused
+              </span>
+            </span>
+          )}
+        </div>
 
         {!scanning && !starting && (
           <p className="text-center text-sm text-muted-foreground">
