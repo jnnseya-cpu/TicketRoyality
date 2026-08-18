@@ -76,8 +76,8 @@ const SEGMENTS = [
     name: 'Sports clubs',
     need: 'Recurring fixtures without rebuilding them',
     detail:
-      'Set a fixture to repeat weekly or monthly to an end date rather than creating each one by hand, with tiers and pricing carried across. Scan entry at the turnstile from any phone. Each ticket type has its own sales window, so a members\u2019 presale opens early and closes when the general sale starts — enforced when the card is charged, not just on the page.',
-    next: 'A season pass covering a whole run, and loyalty tiers that decide who gets the presale, are not built. A presale is opened to members today with an access code.',
+      'Set a fixture to repeat weekly or monthly to an end date rather than creating each one by hand, with tiers and pricing carried across. Scan entry at the turnstile from any phone. Sell a season pass covering the whole run \u2014 it issues a real ticket for every fixture, so each one still counts its own capacity \u2014 and open a presale to people who have actually been before, checked against their attendance with you when the card is charged.',
+    next: 'Automatic seat renewal between seasons, and transferring a whole pass rather than its individual tickets, are not built.',
   },
   {
     icon: Presentation,
