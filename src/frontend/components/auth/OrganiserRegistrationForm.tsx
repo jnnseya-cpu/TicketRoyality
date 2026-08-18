@@ -411,7 +411,7 @@ export function OrganiserRegistrationForm() {
                   name="bio"
                   render={({ field }) => (
                     <FormItem className="sm:col-span-2">
-                      <FormLabel>About your events</FormLabel>
+                      <FormLabel>About your events (optional)</FormLabel>
                       <FormControl>
                         <Textarea rows={3} {...field} />
                       </FormControl>
@@ -433,13 +433,14 @@ export function OrganiserRegistrationForm() {
                   label="Logo"
                   value={logoFile}
                   onChange={setLogoFile}
-                  hint="Square works best. Shown beside your events."
+                  // In the hint rather than the label, which also names the remove button.
+                  hint="Optional. Square works best. Shown beside your events."
                 />
                 <ImageDrop
                   label="Cover image"
                   value={coverFile}
                   onChange={setCoverFile}
-                  hint="Wide. Sits across the top of your organiser page."
+                  hint="Optional. Wide. Sits across the top of your organiser page."
                 />
                 {(['facebook', 'instagram', 'twitter'] as const).map((social) => (
                   <FormField
@@ -448,7 +449,15 @@ export function OrganiserRegistrationForm() {
                     name={social}
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="capitalize">{social}</FormLabel>
+                        {/*
+                          Marked, like every other optional field on this step. Without
+                          it these three read as compulsory — they sit in the same grid,
+                          in the same style, as the required fields on Account and
+                          Company — so people dutifully hunt for handles they may not
+                          have, and an organiser with no Twitter presence has no way to
+                          tell that leaving it empty is allowed.
+                        */}
+                        <FormLabel className="capitalize">{social} (optional)</FormLabel>
                         <FormControl>
                           <Input placeholder="@handle" {...field} />
                         </FormControl>
