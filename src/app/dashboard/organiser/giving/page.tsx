@@ -2,6 +2,7 @@
 
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { GiftAidClaim } from '@/frontend/components/dashboard/GiftAidClaim';
+import { AuctionLotManager } from '@/frontend/components/dashboard/AuctionLotManager';
 
 /**
  * Fundraising, for the organiser.
@@ -13,16 +14,18 @@ import { GiftAidClaim } from '@/frontend/components/dashboard/GiftAidClaim';
 export default function GivingPage() {
   return (
     <RequireRole role="organiser">
-      {() => (
+      {(profile) => (
         <div className="space-y-6">
           <div>
             <h1 className="font-headline text-2xl font-bold">Donations &amp; Gift Aid</h1>
             <p className="text-sm text-muted-foreground">
-              Gifts given alongside ticket sales, and what you can reclaim on them.
+              Gifts given alongside ticket sales, what you can reclaim on them, and the auction.
             </p>
           </div>
 
           <GiftAidClaim />
+
+          <AuctionLotManager organiserId={profile.uid} />
         </div>
       )}
     </RequireRole>

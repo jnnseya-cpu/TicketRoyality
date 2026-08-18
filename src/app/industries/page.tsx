@@ -110,7 +110,7 @@ const SEGMENTS = [
     need: 'Free entry, real capacity limits, no fees',
     detail:
       'Free tickets carry no commission and no admin fee — a 300-place free list costs nothing. Capacity is still enforced, so a hall is never oversold, and everyone gets a QR pass that scans at the door. A tier can also let the giver name their own amount, above a minimum you set or above nothing at all, and a donation can ride alongside any ticket with Gift Aid claimed on it — the gift only, never the ticket, because that is the one HMRC rule a charity cannot get wrong.',
-    next: 'A gift registry and auction lots are not built.',
+    next: 'A gift registry is not built.',
   },
   {
     icon: HeartHandshake,
@@ -118,7 +118,7 @@ const SEGMENTS = [
     need: 'Priced giving tiers, fees you can point at',
     detail:
       'Name your tiers after what they fund and price them accordingly, or let the donor name the amount above a minimum you set. Add a donation ask to any event — we charge no fee at all on a gift — and claim Gift Aid on it with the declaration captured at checkout and HMRC’s schedule exported as a spreadsheet. Gift Aid is applied to the donation only and never to a ticket, which is the rule that costs charities their whole claim when software gets it wrong. We take no commission, so every penny of face value reaches the cause and you can tell a donor exactly that. Corporate tables sell whole, with a deposit up front, the balance due on a date you set, and named guests with their dietary and access needs. Free places cost nobody anything.',
-    next: 'Live auction lots and a gift registry are not built.',
+    next: 'A gift registry is not built. Auction bidding refreshes every fifteen seconds rather than streaming live, and there are no proxy bids — a bidder names their amount each time.',
   },
   {
     icon: Building2,

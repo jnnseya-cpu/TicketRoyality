@@ -20,6 +20,7 @@ import { HospitalityPackages } from '@/frontend/components/events/HospitalityPac
 import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
 import { SimilarEvents } from '@/frontend/components/events/SimilarEvents';
 import { TicketBox } from '@/frontend/components/events/TicketBox';
+import { AuctionLots } from '@/frontend/components/giving/AuctionLots';
 import { getEvents, getEventById } from '@/shared/data/repositories';
 import { formatEventDate } from '@/shared/utils';
 
@@ -195,6 +196,9 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           <EventAgenda event={event} />
 
           {!isPast && <HospitalityPackages event={event} />}
+
+          {/* Renders nothing when the event has no lots, which is nearly every event. */}
+          <AuctionLots eventId={event.id} />
 
           {event.sponsors && event.sponsors.length > 0 && (
             <section>

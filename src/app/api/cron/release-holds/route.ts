@@ -4,6 +4,7 @@ import { isAuthorisedCron } from '@/shared/cron';
 import { clearConsumedSeatLocks, expireHolds } from '@/backend/services/holds';
 import { expireLapsedBookings } from '@/backend/services/hospitality';
 import { purgeSpentAttestations } from '@/backend/security/attestation';
+import { closeDueLots } from '@/backend/services/auctions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,8 +46,18 @@ export async function GET(request: Request) {
      replay that expiry already refuses. */
   const attestationsPurged = await purgeSpentAttestations();
 
+  /*
+   * Auction lots whose time is up.
+   *
+   * Closed by the clock rather than by somebody remembering to press a button, because
+   * the one evening nobody presses it is the evening the auction runs until morning. A
+   * lot that never reached its reserve closes unsold — the reserve is the organiser's
+   * floor, and selling below it is selling something they said they would not.
+   */
+  const lotsClosed = (await closeDueLots()).length;
+
   return NextResponse.json(
-    { released, bookingsExpired, seatLocksCleared, attestationsPurged, implemented: true },
+    { released, bookingsExpired, seatLocksCleared, attestationsPurged, lotsClosed, implemented: true },
     { headers: { 'Cache-Control': 'no-store' } }
   );
 }

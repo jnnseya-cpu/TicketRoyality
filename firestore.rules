@@ -413,6 +413,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Auction lots and bids.
+       Closed to clients in both directions. A client write could set its own high bid, and
+       the lot list carries bidders' names and emails — an auction is public about money and
+       private about people. Served through the API, which returns the price, the bid count
+       and whether the reserve is met, and never who else is bidding. */
+    match /auction_lots/{id} {
+      allow read, write: if false;
+    }
+
+    match /auction_bids/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }
