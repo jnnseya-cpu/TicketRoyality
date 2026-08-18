@@ -287,6 +287,18 @@ their seat moved and their code did not; redeemed holders are reported for stewa
 not rewritten. **A sold ticket is never silently invalidated.** Panel on the event edit
 page for seated events. Emulator: 6/6.
 
+### Layout validator (docs/25 §61) and non-colour seat states (§69)
+
+The deterministic half of the "AI validator" needed no AI: `validateLayout()` is pure
+and total — it never throws on a half-typed section because its job is to run while
+the organiser types. It catches the four failures that reach a door: one seat label in
+two sections (one chair, sold twice, under one name — error), more seats mapped to a
+tier than the tier has tickets (the last N seats can never be bought — error) or fewer
+(N tickets with no seat — warning), held-back lists naming seats that do not exist (a
+typo protects nobody), and shaped rows drawing seats onto each other. Shown live above
+the seat-map preview; an empty list is the green light. 37/37. SVG seats now carry
+screen-reader state ("B4, sold", aria-pressed) — never colour alone.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

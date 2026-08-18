@@ -547,3 +547,112 @@ export function expandSeatList(text: string): string[] {
   }
   return [...new Set(out)];
 }
+
+/* -------------------------------------------------------------------------- */
+/* Layout validation — docs/25 §61                                            */
+/* -------------------------------------------------------------------------- */
+
+export interface LayoutIssue {
+  severity: 'error' | 'warning';
+  /** Section ids involved, for highlighting. */
+  sectionIds: string[];
+  message: string;
+}
+
+/**
+ * What is wrong with this room, before anybody sells it.
+ *
+ * Every check here is a real failure seen or foreseeable at a door: two sections both
+ * containing an A1 sell one chair twice under one name; a tier whose seats outnumber
+ * its inventory oversells the room while every number looks right; a held-back list
+ * naming a seat that does not exist protects nobody; two seats drawn on the same spot
+ * are a drawing error the buyer discovers standing up.
+ *
+ * Pure and total: it never throws on a half-built section, because its job is to be
+ * run *while* the organiser is typing — the form shows the list live, and an empty
+ * list is the green light.
+ */
+export function validateLayout(
+  sections: SeatingSection[],
+  tiers: Array<{ id: string; name: string; quantity: number }> = []
+): LayoutIssue[] {
+  const issues: LayoutIssue[] = [];
+
+  /* Duplicate labels, within and across sections. */
+  const owners = new Map<string, string[]>();
+  for (const section of sections) {
+    for (const seat of sectionSeats(section)) {
+      const list = owners.get(seat.label) ?? [];
+      list.push(section.id);
+      owners.set(seat.label, list);
+    }
+  }
+  const dupes = [...owners.entries()].filter(([, ids]) => ids.length > 1);
+  if (dupes.length > 0) {
+    const example = dupes[0][0];
+    issues.push({
+      severity: 'error',
+      sectionIds: [...new Set(dupes.flatMap(([, ids]) => ids))],
+      message: `${dupes.length} seat label${dupes.length === 1 ? '' : 's'} exist twice (e.g. ${example}). Two sections selling one name is one chair sold twice — give sections distinct row letters.`,
+    });
+  }
+
+  /* Tier capacity vs seats pointed at it. */
+  for (const tier of tiers) {
+    const mapped = sections
+      .filter((section) => section.tierId === tier.id)
+      .reduce((sum, section) => sum + sectionCapacity(section), 0);
+    if (mapped === 0) continue;
+    if (mapped > tier.quantity) {
+      issues.push({
+        severity: 'error',
+        sectionIds: sections.filter((s) => s.tierId === tier.id).map((s) => s.id),
+        message: `${tier.name} has ${tier.quantity} tickets but ${mapped} seats point at it — the last ${mapped - tier.quantity} seats can never be bought.`,
+      });
+    } else if (mapped < tier.quantity) {
+      issues.push({
+        severity: 'warning',
+        sectionIds: sections.filter((s) => s.tierId === tier.id).map((s) => s.id),
+        message: `${tier.name} has ${tier.quantity} tickets but only ${mapped} seats — ${tier.quantity - mapped} tickets will sell with no seat on them.`,
+      });
+    }
+  }
+
+  /* Held-back lists naming seats that do not exist. */
+  for (const section of sections) {
+    const known = new Set(sectionSeats(section).map((seat) => seat.label));
+    const phantom = [
+      ...(section.unavailableSeats ?? []),
+      ...(section.accessibleSeats ?? []),
+    ].filter((seat) => !known.has(seat.trim().toUpperCase()));
+    if (phantom.length > 0) {
+      issues.push({
+        severity: 'warning',
+        sectionIds: [section.id],
+        message: `${section.name}: ${phantom.join(', ')} ${phantom.length === 1 ? 'is' : 'are'} held back but not in the room — a typo protects nobody.`,
+      });
+    }
+  }
+
+  /* Seats drawn on top of each other, in shaped geometry. */
+  for (const section of sections) {
+    if (!section.shape || section.shape === 'straight') continue;
+    const positioned = seatPositions(section);
+    const seen = new Map<string, string>();
+    for (const seat of positioned) {
+      const cell = `${Math.round(seat.x / (SEAT_PITCH / 2))}:${Math.round(seat.y / (SEAT_PITCH / 2))}`;
+      const other = seen.get(cell);
+      if (other) {
+        issues.push({
+          severity: 'warning',
+          sectionIds: [section.id],
+          message: `${section.name}: ${other} and ${seat.label} draw on top of each other — widen the sweep or shorten the rows.`,
+        });
+        break; // One example per section; a list of fifty overlaps helps nobody.
+      }
+      seen.set(cell, seat.label);
+    }
+  }
+
+  return issues;
+}

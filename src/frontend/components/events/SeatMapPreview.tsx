@@ -4,6 +4,7 @@ import {
   seatPositions,
   sectionBounds,
   sectionCapacity,
+  validateLayout,
   sectionRows,
   sectionSeats,
 } from '@/shared/seating';
@@ -22,11 +23,20 @@ import type { SeatingSection } from '@/shared/types';
 export function SeatMapPreview({
   sections,
   currency = 'GBP',
+  tiers = [],
 }: {
   sections: SeatingSection[];
   currency?: string;
+  /** When given, capacity mismatches are checked too — docs/25 §61. */
+  tiers?: Array<{ id: string; name: string; quantity: number }>;
 }) {
   const totalCapacity = sections.reduce((sum, s) => sum + sectionCapacity(s), 0);
+  /*
+   * The validator runs live while the organiser types — docs/25 §61. An empty list is
+   * the green light; an error is a room that will fail at the door (one label sold
+   * twice, seats past the tier's inventory), shown here where it can still be fixed.
+   */
+  const issues = validateLayout(sections, tiers);
 
   if (sections.length === 0) {
     return (
@@ -41,6 +51,23 @@ export function SeatMapPreview({
       <div className="mx-auto w-2/3 rounded-md bg-gradient-to-b from-primary/30 to-primary/5 py-2 text-center text-xs font-semibold uppercase tracking-[0.3em] text-primary">
         Stage
       </div>
+
+      {issues.length > 0 && (
+        <ul className="space-y-1">
+          {issues.map((issue) => (
+            <li
+              key={issue.message}
+              className={
+                issue.severity === 'error'
+                  ? 'rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs text-destructive'
+                  : 'rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-400'
+              }
+            >
+              {issue.message}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {sections.map((section) => {
         const seats = sectionSeats(section);

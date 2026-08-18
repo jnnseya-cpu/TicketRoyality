@@ -49,6 +49,17 @@
 | §57 command centre | Queued (display over data already recorded) |
 | §58–59 heatmaps, Seat DNA | Wait for telemetry, as before |
 
+## Part 3 of the spec (§60–75) — reconciliation
+
+| Spec | Here |
+| --- | --- |
+| §60 AI venue import | Queued phase-2/3 (vision models via the existing gateway; needs the canvas to edit the result). Human review + never-auto-publish accepted as the contract |
+| §61 AI venue validator | **Built the day it arrived** as a pure function, no AI needed for the deterministic half: duplicate labels across sections (one chair sold twice under one name), tier capacity vs mapped seats (over = error, under = warning), phantom held-back seats, overlapping shaped geometry. Runs live in the organiser's preview while they type; empty list = green light. 37/37 seating tests |
+| §62–65 agent prompts | The contracts they specify — draft-only, AI-proposes-engine-decides, advisory-only, never touching money — are already the working rules of room-draft, event-draft and the platform generally. Filed as prompt references for when those agents are built |
+| §66–68 routes/components | Exist under this codebase's own routes and names (builder = section editor + shapes; command centre queued). The spec's naming is not adopted retroactively |
+| §69 non-colour seat states | Titles + dashed held-back existed; screen-reader labels now carry state ("B4, sold") with aria-pressed on selection |
+| §70–75 API surface | The public v1 API exists for events; the full venue/inventory/booking API surface is the phase-4 SDK business, unchanged |
+
 ## Standing decisions
 
 1. No parallel collections. New vocabulary lands as fields and modules on the live

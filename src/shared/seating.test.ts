@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import {
   SEAT_PITCH,
   expandSeatList,
+  validateLayout,
   orphansCreated,
   bestAvailable,
   generatedRowNames,
@@ -376,6 +377,39 @@ test('a seat range expands within its row and nowhere else', () => {
   // A cross-row "range" is not guessed at; it passes through to fail by name later.
   assert.deepEqual(expandSeatList('B12-C4'), ['B12-C4']);
   assert.deepEqual(expandSeatList('A1, A1 a1'), ['A1']);
+});
+
+/* ----------------------------- layout validator (§61) --------------------- */
+
+test('two sections selling one label is an error, by name', () => {
+  const a = section({ id: 's1', rows: 1, seatsPerRow: 2 });
+  const b = section({ id: 's2', name: 'Circle', rows: 1, seatsPerRow: 2 });
+  const issues = validateLayout([a, b]);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].severity, 'error');
+  assert.match(issues[0].message, /A1/);
+});
+
+test('more seats than tickets is an error; fewer is a warning', () => {
+  const room = section({ rows: 2, seatsPerRow: 5, tierId: 'tier-1' });
+  const over = validateLayout([room], [{ id: 'tier-1', name: 'Stalls', quantity: 8 }]);
+  assert.equal(over[0].severity, 'error');
+  const under = validateLayout([room], [{ id: 'tier-1', name: 'Stalls', quantity: 12 }]);
+  assert.equal(under[0].severity, 'warning');
+  const exact = validateLayout([room], [{ id: 'tier-1', name: 'Stalls', quantity: 10 }]);
+  assert.equal(exact.length, 0);
+});
+
+test('a held-back seat that does not exist is flagged as the typo it is', () => {
+  const room = section({ rows: 1, seatsPerRow: 4, accessibleSeats: ['Z9'] });
+  const issues = validateLayout([room]);
+  assert.equal(issues.length, 1);
+  assert.match(issues[0].message, /Z9/);
+});
+
+test('a clean room returns the green light: nothing', () => {
+  const room = section({ rows: 3, seatsPerRow: 6, tierId: 'tier-1' });
+  assert.deepEqual(validateLayout([room], [{ id: 'tier-1', name: 'Stalls', quantity: 18 }]), []);
 });
 
 console.log(`\n${passed}/${passed + failures.length} passed\n`);

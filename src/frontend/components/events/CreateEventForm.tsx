@@ -2593,6 +2593,11 @@ export function CreateEventForm({
                     accessibleSeats: parseSeatList(section.accessibleSeats),
                   }))}
                   currency={currency}
+                  tiers={watchedTiers.map((tier) => ({
+                    id: tier.id,
+                    name: tier.name,
+                    quantity: Number(tier.quantity) || 0,
+                  }))}
                 />
               </>
             )}

@@ -260,7 +260,21 @@ export function SeatPicker({
                           height={14}
                           rx={3}
                           role="button"
-                          aria-label={`Seat ${seat.label}`}
+                          /*
+                            docs/25 §69 — never colour alone. The label carries the
+                            state a sighted buyer reads from the fill, so a screen
+                            reader hears "B4, sold" rather than a bare coordinate.
+                          */
+                          aria-label={`Seat ${seat.label}, ${
+                            state === 'taken'
+                              ? 'sold'
+                              : state === 'held-back'
+                                ? 'held back'
+                                : isMine
+                                  ? 'selected'
+                                  : 'available'
+                          }`}
+                          aria-pressed={isMine}
                           fill={
                             state === 'free' ? section.color : state === 'taken' ? '#555' : 'none'
                           }
