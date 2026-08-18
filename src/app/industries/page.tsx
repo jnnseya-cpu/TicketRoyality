@@ -69,7 +69,7 @@ const SEGMENTS = [
     need: 'Tiered pricing, coupons, commission you can see',
     detail:
       'Run early-bird, general and VIP from one event, each with its own sales window so the early-bird closes exactly when you said it would, discount with coupon codes, and keep 100% of every ticket value — we charge organisers no commission at all. Buyers pay one service fee, shown inside the advertised price.',
-    next: 'Sub-promoter allocations and multi-party settlement are on the roadmap, not in the product.',
+    next: 'Multi-party settlement is not built — a promoter\u2019s commission is recorded as owed and you pay them directly. Give a promoter a tracked link with an allocation and their sales, clicks and commission are counted for you.',
   },
   {
     icon: Trophy,

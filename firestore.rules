@@ -332,6 +332,21 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Partner links and the money they earn. Written only by server routes that prove the
+       caller owns the events a link earns on, and by the payment path. A client write here
+       could set its own commission percentage, or credit itself somebody else's sales.
+       Reads go through the API too, so a partner's own page can show their numbers
+       without exposing every other partner's rate. */
+    match /partner_links/{code} {
+      allow read, write: if false;
+    }
+
+    /* One row per attributed order — an audit trail of money owed. Never edited, never
+       deleted, never client-readable. */
+    match /attributions/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }

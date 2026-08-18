@@ -154,6 +154,20 @@ const hospitalitySchema = z.object({
   zoneId: z.string().optional(),
 });
 
+/**
+ * A sponsor on the event page.
+ *
+ * `code` ties them to a tracked link, so "we put your logo in front of 4,000 people" can
+ * be answered with clicks and sales rather than asserted. A sponsor link is normally 0%
+ * — it measures, it does not earn.
+ */
+const sponsorSchema = z.object({
+  name: z.string().min(1, 'Name the sponsor.'),
+  logoUrl: z.string().url('Enter a valid image URL.'),
+  url: z.string().url('Enter a valid URL.').optional().or(z.literal('')),
+  code: z.string().optional(),
+});
+
 const speakerSchema = z.object({
   name: z.string().min(1, 'Enter a name.'),
   title: z.string().min(1, 'Enter a title.'),
@@ -182,6 +196,7 @@ const schema = z
     zones: z.array(zoneSchema),
     hospitality: z.array(hospitalitySchema),
     speakers: z.array(speakerSchema),
+    sponsors: z.array(sponsorSchema),
     isRecurring: z.boolean(),
     recurrenceFrequency: z.enum(['weekly', 'monthly']).optional(),
     recurrenceEndDate: z.date().optional(),
@@ -304,6 +319,7 @@ function defaultsFor(event?: Event): FormValues {
       zones: [],
       hospitality: [],
       speakers: [],
+      sponsors: [],
       isRecurring: false,
       featured: false,
       publish: true,
@@ -370,6 +386,12 @@ function defaultsFor(event?: Event): FormValues {
       zoneId: h.zoneId ?? '',
     })),
     speakers: (event.speakers ?? []).map((s) => ({ ...s, photoUrl: s.photoUrl ?? '' })),
+    sponsors: (event.sponsors ?? []).map((sp) => ({
+      name: sp.name,
+      logoUrl: sp.logoUrl,
+      url: sp.url ?? '',
+      code: sp.code ?? '',
+    })),
     isRecurring: Boolean(event.recurrence),
     recurrenceFrequency: event.recurrence?.frequency,
     recurrenceEndDate: event.recurrence ? new Date(event.recurrence.endDate) : undefined,
@@ -400,6 +422,7 @@ export function CreateEventForm({
   const zones = useFieldArray({ control: form.control, name: 'zones' });
   const hospitality = useFieldArray({ control: form.control, name: 'hospitality' });
   const speakers = useFieldArray({ control: form.control, name: 'speakers' });
+  const sponsors = useFieldArray({ control: form.control, name: 'sponsors' });
 
   const eventType = form.watch('eventType');
   const isRecurring = form.watch('isRecurring');
@@ -519,6 +542,15 @@ export function CreateEventForm({
         organizerId: profile.uid,
         organizerName: profile.companyName ?? profile.fullName,
         organizerLogoUrl: profile.logoUrl,
+        sponsors:
+          values.sponsors.length > 0
+            ? values.sponsors.map((sp) => ({
+                name: sp.name,
+                logoUrl: sp.logoUrl,
+                ...(sp.url ? { url: sp.url } : {}),
+                ...(sp.code ? { code: sp.code.toUpperCase() } : {}),
+              }))
+            : undefined,
         speakers:
           values.speakers.length > 0
             ? values.speakers.map((s) => ({ ...s, photoUrl: s.photoUrl || undefined }))
@@ -1737,6 +1769,94 @@ export function CreateEventForm({
                 />
               </>
             )}
+          </CardContent>
+        </Card>
+
+        {/* --------------------------------------------------------------- */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Sponsors</CardTitle>
+            <CardDescription>
+              Logos on the event page. Give a sponsor a tracked link on the Partners screen and
+              put its code here, and their reach becomes clicks and sales you can show them
+              rather than a number you assert.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {sponsors.fields.map((field, index) => (
+              <div key={field.id} className="grid gap-3 rounded-lg border border-border p-4 sm:grid-cols-4">
+                <FormField
+                  control={form.control}
+                  name={`sponsors.${index}.name`}
+                  render={({ field: f }) => (
+                    <FormItem>
+                      <FormLabel>Sponsor</FormLabel>
+                      <FormControl>
+                        <Input {...f} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`sponsors.${index}.logoUrl`}
+                  render={({ field: f }) => (
+                    <FormItem>
+                      <FormLabel>Logo URL</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://…" {...f} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`sponsors.${index}.url`}
+                  render={({ field: f }) => (
+                    <FormItem>
+                      <FormLabel>Their site (optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://…" {...f} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`sponsors.${index}.code`}
+                  render={({ field: f }) => (
+                    <FormItem>
+                      <FormLabel>Tracked code (optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="ACMESPONSOR" {...f} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="sm:col-span-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => sponsors.remove(index)}
+                  >
+                    <Trash2 className="h-4 w-4" /> Remove sponsor
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => sponsors.append({ name: '', logoUrl: '', url: '', code: '' })}
+            >
+              <PlusCircle className="h-4 w-4" /> Add sponsor
+            </Button>
           </CardContent>
         </Card>
 

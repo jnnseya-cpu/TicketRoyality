@@ -7,6 +7,7 @@ import { placeHold, releaseHold } from '@/backend/services/holds';
 import type { Coupon, TicketTier } from '@/shared/types';
 import { applyCoupon, resolveLinePrice, tierSaleWindow } from '@/shared/pricing';
 import { codeOpensTier } from '@/backend/services/access-codes';
+import { REF_COOKIE } from '@/backend/services/partners';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,6 +45,17 @@ export async function POST(request: Request) {
     });
 
   if (!isStripeConfigured()) return fail('Stripe is not configured');
+
+  /*
+   * The partner who sent this buyer, from the first-party cookie the tracked link set.
+   * Read here and carried to the webhook; the commission percentage is never taken from
+   * it — that is read from the stored link when the payment lands.
+   */
+  const referral = (request.headers.get('cookie') ?? '')
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${REF_COOKIE}=`))
+    ?.slice(REF_COOKIE.length + 1);
 
   const form = await request.formData();
   const lines: CheckoutLine[] = [];
@@ -276,6 +288,8 @@ export async function POST(request: Request) {
         holdId,
         // Carried to issuance, which already writes one seat per ticket in order.
         seats: chosenSeats.join(','),
+        // Just the code. What it is worth is decided server-side at attribution time.
+        ref: referral ?? '',
       },
     });
     return NextResponse.redirect(url, { status: 303 });

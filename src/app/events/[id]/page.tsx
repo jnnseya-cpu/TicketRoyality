@@ -188,6 +188,43 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
           {!isPast && <HospitalityPackages event={event} />}
 
+          {event.sponsors && event.sponsors.length > 0 && (
+            <section>
+              <h2 className="mb-3 font-headline text-xl font-semibold">Sponsors</h2>
+              <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border bg-card/40 p-6">
+                {event.sponsors.map((sponsor) => {
+                  const logo = (
+                    <Image
+                      src={sponsor.logoUrl}
+                      alt={sponsor.name}
+                      width={160}
+                      height={64}
+                      className="h-12 w-auto object-contain opacity-90 transition-opacity hover:opacity-100"
+                    />
+                  );
+                  /* A sponsor with a tracked code goes through /r, so their reach is
+                     measured. Without one the logo simply links out. */
+                  return sponsor.code ? (
+                    <a
+                      key={sponsor.name}
+                      href={`/r/${sponsor.code}?to=${encodeURIComponent(sponsor.url ?? `/events/${event.id}`)}`}
+                      rel="sponsored noopener"
+                      target="_blank"
+                    >
+                      {logo}
+                    </a>
+                  ) : sponsor.url ? (
+                    <a key={sponsor.name} href={sponsor.url} rel="sponsored noopener" target="_blank">
+                      {logo}
+                    </a>
+                  ) : (
+                    <span key={sponsor.name}>{logo}</span>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {event.speakers && event.speakers.length > 0 && (
             <EventSpeakers speakers={event.speakers} />
           )}

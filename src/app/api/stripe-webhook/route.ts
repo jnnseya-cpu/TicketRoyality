@@ -4,6 +4,8 @@ import type Stripe from 'stripe';
 import { isStripeConfigured, readCheckoutSession, verifyWebhook } from '@/backend/payments/stripe';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { recordBookingPayment } from '@/backend/services/hospitality';
+import { recordAttribution } from '@/backend/services/partners';
+import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
 
 export const runtime = 'nodejs';
@@ -25,6 +27,13 @@ export const dynamic = 'force-dynamic';
  * replayed delivery cannot create a second document and therefore cannot issue a
  * second set of tickets, across restarts and across instances.
  */
+/** The organiser a sale belongs to, so a partner cannot be credited on somebody else's event. */
+async function organiserOf(eventId: string): Promise<string | undefined> {
+  if (!isAdminConfigured()) return undefined;
+  const snap = await getAdminDb().collection('events').doc(eventId).get();
+  return snap.data()?.organizerId as string | undefined;
+}
+
 export async function POST(request: Request) {
   if (!isStripeConfigured() || !process.env.STRIPE_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Stripe webhook is not configured.' }, { status: 503 });
@@ -155,6 +164,37 @@ export async function POST(request: Request) {
           // what should happen — the alternative is acknowledging a payment whose
           // ticket will never be issued.
           return NextResponse.json({ error: 'datastore_unavailable' }, { status: 500 });
+        }
+
+        /*
+         * Attribution, after the ticket is safely queued and never instead of it.
+         *
+         * A partner link that cannot be read must not cost a customer their ticket, so
+         * this is deliberately not part of the issuance decision: it is recorded, its
+         * failure is logged, and the webhook still acknowledges. The commission comes
+         * from the stored link — the browser carried a code and nothing else.
+         *
+         * Idempotent by the Stripe event id, so a redelivery cannot pay a partner twice.
+         */
+        if (checkout.ref) {
+          try {
+            const organizerId = await organiserOf(checkout.eventId);
+            if (organizerId) {
+              await recordAttribution({
+                providerEventId: event.id,
+                code: checkout.ref,
+                eventId: checkout.eventId,
+                organizerId,
+                quantity: checkout.quantity,
+                // Face value, not the charged total: commission is owed on what the
+                // ticket was worth, not on the service fee the buyer paid us.
+                faceMinor: checkout.faceMinor,
+                providerRef: checkout.paymentIntentId,
+              });
+            }
+          } catch (error) {
+            reportError(error, { scope: 'stripe.attribution', providerEventId: event.id });
+          }
         }
 
         return NextResponse.json({ received: true, queued: outcome });

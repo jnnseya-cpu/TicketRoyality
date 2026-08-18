@@ -334,6 +334,7 @@ export interface Event {
   organizerLogoUrl?: string;
 
   speakers?: Speaker[];
+  sponsors?: Sponsor[];
   recurrence?: Recurrence;
   dynamicPricing?: DynamicPricing;
 
@@ -380,6 +381,73 @@ export interface Ticket {
   redeemedAt?: string;
   purchasedAt: string;
   paymentProvider: 'stripe' | 'bitripay' | 'offline' | 'free';
+}
+
+/**
+ * A tracked link.
+ *
+ * Affiliate, influencer, promoter and sponsor are the same object with different
+ * intentions, and building four of them would mean four click counters, four commission
+ * calculations and four places for the numbers to disagree. What actually differs is the
+ * `kind` — which changes only how it is labelled and what the organiser expects of it —
+ * plus whether there is an allocation and whether commission is owed.
+ */
+export type PartnerKind = 'affiliate' | 'influencer' | 'promoter' | 'sponsor' | 'referral';
+
+export interface PartnerLink {
+  /** Upper-cased, and the document id, so two partners cannot hold one code. */
+  code: string;
+  kind: PartnerKind;
+  /** Who the link belongs to. An email, because most partners have no account here. */
+  partnerName: string;
+  partnerEmail: string;
+  /** The organiser whose events it earns on. Never platform-wide. */
+  organizerId: string;
+  /** Scoped to one event, or absent for everything that organiser runs. */
+  eventId?: string;
+  /**
+   * Percentage of **face value** owed to the partner. Comes out of the organiser's
+   * payout, because the platform's own commission is zero — there is nothing else for it
+   * to come out of, and pretending otherwise would misstate what an organiser receives.
+   */
+  commissionPercent: number;
+  /**
+   * Tickets this partner may sell before the link stops attributing. A promoter's
+   * allocation, in the only form that means anything without moving inventory around:
+   * past it, sales still complete and simply stop earning.
+   */
+  allocation?: number;
+  active: boolean;
+  createdAt: string;
+  /** Maintained transactionally. Never recomputed for display. */
+  clicks: number;
+  sales: number;
+  ticketsSold: number;
+  grossMinor: number;
+  commissionMinor: number;
+}
+
+/** One attributed order. Written once, by the payment path, and never edited. */
+export interface Attribution {
+  id: string;
+  code: string;
+  organizerId: string;
+  eventId: string;
+  quantity: number;
+  faceMinor: number;
+  commissionMinor: number;
+  commissionPercent: number;
+  providerRef?: string;
+  createdAt: string;
+}
+
+/** A sponsor on an event page. Reporting is aggregate; see `docs/04` M19. */
+export interface Sponsor {
+  name: string;
+  logoUrl: string;
+  url?: string;
+  /** Their tracked link, so reach is measured rather than asserted. */
+  code?: string;
 }
 
 export interface Coupon {

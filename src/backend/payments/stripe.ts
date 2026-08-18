@@ -94,6 +94,16 @@ export function readCheckoutSession(session: Stripe.Checkout.Session) {
     holdId: session.metadata?.holdId || undefined,
     /** Set when the payment is a hospitality deposit or balance rather than a ticket sale. */
     bookingId: session.metadata?.bookingId || undefined,
+    /** The partner link that sent this buyer, if any. */
+    ref: session.metadata?.ref || undefined,
+    /**
+     * Face value of the order in minor units, as quoted at checkout.
+     *
+     * Partner commission is owed on what the tickets were worth, not on the total the
+     * buyer paid — that carries our service fee, and paying a partner a percentage of
+     * our fee is not what anybody agreed to.
+     */
+    faceMinor: Number(session.metadata?.faceMinor ?? 0),
     /** Chosen seats, in the order the tickets should carry them. */
     seats: (session.metadata?.seats || '')
       .split(',')
