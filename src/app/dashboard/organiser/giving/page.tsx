@@ -3,6 +3,7 @@
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { GiftAidClaim } from '@/frontend/components/dashboard/GiftAidClaim';
 import { AuctionLotManager } from '@/frontend/components/dashboard/AuctionLotManager';
+import { RegistryManager } from '@/frontend/components/dashboard/RegistryManager';
 
 /**
  * Fundraising, for the organiser.
@@ -26,6 +27,8 @@ export default function GivingPage() {
           <GiftAidClaim />
 
           <AuctionLotManager organiserId={profile.uid} />
+
+          <RegistryManager organiserId={profile.uid} />
         </div>
       )}
     </RequireRole>

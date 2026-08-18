@@ -11,6 +11,7 @@ import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { recordBookingPayment } from '@/backend/services/hospitality';
 import { recordAttribution } from '@/backend/services/partners';
 import { recordDonation } from '@/backend/services/donations';
+import { recordContribution } from '@/backend/services/registry';
 import { settlePassPurchase } from '@/backend/services/season-passes';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
@@ -94,6 +95,34 @@ export async function POST(request: Request) {
               scope: 'stripe.donation',
               stripeEventId: event.id,
             });
+          }
+        }
+
+        /*
+         * A gift registry contribution. Its own transaction, which also moves the item's
+         * running total — recorded here rather than in the browser because two guests
+         * giving at the same moment must both count, and a couple thanking somebody for
+         * a gift the list forgot is worse than a wrong number.
+         */
+        if (checkout.registryMinor > 0 && checkout.registryItemId) {
+          const contributed = await recordContribution({
+            providerEventId: `${event.id}__registry`,
+            itemId: checkout.registryItemId,
+            amountMinor: checkout.registryMinor,
+            giverName: checkout.customerName ?? 'Anonymous',
+            giverEmail: checkout.customerEmail ?? '',
+            message: checkout.registryMessage,
+            userId: checkout.userId,
+          });
+
+          if (!contributed.ok && contributed.reason === 'unavailable') {
+            // 500 so Stripe redelivers: the guest has paid and the couple's list does not
+            // know about it, which is exactly the gift that gets forgotten.
+            return NextResponse.json({ error: 'datastore_unavailable' }, { status: 500 });
+          }
+
+          if (!checkout.eventId && !checkout.bookingId && !checkout.passId) {
+            return NextResponse.json({ received: true, registry: contributed.ok });
           }
         }
 

@@ -183,6 +183,13 @@ export function readCheckoutSession(session: Stripe.Checkout.Session) {
     donationMinor: Number(session.metadata?.donationMinor ?? 0),
     /** The charity the gift belongs to — the organiser of the event it was given at. */
     donationOrganiserId: session.metadata?.donationOrganiserId || undefined,
+    /**
+     * A gift registry contribution — a present for a person, not a gift to a charity.
+     * No Gift Aid, and it never reaches the donation collection.
+     */
+    registryItemId: session.metadata?.registryItemId || undefined,
+    registryMinor: Number(session.metadata?.registryMinor ?? 0),
+    registryMessage: session.metadata?.registryMessage || undefined,
     /** The partner link that sent this buyer, if any. */
     ref: session.metadata?.ref || undefined,
     /**

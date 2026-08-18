@@ -110,7 +110,7 @@ const SEGMENTS = [
     need: 'Free entry, real capacity limits, no fees',
     detail:
       'Free tickets carry no commission and no admin fee — a 300-place free list costs nothing. Capacity is still enforced, so a hall is never oversold, and everyone gets a QR pass that scans at the door. A tier can also let the giver name their own amount, above a minimum you set or above nothing at all, and a donation can ride alongside any ticket with Gift Aid claimed on it — the gift only, never the ticket, because that is the one HMRC rule a charity cannot get wrong.',
-    next: 'A gift registry is not built.',
+    next: 'Recurring giving renews monthly on a card; a standing order from a bank account is not supported.',
   },
   {
     icon: HeartHandshake,
@@ -118,7 +118,7 @@ const SEGMENTS = [
     need: 'Priced giving tiers, fees you can point at',
     detail:
       'Name your tiers after what they fund and price them accordingly, or let the donor name the amount above a minimum you set. Add a donation ask to any event — we charge no fee at all on a gift — and claim Gift Aid on it with the declaration captured at checkout and HMRC’s schedule exported as a spreadsheet. Gift Aid is applied to the donation only and never to a ticket, which is the rule that costs charities their whole claim when software gets it wrong. We take no commission, so every penny of face value reaches the cause and you can tell a donor exactly that. Corporate tables sell whole, with a deposit up front, the balance due on a date you set, and named guests with their dietary and access needs. Free places cost nobody anything.',
-    next: 'A gift registry is not built. Auction bidding refreshes every fifteen seconds rather than streaming live, and there are no proxy bids — a bidder names their amount each time.',
+    next: 'Auction bidding refreshes every fifteen seconds rather than streaming live, and there are no proxy bids — a bidder names their amount each time.',
   },
   {
     icon: Building2,
@@ -141,8 +141,8 @@ const SEGMENTS = [
     name: 'Weddings',
     need: 'Guest lists that are not ticket sales',
     detail:
-      'Issue free places to a guest list at no cost to you — free tickets carry no commission. Every guest gets a QR pass that scans at the door in seconds, and the count cannot exceed what the venue holds. A separate tier can let guests contribute whatever they choose.',
-    next: 'A gift registry — guests contributing towards named items — is not built. An open contribution is.',
+      'Issue free places to a guest list at no cost to you — free tickets carry no commission. Every guest gets a QR pass that scans at the door in seconds, and the count cannot exceed what the venue holds. Put a gift list beside it: named gifts with a cost, guests giving towards them in parts or buying one outright, a progress bar that cannot double-count or oversell, and a who-gave-what list for the thank-you letters. We charge no fee on a gift.',
+    next: 'Gifts are given by card here rather than bought from a shop, so there is no delivery address or retailer integration — the money reaches you and you buy the thing.',
   },
 ];
 

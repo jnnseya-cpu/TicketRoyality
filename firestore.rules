@@ -426,6 +426,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Gift registry.
+       Closed to clients: the running total is moved inside a transaction the webhook
+       runs, and a client write could mark a £400 gift bought without paying for it. The
+       contributions carry givers' names, emails and messages, which belong to the couple
+       and not to the other guests — served through the API accordingly. */
+    match /registry_items/{id} {
+      allow read, write: if false;
+    }
+
+    match /registry_contributions/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }

@@ -266,7 +266,9 @@ export async function POST(request: Request) {
    */
   const donationMinor = Math.max(0, Math.round(Number(form.get('donationMinor') ?? 0)));
 
-  if (lines.length === 0 && donationMinor === 0) {
+  const registryEarly = Math.max(0, Math.round(Number(form.get('registryMinor') ?? 0)));
+
+  if (lines.length === 0 && donationMinor === 0 && registryEarly === 0) {
     return NextResponse.json({ error: 'Nothing to check out.' }, { status: 400 });
   }
 
@@ -306,6 +308,25 @@ export async function POST(request: Request) {
     lines.push({
       name: 'Donation',
       amount: toMajor(donationMinor),
+      quantity: 1,
+      currency,
+    });
+  }
+
+  /*
+   * A gift registry contribution. Also after the quote, and for the same reason: taking a
+   * percentage of a wedding present is not a line this platform wants to defend. It is a
+   * separate field from the donation because it is a different thing — a present for a
+   * person carries no Gift Aid, and mixing the two would put registry money into a
+   * charity's claim.
+   */
+  const registryMinor = Math.max(0, Math.round(Number(form.get('registryMinor') ?? 0)));
+  const registryItemId = String(form.get('registryItemId') ?? '');
+
+  if (registryMinor > 0 && registryItemId) {
+    lines.push({
+      name: String(form.get('registryTitle') ?? 'Gift'),
+      amount: toMajor(registryMinor),
       quantity: 1,
       currency,
     });
@@ -368,6 +389,10 @@ export async function POST(request: Request) {
         // The gift, kept apart from the ticket money all the way to the record.
         donationMinor: String(donationMinor),
         donationOrganiserId: donationMinor > 0 ? String(form.get('donationOrganiserId') ?? '') : '',
+        // The registry contribution, carried to the webhook that moves the running total.
+        registryItemId,
+        registryMinor: String(registryMinor),
+        registryMessage: String(form.get('registryMessage') ?? '').slice(0, 200),
       },
     });
     return NextResponse.redirect(url, { status: 303 });
