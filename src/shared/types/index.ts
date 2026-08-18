@@ -310,6 +310,22 @@ export interface AttendeeType {
   name: string;
   /** Major units, same currency as the event. The authoritative price for this type. */
   price: number;
+  /**
+   * docs/25 §20 — this type may not attend alone. A Child needing an Adult is the
+   * canonical case: an order of four Child tickets and no Adult is refused at checkout,
+   * server-side, because the organiser said children do not sit unaccompanied.
+   */
+  needsCompanion?: boolean;
+  /**
+   * Which types count as the companion. Empty/absent means any type that does not
+   * itself need one — an Adult can chaperone, another Child cannot.
+   */
+  companionTypeIds?: string[];
+  /**
+   * How many of this type one companion may bring. Absent means no ratio — one adult
+   * with any number of children — which is many organisers' real policy.
+   */
+  maxPerCompanion?: number;
 }
 
 export interface TicketTier {

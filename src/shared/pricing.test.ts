@@ -404,6 +404,80 @@ test('pay-what-you-want tiers never take part in upgrades', () => {
   assert.equal(upgradeTierFor(tiers, 'ga', 1), null);
 });
 
+/* --------------------- companion rules (docs/25 §20) ----------------------- */
+
+const GUARDED_TIER = {
+  attendeeTypes: [
+    { id: 'adult', name: 'Adult', price: 10 },
+    { id: 'child', name: 'Child', price: 5, needsCompanion: true, maxPerCompanion: 4 },
+    { id: 'infant', name: 'Infant', price: 0, needsCompanion: true, maxPerCompanion: 1 },
+  ],
+};
+
+test('children without an adult are refused, by name', () => {
+  const result = resolveMix(GUARDED_TIER, [{ typeId: 'child', quantity: 4 }]);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error, /Child tickets need an accompanying Adult/);
+});
+
+test('one adult covers up to the ratio, and not one more', () => {
+  const fine = resolveMix(GUARDED_TIER, [
+    { typeId: 'adult', quantity: 1 },
+    { typeId: 'child', quantity: 4 },
+  ]);
+  assert.ok(fine.ok);
+
+  const over = resolveMix(GUARDED_TIER, [
+    { typeId: 'adult', quantity: 1 },
+    { typeId: 'child', quantity: 5 },
+  ]);
+  assert.equal(over.ok, false);
+});
+
+test('another dependant type is not a companion — a child cannot chaperone an infant', () => {
+  const result = resolveMix(GUARDED_TIER, [
+    { typeId: 'child', quantity: 1 },
+    { typeId: 'infant', quantity: 1 },
+  ]);
+  assert.equal(result.ok, false);
+});
+
+test('no ratio set means one adult covers any number', () => {
+  const tier = {
+    attendeeTypes: [
+      { id: 'adult', name: 'Adult', price: 10 },
+      { id: 'child', name: 'Child', price: 5, needsCompanion: true },
+    ],
+  };
+  const result = resolveMix(tier, [
+    { typeId: 'adult', quantity: 1 },
+    { typeId: 'child', quantity: 9 },
+  ]);
+  assert.ok(result.ok);
+});
+
+test('a named companion list is honoured over the default', () => {
+  const tier = {
+    attendeeTypes: [
+      { id: 'adult', name: 'Adult', price: 10 },
+      { id: 'teacher', name: 'Teacher', price: 8 },
+      { id: 'pupil', name: 'Pupil', price: 4, needsCompanion: true, companionTypeIds: ['teacher'], maxPerCompanion: 15 },
+    ],
+  };
+  // An adult who is not a teacher does not cover pupils on a school trip.
+  const wrongChaperone = resolveMix(tier, [
+    { typeId: 'adult', quantity: 2 },
+    { typeId: 'pupil', quantity: 10 },
+  ]);
+  assert.equal(wrongChaperone.ok, false);
+
+  const school = resolveMix(tier, [
+    { typeId: 'teacher', quantity: 1 },
+    { typeId: 'pupil', quantity: 15 },
+  ]);
+  assert.ok(school.ok);
+});
+
 const failed = results.filter(([, ok]) => !ok);
 console.log(`\n${results.length - failed.length}/${results.length} passed\n`);
 if (failed.length > 0) process.exit(1);

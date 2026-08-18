@@ -3,7 +3,7 @@ import {
   DEFAULT_COMMISSION_PERCENT,
   OFFLINE_SERVICE_FEE_PERCENT,
 } from '@/shared/constants/billing';
-import type { Coupon, Event, TicketTier, UserProfile } from '@/shared/types';
+import type { AttendeeType, Coupon, Event, TicketTier, UserProfile } from '@/shared/types';
 
 /**
  * Commercial arithmetic. Isomorphic on purpose: the organiser dashboard renders these
@@ -258,7 +258,53 @@ export function resolveMix(
   const total = entries.reduce((sum, entry) => sum + entry.quantity, 0);
   if (total === 0) return { ok: false, error: 'Choose at least one ticket.' };
 
+  const companionProblem = companionRuleBroken(types, entries);
+  if (companionProblem) return { ok: false, error: companionProblem };
+
   return { ok: true, entries, total };
+}
+
+/**
+ * The organiser's accompaniment rules — docs/25 §20, the entitlement engine's first
+ * real rule. Children do not sit unaccompanied: a type marked `needsCompanion` requires
+ * at least one companion in the same order, and a `maxPerCompanion` ratio caps how many
+ * dependants each companion covers.
+ *
+ * One implementation for both sides of the wire: the buy box calls this to disable the
+ * button with the reason, and `resolveMix` calls it server-side so a crafted POST is
+ * refused by the same sentence. A companion type is any type that does not itself need
+ * one, unless the organiser names the list — an Adult chaperones, another Child cannot.
+ */
+export function companionRuleBroken(
+  types: AttendeeType[],
+  entries: Array<{ typeId: string; typeName: string; quantity: number }>
+): string | null {
+  for (const entry of entries) {
+    const type = types.find((t) => t.id === entry.typeId);
+    if (!type?.needsCompanion) continue;
+
+    const companionIds =
+      type.companionTypeIds && type.companionTypeIds.length > 0
+        ? type.companionTypeIds
+        : types.filter((t) => !t.needsCompanion).map((t) => t.id);
+
+    const companions = entries
+      .filter((other) => companionIds.includes(other.typeId))
+      .reduce((sum, other) => sum + other.quantity, 0);
+
+    if (companions === 0) {
+      const names = types
+        .filter((t) => companionIds.includes(t.id))
+        .map((t) => t.name)
+        .join(' or ');
+      return `${type.name} tickets need an accompanying ${names || 'adult'} in the same order.`;
+    }
+
+    if (type.maxPerCompanion && entry.quantity > companions * type.maxPerCompanion) {
+      return `One ${types.find((t) => companionIds.includes(t.id))?.name ?? 'companion'} may bring at most ${type.maxPerCompanion} ${type.name.toLowerCase()}${type.maxPerCompanion === 1 ? '' : 's'} — add another, or take fewer.`;
+    }
+  }
+  return null;
 }
 
 /**

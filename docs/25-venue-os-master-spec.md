@@ -1,0 +1,39 @@
+# 25 · VENUE OS™ master developer specification — filed with reconciliation
+
+> Third document of 18 Aug (§1–42 received; continuation expected). Implementation-ready
+> in form, but **it specifies collections and schemas parallel to ones already live and
+> carrying money**. CLAUDE.md §3 (never rebuild what works) and §7 (no destructive
+> migrations) govern: concepts are adopted incrementally onto the running system, never
+> as a big-bang re-model. STATUS.md remains the truth of what exists.
+
+## The reconciliation table (spec concept → this codebase)
+
+| Spec | Here, today |
+| --- | --- |
+| §1 six-way never-merge (seat ≠ category ≠ type ≠ price ≠ inventory ≠ access) | Held: label / section→tier / attendeeType / resolveMix+fees / holds+locks+counters / zones |
+| §2 core example (A10 Adult + A11 Child, one order) | Built (phase 2 + §8 UX) |
+| §3/§51 module map | Exists as server modules behind one deployable; microservice topology declined (docs/24 part 3) |
+| §4 tech principles | Already the stack; "critical ops server-side" is already the law here |
+| §5 tenancy | organizerId scoping + rules; enforced in firestore.rules, tested |
+| §6/§10/§16 venueSeats + per-seat eventInventory docs | **Not adopted as stored docs.** Seats are derived from sectionRows/seatPositions (geometry is computed, not stored); per-seat status is locks + tickets + counters. A stored per-seat inventory row per event is the phase-4 venue split's decision to make, not before |
+| §8 layout versioning, safety lock | Queued (docs/24 near-term; spec §28–29 of doc 2) |
+| §13 TicketType | `AttendeeType` on tiers (+ sales windows already on tiers) |
+| §18–19 pricing rules pipeline | tier × attendeeType × coupons × fees engine; N-dimensional rule table deferred until a real pricing need exceeds it |
+| §20 EntitlementRule | **Built today** — companion rules on attendee types, enforced in resolveMix (see STATUS) |
+| §21–23 holds | Built (checkout_holds, TTL, sweep, ownership-checked release) |
+| §24–27 allocation/orphans | Built (bestAvailable, orphansCreated, preventOrphans) |
+| §28 Seat AI generates constraints, never reserves | Agreed — matches the AI-proposes/engine-decides contract used everywhere here |
+| §29 group bookings, split pay | Queued behind a deliberate money design (docs/24 §31) |
+| §30 tables | Hospitality packages; per-chair sale open |
+| §31 accessibility relationships | Partial (held-back seats); companion linkage open |
+| §32–36 canvas builder, generators, renderer split | Phase 3, next after the near-term queue |
+| §37–39 selector flows A and B | Built |
+| §40–41 orders/orderItems | Stripe sessions + payment_events + per-ticket records serve this; a first-class orders collection is a reporting refactor, not a prerequisite |
+| §42 allocations with auto-release | Queued (docs/24 §35) |
+
+## Standing decisions
+
+1. No parallel collections. New vocabulary lands as fields and modules on the live
+   model, or waits for phase 4's venue/event split where a real migration is designed.
+2. Every adopted piece ships with emulator tests and a STATUS row, same as everything
+   else today.

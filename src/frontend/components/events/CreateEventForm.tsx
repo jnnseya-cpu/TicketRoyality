@@ -104,6 +104,10 @@ const ticketTierSchema = z.object({
         id: z.string().min(1),
         name: z.string().min(1, 'Name this ticket type.'),
         price: z.coerce.number().min(0),
+        /** docs/25 §20 — this type may not attend alone. */
+        needsCompanion: z.boolean().optional(),
+        /** 0 or absent = no ratio; one companion covers any number. */
+        maxPerCompanion: z.coerce.number().int().min(0).max(20).optional(),
       })
     )
     .optional(),
@@ -1711,6 +1715,52 @@ export function CreateEventForm({
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
+                            {/*
+                              docs/25 §20. "Needs an accompanying type" makes four Child
+                              tickets with no Adult refuse at checkout, server-side; the
+                              ratio caps how many one companion covers. Companions are
+                              the types not themselves needing one.
+                            */}
+                            <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                              <Checkbox
+                                checked={type.needsCompanion ?? false}
+                                onCheckedChange={(checked) =>
+                                  f.onChange(
+                                    types.map((t, i) =>
+                                      i === typeIndex
+                                        ? { ...t, needsCompanion: checked === true }
+                                        : t
+                                    )
+                                  )
+                                }
+                              />
+                              needs adult
+                            </label>
+                            {type.needsCompanion ? (
+                              <Input
+                                type="number"
+                                min={0}
+                                max={20}
+                                className="w-20"
+                                placeholder="max ea."
+                                title="How many of this type one companion may bring. Empty = no limit."
+                                value={type.maxPerCompanion ?? ''}
+                                onChange={(event) =>
+                                  f.onChange(
+                                    types.map((t, i) =>
+                                      i === typeIndex
+                                        ? {
+                                            ...t,
+                                            maxPerCompanion: event.target.value
+                                              ? Number(event.target.value)
+                                              : undefined,
+                                          }
+                                        : t
+                                    )
+                                  )
+                                }
+                              />
+                            ) : null}
                           </div>
                         ))}
                         <Button

@@ -18,7 +18,7 @@ import { formatCurrency } from '@/shared/utils';
 import { DonationBox } from '@/frontend/components/giving/DonationBox';
 import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
-import { resolveLinePrice, tierSaleWindow } from '@/shared/pricing';
+import { resolveLinePrice, tierSaleWindow, companionRuleBroken } from '@/shared/pricing';
 import { meetsTier } from '@/shared/loyalty-tiers';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { Input } from '@/frontend/components/ui/input';
@@ -199,6 +199,21 @@ export function TicketBox({ event }: { event: Event }) {
   );
   // A rail with no credentials must not be offered — see use-payment-methods.
   const methods = usePaymentMethods();
+  /*
+   * docs/25 §20 — the same function the server runs in resolveMix, so the button and
+   * the checkout refuse with one sentence. Advisory here, binding there.
+   */
+  const companionIssue = hasTypes
+    ? companionRuleBroken(
+        attendeeTypes,
+        mixEntries.map((entry) => ({
+          typeId: entry.type.id,
+          typeName: entry.type.name,
+          quantity: entry.count,
+        }))
+      )
+    : null;
+
   const isFree = hasTypes ? lineTotal === 0 : unitPrice === 0;
 
   const handleAddToCart = () => {
@@ -556,6 +571,9 @@ export function TicketBox({ event }: { event: Event }) {
                 </div>
               );
             })}
+            {companionIssue ? (
+              <p className="text-xs text-destructive">{companionIssue}</p>
+            ) : null}
           </div>
         )}
 
@@ -716,7 +734,7 @@ export function TicketBox({ event }: { event: Event }) {
                 type="submit"
                 variant="royal"
                 className="w-full"
-                disabled={isSeated && !seatsChosen}
+                disabled={(isSeated && !seatsChosen) || Boolean(companionIssue)}
               >
                 {isSeated && !seatsChosen
                   ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
@@ -783,7 +801,7 @@ export function TicketBox({ event }: { event: Event }) {
                 type="submit"
                 variant="outline"
                 className="w-full"
-                disabled={(isSeated && !seatsChosen) || (hasTypes && effectiveQuantity === 0)}
+                disabled={(isSeated && !seatsChosen) || (hasTypes && effectiveQuantity === 0) || Boolean(companionIssue)}
               >
                 <CreditCard className="h-4 w-4" />
                 {isSeated && !seatsChosen

@@ -262,6 +262,18 @@ document's own "Phase 1 — Foundation" list was already substantially built her
 the §51 microservices recommendation is accepted as modules and declined as deployment
 topology (docs/22 architecture stands).
 
+### Companion rules (docs/25 §20 — the entitlement engine's first rule)
+
+Attendee types can now require accompaniment: four Child tickets with no Adult are
+refused at checkout, server-side, in the organiser's words. Optional ratio caps how
+many dependants one companion covers (a school tier can require one Teacher per 15
+Pupils via a named companion list; a dependant type never chaperones another). One
+implementation — `companionRuleBroken()` — gates the buy button with the reason and
+binds inside `resolveMix`, so a crafted POST is refused by the same sentence the page
+showed. 48/48 pricing tests. docs/25 files the master spec with a full
+concept-by-concept reconciliation and the standing decision: no parallel collections —
+new vocabulary lands on the live model or waits for phase 4's designed migration.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.
