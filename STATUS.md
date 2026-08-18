@@ -386,6 +386,37 @@ the recommender (their past event titles as interests; the deterministic fallbac
 scores by categories they have actually bought, then this event's category, then
 soonest). Events they already hold tickets for are excluded.
 
+### P0 from live testing — the mobile-money corridor lost money on every order
+
+The owner caught it from the buyer's screen: "Ticket US$30.00 · Service charge (2%)
+US$0.60 · Total US$30.60" — while the operators charge ~2% of the amount moved. The
+`offlineTotal()` helper was the forbidden second copy of the fee arithmetic: face +
+2%, **no platform service fee at all**, so the corridor's whole take was less than its
+own transfer costs. Standing rule recorded verbatim: **"we cannot lose money in any
+transaction" — the platform fee sits on top of the operator's percentage, on every
+rail.**
+
+Fixed by deleting the duplicate: mobile money now prices through `computeOrderFees`
+like everything else, on a new `manual_momo` rail (cost modelled at the operators'
+2%, distinct from KODA's 0.9% API rate) under the CD country config — standard
+service fee (3.99% + 49¢, min 79¢) **plus** the 2% verification charge, one number to
+the buyer. The CD config is now `active` on the owner's direction (the corridor was
+already live; the inactive flag was only preserving the loss) — VAT treatment remains
+the open finance item. The US$30 example now reads: fee US$2.29, buyer sends
+US$32.29, full cost US$0.75, net **+US$1.54**. Terms and how-it-works copy updated to
+match the code. New fees tests: the corridor's economics at the owner's example
+prices, and a rail-by-rail "no order loses money" sweep — 37/37.
+
+Stripe's side of the same rule: the service fee already prices above card cost on
+every worked example (the 79p floor exists for exactly this), asserted by the same
+sweep. The one residual card risk is Stripe's ~2% FX conversion when charging USD
+from a GBP-settled account — that is an account setting (enable a USD balance), not
+a pricing change, and it is on the owner's checklist.
+
+When the KODA API goes live, this panel is replaced by KODA's own interface with the
+country taken from the event, per the owner's direction — the pricing above is
+already country-keyed, so that swap changes the payment surface, not the price.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

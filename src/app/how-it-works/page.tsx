@@ -47,7 +47,7 @@ const ATTENDEE_STEPS = [
   {
     icon: CreditCard,
     title: 'Check out how you like',
-    body: `Card via Stripe, wallet via Bitripay, or mobile money for Congolese customers — Vodacom, Airtel, Orange and Africell, with a ${OFFLINE_SERVICE_FEE_PERCENT}% service charge and admin verification before the ticket is released.`,
+    body: `Card via Stripe, wallet via Bitripay, or mobile money for Congolese customers — Vodacom, Airtel, Orange and Africell, with the service fee shown up front and admin verification before the ticket is released.`,
   },
   {
     icon: QrCode,
@@ -172,11 +172,12 @@ export default function HowItWorksPage() {
               <Smartphone className="mb-3 h-5 w-5 text-primary" />
               <h3 className="font-headline text-base font-semibold">Mobile money</h3>
               <p className="mt-2 font-headline text-2xl font-bold text-primary">
-                {OFFLINE_SERVICE_FEE_PERCENT}%
+                +{OFFLINE_SERVICE_FEE_PERCENT}%
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Service charge on Congolese mobile-money payments, paid by the customer
-                and already inside the advertised price. Not yet live.
+                Mobile-money charge on Congolese payments, on top of the standard
+                service fee — it funds the manual verification of every transfer. Paid
+                by the customer and shown inside one total before paying.
               </p>
             </CardContent>
           </Card>

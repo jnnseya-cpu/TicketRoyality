@@ -1,7 +1,6 @@
 import {
   DEFAULT_ADMIN_FEE,
   DEFAULT_COMMISSION_PERCENT,
-  OFFLINE_SERVICE_FEE_PERCENT,
 } from '@/shared/constants/billing';
 import type { AttendeeType, Coupon, Event, TicketTier, UserProfile } from '@/shared/types';
 
@@ -82,11 +81,14 @@ export function platformCutForTicket(price: number, terms: CommissionTerms) {
   return (price * terms.percent) / 100 + terms.adminFee;
 }
 
-/** Mobile-money service charge, paid by the customer on top of the ticket price. */
-export function offlineTotal(amount: number) {
-  const serviceFee = (amount * OFFLINE_SERVICE_FEE_PERCENT) / 100;
-  return { baseAmount: amount, serviceFee, totalAmount: amount + serviceFee };
-}
+/*
+ * `offlineTotal` used to live here: face + 2%, and nothing else. It was the "second
+ * copy of the fee arithmetic" that `shared/fees.ts` exists to forbid — it skipped the
+ * platform service fee entirely, so every mobile-money order collected less than the
+ * operators' own transfer charges cost. Mobile-money pricing now goes through
+ * `computeOrderFees` with the `manual_momo` rail and the CD country config, same as
+ * every other price on the platform. (Owner-reported loss, 18 Aug.)
+ */
 
 export type CouponCheck =
   | { valid: true; discount: number; total: number }

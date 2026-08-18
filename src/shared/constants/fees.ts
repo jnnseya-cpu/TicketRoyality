@@ -42,6 +42,14 @@ export type PaymentRail =
   | 'stripe_uk_card'
   | 'stripe_intl_card'
   | 'bitripay_momo'
+  /**
+   * The live Congolese corridor today: the buyer sends mobile money to the platform's
+   * own number and a superuser verifies the reference by hand. Distinct from
+   * `bitripay_momo` (the KODA API, not yet live) because its cost is different — the
+   * operators' transfer/cash-out charges run ~2% of the amount moved, against KODA's
+   * published 0.9%.
+   */
+  | 'manual_momo'
   | 'open_banking';
 
 /**
@@ -196,14 +204,22 @@ const DRC: CountryPricing = {
   buyerFixedFeeMinor: 49,
   minimumServiceFeeMinor: 79,
   maximumServiceFeeMinor: null,
-  buyerRailSurchargePct: { bitripay_momo: 2 },
+  buyerRailSurchargePct: { bitripay_momo: 2, manual_momo: 2 },
   // Flagged as an open item for finance review; `not_applicable` records that no VAT
   // treatment has been decided rather than asserting that none applies.
   vatMode: 'not_applicable',
   vatRatePct: 0,
-  active: false,
-  version: 1,
-  effectiveFrom: '2026-08-17T00:00:00.000Z',
+  /*
+   * Activated 18 Aug on the owner's direction, during live testing. The corridor was
+   * already live and charging — but through a duplicate 2%-only formula that skipped
+   * the service fee entirely, which the owner correctly called a loss ("the operator
+   * is charging 2% of total costs but this is not included"). Pricing it through this
+   * definition IS the fix; leaving the flag off would have kept the loss running. The
+   * VAT treatment above remains the open finance item it always was.
+   */
+  active: true,
+  version: 2,
+  effectiveFrom: '2026-08-18T00:00:00.000Z',
 };
 
 export const ZERO_FEE_CONFIG: FeeConfig = {
@@ -216,6 +232,10 @@ export const ZERO_FEE_CONFIG: FeeConfig = {
       stripe_uk_card: { pct: 1.5, fixedPence: 20 },
       stripe_intl_card: { pct: 3.25, fixedPence: 20 },
       bitripay_momo: { pct: 0.9, fixedPence: 0 },
+      // Owner-reported, 18 Aug live testing: the operators charge ~2% of the amount
+      // moved on the manual corridor. Modelled at that figure so the engine stops
+      // reporting KODA's API rate for money KODA never touches.
+      manual_momo: { pct: 2, fixedPence: 0 },
       open_banking: { pct: 1.0, fixedPence: 0, capPence: 400 },
     },
     platformFixedPerOrderMinor: 10,

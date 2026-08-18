@@ -335,11 +335,49 @@ test('the UK has no rail surcharge at all', () => {
   assert.equal(quote.railSurchargeMinor, 0);
 });
 
-test('the DRC corridor is defined but not live', () => {
-  // §19: a country does not open until its economics are proved. Defining it inactive
-  // keeps the model in a diff while refusing to price against it.
-  assert.equal(ZERO_FEE_CONFIG.countries.CD.active, false);
-  assert.throws(() => computeOrderFees([{ faceMinor: 1000, qty: 1 }], { countryCode: 'CD' }));
+test('the DRC corridor is live and its economics are proved right here', () => {
+  /*
+   * §19 blocked this country until its unit economics were proved. They now are: the
+   * owner's 18 Aug live test found the corridor charging face + 2% only — no service
+   * fee — while the operators charge ~2% of the amount moved, a guaranteed loss. The
+   * proof of economics is this assertion: at the owner's own example prices, the
+   * manual corridor clears cost on every order. "We cannot lose money in any
+   * transaction."
+   */
+  assert.equal(ZERO_FEE_CONFIG.countries.CD.active, true);
+
+  for (const face of [1000, 3000]) {
+    const quote = computeOrderFees([{ faceMinor: face, qty: 1 }], {
+      rail: 'manual_momo',
+      countryCode: 'CD',
+    });
+    // The fee stacks on top of the operator passthrough: standard service fee AND the
+    // 2% mobile-money charge are both inside the one number the buyer sees.
+    assert.ok(quote.railSurchargeMinor === Math.round(face * 0.02));
+    assert.ok(quote.serviceFeeMinor > quote.railSurchargeMinor);
+    assert.equal(quote.organiserPayoutMinor, face);
+    assert.ok(quote.economics.netProfitable, `US$${face / 100} order must not lose money`);
+  }
+});
+
+test('no rail loses money at the worked example prices', () => {
+  // The standing rule, verbatim from the owner: "we cannot lose money in any
+  // transaction". Every offered rail, at every worked price, must clear its full cost
+  // stack — face-value processing included.
+  for (const rail of [
+    'stripe_uk_card',
+    'stripe_intl_card',
+    'bitripay_momo',
+    'open_banking',
+  ] as PaymentRail[]) {
+    for (const [face] of WORKED) {
+      const quote = computeOrderFees([{ faceMinor: face, qty: 1 }], { rail });
+      assert.ok(
+        quote.economics.netProfitable,
+        `${rail} at ${face} minor units must not lose money`
+      );
+    }
+  }
 });
 
 test('an unconfigured country refuses to price rather than guessing', () => {

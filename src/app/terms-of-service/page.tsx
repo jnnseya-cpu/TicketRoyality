@@ -55,7 +55,7 @@ const SECTIONS: Array<{ heading: string; paragraphs: string[] }> = [
   {
     heading: '5. Payments, fees and payouts',
     paragraphs: [
-      `Card payments are processed by Stripe and wallet payments by Bitripay; each is governed by its own terms. Mobile-money payments carry a ${OFFLINE_SERVICE_FEE_PERCENT}% service charge and are released only after we verify the transaction reference. Submitting a reference does not itself entitle you to a ticket.`,
+      `Card payments are processed by Stripe and wallet payments by Bitripay; each is governed by its own terms. Mobile-money payments carry the standard TicketRoyality Service Fee plus a ${OFFLINE_SERVICE_FEE_PERCENT}% mobile-money charge, shown as one total before you pay, and are released only after we verify the transaction reference. Submitting a reference does not itself entitle you to a ticket.`,
       // Built from the live config, never typed by hand. A terms page that names a
       // different fee from the one the engine charges is the same class of failure as a
       // card that names a different price from the checkout.

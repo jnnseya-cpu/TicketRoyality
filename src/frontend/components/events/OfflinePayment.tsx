@@ -11,8 +11,8 @@ import { RadioGroup, RadioGroupItem } from '@/frontend/components/ui/radio-group
 import { useToast } from '@/frontend/hooks/use-toast';
 import { createOfflinePayment } from '@/shared/data/repositories';
 import { formatCurrency } from '@/shared/utils';
-import { OFFLINE_PROVIDERS, OFFLINE_SERVICE_FEE_PERCENT } from '@/shared/constants/billing';
-import { offlineTotal } from '@/shared/pricing';
+import { OFFLINE_PROVIDERS } from '@/shared/constants/billing';
+import { computeOrderFees, toMajor, type OrderLine } from '@/shared/fees';
 import type { Event, OfflineProvider, UserProfile } from '@/shared/types';
 
 /**
@@ -21,14 +21,22 @@ import type { Event, OfflineProvider, UserProfile } from '@/shared/types';
  * The customer pays offline to the displayed number, then submits their transaction
  * reference. A superuser verifies it, and approval is what releases the ticket —
  * nothing is issued on submission alone.
+ *
+ * Priced by the one engine, like everything else. This panel used to run its own
+ * arithmetic — face + 2%, no service fee — which collected less per order than the
+ * operators' own transfer charges cost the platform: a corridor that lost money on
+ * every ticket while looking like revenue. The quote below is `computeOrderFees` on
+ * the `manual_momo` rail under the CD config: the standard service fee plus the 2%
+ * that funds the manual verification, shown to the buyer as one number.
  */
 export function OfflinePayment({
   event,
-  amount,
+  lines,
   user,
 }: {
   event: Event;
-  amount: number;
+  /** The order's paid lines, faces in minor units — the same shape the card path prices. */
+  lines: OrderLine[];
   user: UserProfile;
 }) {
   const { toast } = useToast();
@@ -38,7 +46,10 @@ export function OfflinePayment({
   const [submitted, setSubmitted] = React.useState(false);
 
   const selected = OFFLINE_PROVIDERS.find((p) => p.id === provider)!;
-  const { serviceFee, totalAmount: total } = offlineTotal(amount);
+  const quote = computeOrderFees(lines, { rail: 'manual_momo', countryCode: 'CD' });
+  const amount = toMajor(quote.faceMinor);
+  const serviceFee = toMajor(quote.serviceFeeMinor);
+  const total = toMajor(quote.buyerTotalMinor);
 
   const handleSubmit = async (formEvent: React.FormEvent) => {
     formEvent.preventDefault();
@@ -101,8 +112,8 @@ export function OfflinePayment({
       <div>
         <p className="font-medium">Mobile money (Congo)</p>
         <p className="text-xs text-muted-foreground">
-          Pay offline, then submit your reference. A {OFFLINE_SERVICE_FEE_PERCENT}% service charge
-          applies.
+          Pay offline, then submit your reference. The service fee shown covers card-free
+          processing and manual verification.
         </p>
       </div>
 
@@ -132,10 +143,10 @@ export function OfflinePayment({
           <span className="text-muted-foreground">Ticket</span>
           <span>{formatCurrency(amount, event.currency)}</span>
         </p>
+        {/* One fee, one number — §11. The 2% verification share lives inside it, split
+            out only in the ledger (railSurchargeMinor). */}
         <p className="mt-1 flex justify-between">
-          <span className="text-muted-foreground">
-            Service charge ({OFFLINE_SERVICE_FEE_PERCENT}%)
-          </span>
+          <span className="text-muted-foreground">Service fee</span>
           <span>{formatCurrency(serviceFee, event.currency)}</span>
         </p>
         <p className="mt-2 flex justify-between border-t border-border pt-2 font-semibold">

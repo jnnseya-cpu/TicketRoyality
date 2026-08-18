@@ -857,7 +857,20 @@ export function TicketBox({ event }: { event: Event }) {
             )}
 
             {userProfile && donationMinor === 0 ? (
-              <OfflinePayment event={event} amount={lineTotal} user={userProfile} />
+              // The same lines the card quote prices — one engine, so the mobile-money
+              // total can never quietly diverge from what every other rail charges.
+              <OfflinePayment
+                event={event}
+                lines={
+                  hasTypes
+                    ? mixEntries.map((entry) => ({
+                        faceMinor: toMinor(entry.type.price),
+                        qty: entry.count,
+                      }))
+                    : [{ faceMinor: toMinor(unitPrice), qty: quantity }]
+                }
+                user={userProfile}
+              />
             ) : userProfile ? null : (
               <p className="text-center text-xs text-muted-foreground">
                 <Link href="/login" className="text-primary hover:underline">
