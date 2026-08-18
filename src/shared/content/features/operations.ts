@@ -243,7 +243,7 @@ export const OPERATIONS_ARTICLES: Article[] = [
   },
   {
     slug: 'live-streaming-hybrid-events',
-    status: 'draft',
+    status: 'shipped',
     title: 'Selling a room and a stream at the same time',
     kind: 'feature',
     cluster: 'operations',
@@ -251,8 +251,8 @@ export const OPERATIONS_ARTICLES: Article[] = [
     excerpt:
       'A stream ticket is a real ticket with a real access window — and the capacity constraint that limits your room does not apply to it.',
     published: '2026-08-14T11:20:00.000Z',
-    updated: '2026-08-14T11:20:00.000Z',
-    readMinutes: 4,
+    updated: '2026-08-18T12:00:00.000Z',
+    readMinutes: 5,
     author: AUTHOR,
     blocks: [
       {
@@ -264,15 +264,33 @@ export const OPERATIONS_ARTICLES: Article[] = [
         type: 'paragraph',
         text: 'It is a tier like any other, with its own price, its own quantity — capped or unlimited — and its own on-sale window. It appears in the buyer\'s wallet next to their physical tickets rather than as a separate class of thing they have to remember to find.',
       },
-      { type: 'heading', text: 'Access is bound to the account' },
+      { type: 'heading', text: 'Access is checked at the door, not at the pixel' },
       {
         type: 'paragraph',
-        text: 'The stream opens for the account that holds the ticket, during a defined window around the event, with concurrent-session limits. That is what stops one purchase becoming a link in a group chat serving two hundred people.',
+        text: 'The player opens for the account holding a valid ticket, a configurable number of minutes before the start rather than days early, and it says when rather than only no. A redeemed ticket keeps access — somebody who left the room early paid for the whole thing — and a refunded one loses it.',
+      },
+      {
+        type: 'paragraph',
+        text: 'The embed URL is absent from the response entirely unless the caller holds a ticket. Rendering it into the page and hiding the player would be theatre, because anyone can read a page source; a refusal carries no URL at all, and there is a test that asserts exactly that.',
+      },
+      { type: 'heading', text: 'The limit, stated plainly' },
+      {
+        type: 'paragraph',
+        text: 'A ticket holder can forward the link. We can tell you it is happening — views count distinct tickets and opens per ticket, so one ticket opening from forty places is visible — but we cannot stop it. Preventing it needs signed, short-lived playback URLs from a streaming provider, which is a sixth vendor and therefore a decision rather than a task.',
+      },
+      {
+        type: 'paragraph',
+        text: 'Anybody claiming otherwise about a plain embed is describing something they have not built. Access here is gated at the door, not at the pixel, and it is worth knowing which one you are buying.',
       },
       { type: 'heading', text: 'Replay is a decision, not a default' },
       {
         type: 'paragraph',
         text: 'Whether the recording stays available afterwards, and for how long, is set per event. It affects what you can sell and what you have licensed — a performance rights agreement covering a live transmission frequently does not cover an indefinite archive.',
+      },
+      { type: 'heading', text: 'Chat, without the impersonation' },
+      {
+        type: 'paragraph',
+        text: 'Live chat is written only through the API, which re-checks entitlement and takes the display name from the ticket — otherwise anybody posts as the organiser. It is rate-limited per person, and moderation hides rather than deletes, so what was removed is still auditable afterwards.',
       },
       { type: 'heading', text: 'Where it genuinely earns its keep' },
       {
@@ -284,7 +302,7 @@ export const OPERATIONS_ARTICLES: Article[] = [
       {
         question: 'Can I sell online tickets alongside physical ones?',
         answer:
-          'Yes. A stream ticket is a normal tier with its own price, quantity and on-sale window. Access is bound to the buyer\'s account for a defined window around the event, with concurrent-session limits.',
+          'Yes. A stream ticket is a normal tier with its own price, quantity and on-sale window, and the player opens only for an account holding a valid ticket. A holder can still forward the link — we report it rather than prevent it, because preventing it needs a streaming provider we do not use.',
       },
     ],
     linkSlots: [{ heading: 'Online and hybrid events', query: '', href: '/events' }],

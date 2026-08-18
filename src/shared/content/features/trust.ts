@@ -6,49 +6,57 @@ const AUTHOR = 'TicketRoyality';
 export const TRUST_ARTICLES: Article[] = [
   {
     slug: 'only-humans-buy-here',
-    status: 'draft',
-    title: 'Only humans get in: how we keep bots out of the queue',
+    status: 'shipped',
+    title: 'Only humans get in: what actually stops a script',
     kind: 'feature',
     cluster: 'trust',
     tags: ['bots', 'security', 'fairness', 'scalping'],
     excerpt:
-      'Eleven signals, attestation at the data layer rather than the form, and a deliberate decision not to penalise anyone for using a VPN.',
+      'Proof-of-work that costs a bot more than it costs you, six signals scored on the server, and a deliberate decision not to penalise anyone for using a VPN.',
     published: '2026-08-14T13:00:00.000Z',
-    updated: '2026-08-14T13:00:00.000Z',
-    readMinutes: 6,
+    updated: '2026-08-18T12:00:00.000Z',
+    readMinutes: 5,
     author: AUTHOR,
     blocks: [
       {
         type: 'paragraph',
         text: 'When an event sells out in ninety seconds and reappears on a resale site at four times face value, the tickets did not go to fans who were quick. They went to software, and every genuine person in that queue lost to a script.',
       },
-      { type: 'heading', text: 'Attestation guards the data, not the form' },
+      { type: 'heading', text: 'Why not a CAPTCHA' },
       {
         type: 'paragraph',
-        text: 'A CAPTCHA on a sign-up form protects the form. A script that skips the form and calls the underlying service directly never sees it.',
+        text: 'A CAPTCHA on a sign-up form protects the form. A script that skips the form and calls the underlying service directly never sees it. The usual answer is a commercial attestation product, which needs a console key, bills above its free tier, and — the part that matters — has to actually be switched on.',
       },
       {
         type: 'paragraph',
-        text: 'Instead, requests carry an attestation token proving they came from our genuine app on a real device, and that token is verified by the backend services themselves — the database, storage and functions. A request that cannot prove its origin cannot read a document, regardless of which door it tried.',
-      },
-      { type: 'heading', text: 'Eleven signals, weighted' },
-      {
-        type: 'paragraph',
-        text: 'Alongside attestation, sign-up and checkout are scored on behaviour: how the form was filled, whether a hidden field intended for automated form-fillers was completed, timing patterns no human produces, device reuse across accounts, and velocity across the platform.',
+        text: 'We use proof-of-work instead. The browser solves a small cryptographic puzzle while somebody is typing their email: about a tenth of a second on a phone, unnoticed. The challenge is signed by us, single-use, and expires — so it cannot be farmed, replayed, or solved once and reused. Ten thousand sign-up attempts cost hours of CPU instead of seconds.',
       },
       {
         type: 'paragraph',
-        text: 'The score sorts into four bands: allow, challenge, verify, refuse. Most people never see anything. A borderline score adds a step rather than a refusal, because a false positive here means a real customer blocked from buying a ticket, and that is a worse failure than admitting a bot.',
+        text: 'It is honest about its reach: it guards our own routes, not the data layer underneath them. A product like App Check verifies at the database itself, which is genuinely stronger, and it stays the documented upgrade. What it is not is switched on and pretending — which is the state the alternative was actually in.',
+      },
+      { type: 'heading', text: 'Six signals, scored on the server' },
+      {
+        type: 'paragraph',
+        text: 'Alongside the puzzle: whether a hidden field intended for automated form-fillers was completed, how long the form took, whether there was ever a keystroke or a focus event, whether the address is disposable or a role account like admin@, and whether the attestation checked out. The browser gathers hints; the server reaches the verdict, because a client that judged its own humanity would always acquit itself.',
+      },
+      {
+        type: 'paragraph',
+        text: 'A wrong refusal is a real person told they are not one, and they do not come back. A wrong allow is one account somebody suspends in a click. So no single signal refuses on its own — the honeypot is strong evidence, not proof, because password managers fill hidden fields too — and taking a long time over a form counts as human, which is what it is.',
       },
       { type: 'heading', text: 'A VPN scores zero' },
       {
         type: 'paragraph',
-        text: 'This is a deliberate choice against the industry default. Plenty of platforms treat a VPN as suspicious, which punishes people on a work network, anyone in a country where a VPN is how you reach an ordinary website, and everybody who simply cares about privacy. It also barely inconveniences an actual attacker, who has residential proxies. So it carries no weight at all.',
+        text: 'A deliberate choice against the industry default. Plenty of platforms treat a VPN as suspicious, which punishes people on a work network, anyone in a country where a VPN is how you reach an ordinary website, and everybody who simply cares about privacy. It also barely inconveniences an actual attacker, who has residential proxies. So it carries no weight at all.',
       },
-      { type: 'heading', text: 'What a failed check actually blocks' },
+      { type: 'heading', text: 'What this covers, and what it does not' },
       {
         type: 'paragraph',
-        text: 'An unverified session cannot purchase, join a waitlist, enter a presale, generate referral links, register as an organiser or create API keys. It can still browse the catalogue and read event pages — locking the public catalogue to stop a scraper breaks the thing the site is for.',
+        text: 'It runs at account creation. That is the choke point worth defending, because everything else — buying, presales, partner links — needs an account behind it. Browsing stays open to everyone: locking the public catalogue to stop a scraper breaks the thing the site is for.',
+      },
+      {
+        type: 'paragraph',
+        text: 'What it is not is a queue defence for an on-sale. Inventory holds, per-tier limits and server-side presale gating do that work, and they are separate mechanisms described elsewhere. Anybody selling you one box that does both is selling you a diagram.',
       },
       { type: 'heading', text: 'Why this is a fairness feature' },
       {
@@ -58,14 +66,19 @@ export const TRUST_ARTICLES: Article[] = [
     ],
     answers: [
       {
-        question: 'How does TicketRoyality stop bots buying tickets?',
+        question: 'How does TicketRoyality stop bots creating accounts?',
         answer:
-          'Requests carry an attestation token verified by the backend services themselves rather than by a form CAPTCHA, plus eleven behavioural signals scored into allow, challenge, verify and refuse bands. Failed checks block purchase, presale and referral links but never browsing.',
+          'Every sign-up carries a signed, single-use proof-of-work token solved in the browser, plus six behavioural signals scored on the server. It makes bulk attempts expensive rather than impossible, and no single signal refuses on its own.',
       },
       {
-        question: 'Will using a VPN stop me buying tickets?',
+        question: 'Will using a VPN stop me signing up?',
         answer:
-          'No. VPN use carries zero weight in the scoring. It penalises people on work networks and in countries where a VPN is normal, while barely inconveniencing attackers who use residential proxies.',
+          'No. VPN use carries zero weight. It penalises people on work networks and in countries where a VPN is normal, while barely inconveniencing attackers who use residential proxies.',
+      },
+      {
+        question: 'Does this stop bots buying tickets during an on-sale?',
+        answer:
+          'Not on its own — it guards account creation. Inventory holds, per-tier limits and server-side presale gating are what govern an on-sale, and they are separate mechanisms.',
       },
     ],
     linkSlots: [{ heading: 'On sale at face value', query: '', href: '/events' }],

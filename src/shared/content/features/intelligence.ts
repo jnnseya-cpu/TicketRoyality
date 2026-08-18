@@ -87,74 +87,79 @@ export const INTELLIGENCE_ARTICLES: Article[] = [
   },
   {
     slug: 'venue-map-studio',
-    status: 'draft',
-    title: 'Venue maps without drawing a single seat',
+    status: 'shipped',
+    title: 'Rooms that are not rectangles',
     kind: 'feature',
     cluster: 'intelligence',
-    tags: ['ai', 'venue', 'seating', 'automation'],
+    tags: ['venue', 'seating', 'accessibility', 'operations'],
     excerpt:
-      'Describe the room or upload a plan and get a numbered, sectioned, priceable seat map — with a reconciliation report telling you what it got wrong.',
+      'Rows of different lengths, a gangway partway along, a missing seat where a pillar is — and a best-available that seats a party together before it seats them well.',
     published: '2026-08-14T09:05:00.000Z',
-    updated: '2026-08-14T09:05:00.000Z',
-    readMinutes: 6,
+    updated: '2026-08-18T12:00:00.000Z',
+    readMinutes: 5,
     author: AUTHOR,
     blocks: [
       {
         type: 'paragraph',
-        text: 'Building a seating chart by hand is the reason a lot of events sell general admission when they should be selling reserved seats. Four hundred seats, drawn one at a time, numbered correctly, grouped into sections, each section priced. Nobody does this twice by choice.',
+        text: 'Most seating tools model a room as rows times seats per row. That is a spreadsheet, not a room. A stalls curves outwards so the back rows are longer. A gangway splits row F into 1–8 and 9–16. A pillar removes D7. Numbering does not always start at 1. Force those into a rectangle and you either sell seats that do not exist or hide seats that do, and both are found out on the night.',
       },
-      { type: 'heading', text: 'Two ways in' },
+      { type: 'heading', text: 'Shape the room, row by row' },
       {
         type: 'paragraph',
-        text: 'The manual editor is a normal drag-and-place seat editor: rows, curves, tables, standing areas, aisles, and section boundaries you can price independently. It is there because sometimes you have the plan in your head and drawing it is faster than describing it.',
-      },
-      {
-        type: 'paragraph',
-        text: 'The generator is the other way. Upload a floor plan, a photograph of the room, or a description — "cabaret layout, twelve round tables of eight, stage at the north end, standing bar area at the back" — and it produces the map.',
-      },
-      { type: 'heading', text: 'The reconciliation report is the actual product' },
-      {
-        type: 'paragraph',
-        text: 'Any tool can generate a plausible-looking map. The problem is that a plausible-looking map with 397 seats in a 400-capacity room is a licensing breach you will not notice until someone counts.',
+        text: 'Each row carries its own seat count, its own first number, the seats that are missing, where the gangways fall, and an indent for a staggered or curved rake. Rows reorder by dragging, and by arrow buttons as well — dragging is not available to everyone, and a builder only operable with a mouse is a builder some people cannot use.',
       },
       {
         type: 'paragraph',
-        text: 'So every generation returns a reconciliation: seats generated versus capacity you declared, seats per section versus your stated section sizes, and an explicit list of every place the generator made a judgement call. Discrepancies are surfaced, not silently resolved. You approve the map against that report.',
+        text: 'Said plainly: it is a row editor with a live preview, not a canvas where you drag individual seats around a floor plan. The preview is drawn by the same code the buyer\u2019s map and the server\u2019s allocator use, so what you see is what will be sold rather than a second drawing that drifts from the first.',
       },
-      { type: 'heading', text: 'Three things it will not do' },
-      {
-        type: 'list',
-        items: [
-          'Exceed your declared capacity, ever — it will produce a short map and tell you it is short rather than a full one that is illegal',
-          'Place seats in an area you marked as an aisle, an exit route or a sightline obstruction',
-          'Renumber a map that has tickets sold against it',
-        ],
-      },
-      { type: 'heading', text: 'Why freezing matters' },
       {
         type: 'paragraph',
-        text: 'Once a single ticket is sold against a seat map, the numbering freezes. Someone is holding a ticket that says Row F, Seat 12, and that ticket has to mean the same seat on the night as it did at purchase. You can still add sections and adjust prices on unsold inventory; you cannot renumber what is already out there.',
+        text: 'A plain rectangle stays a plain rectangle. Most rooms are one and nobody should have to draw it — shaping is something you reach for when the room needs it.',
       },
-      { type: 'heading', text: 'Colour coding people can actually use' },
+      { type: 'heading', text: 'Row I, and why it is usually missing' },
       {
         type: 'paragraph',
-        text: 'Sections are distinguished by pattern and label as well as colour. Roughly one in twelve men has some form of colour vision deficiency, and a map that encodes price tiers in red and green alone is unreadable to them — on the page where they are choosing how much to spend.',
+        text: 'Read aloud at a door and printed on a ticket, I and O become 1 and 0 often enough that the industry stopped using them. The builder proposes skipping both and writes the names down explicitly, so an organiser who wants row I keeps it. Sections built before this existed keep their original letters exactly — a label that silently shifts turns a sold seat into a free one on the map and an unknown seat at the door.',
+      },
+      { type: 'heading', text: 'Best available, which mostly means together' },
+      {
+        type: 'paragraph',
+        text: 'Four people who booked together and were given four excellent seats in four different rows have been given the wrong answer. So sitting a party together outranks everything: then the centre of the row, then the front, then a penalty for stranding a single seat beside the block — the lone seat between two parties is the one that never sells, and a box office filling a house by hand knows to avoid making one.',
+      },
+      {
+        type: 'paragraph',
+        text: 'A gangway breaks adjacency. Seats either side of a walkway are not seats together, whatever their numbers say, and a group told otherwise has been misled by software rather than by a person. When no single stretch is long enough the party is split into the fewest blocks possible and told so on screen; when there are simply not enough seats, that is a different answer and is not dressed up as a split.',
+      },
+      { type: 'heading', text: 'Accessible seats are never handed out automatically' },
+      {
+        type: 'paragraph',
+        text: 'Wheelchair spaces and companion seats are held back and booked with the organiser directly — precisely so somebody asks about the need rather than guessing it. Best-available will not allocate one by accident, and neither will a buyer typing the seat number by hand.',
+      },
+      { type: 'heading', text: 'Moving after the sale' },
+      {
+        type: 'paragraph',
+        text: 'A seat change is a transaction that claims the destination the same way checkout does, so two people moving into one seat at the same moment resolve to exactly one winner. Moves stay within the ticket type that was paid for: going from a £20 seat to a £200 one is an upgrade, and an upgrade is a payment, not a seat change.',
+      },
+      { type: 'heading', text: 'Colour is never the only signal' },
+      {
+        type: 'paragraph',
+        text: 'Sections carry a name next to their colour swatch. Roughly one in twelve men has some form of colour vision deficiency, and a map encoding price tiers in red and green alone is unreadable to them — on the page where they are choosing how much to spend.',
       },
     ],
     answers: [
       {
-        question: 'Can I generate a seating chart automatically?',
+        question: 'Can I build a seat map for an irregular room?',
         answer:
-          'Yes. Upload a floor plan, a photo of the room, or describe the layout in a sentence, and the Venue Map Studio produces a numbered, sectioned map. It returns a reconciliation report showing seats generated against your declared capacity so you can check it before approving.',
+          'Yes — rows of different lengths, gangways partway along a row, missing seats where a pillar is, numbering that does not start at 1, and an indent for a curved rake. It is a row editor with a live preview rather than a drag-the-seats canvas.',
       },
       {
-        question: 'Can I change a seat map after tickets are sold?',
+        question: 'Does best-available seat people together?',
         answer:
-          'You can add sections and change prices on unsold inventory. You cannot renumber seats that have tickets against them — a ticket reading Row F Seat 12 has to mean the same seat on the night as it did at purchase.',
+          'Together outranks every other consideration, then centre, then front. A gangway breaks adjacency, so a party is never seated either side of a walkway, and a party that has to be split is told so before paying.',
       },
     ],
-    linkSlots: [{ heading: 'Seated events on sale now', query: '', href: '/events' }],
-    productLinks: ['registerOrganiser', 'howItWorks'],
+    linkSlots: [{ heading: 'Seated events on sale', query: '', href: '/events' }],
+    productLinks: ['registerOrganiser', 'events'],
   },
   {
     slug: 'ticket-as-discovery-surface',

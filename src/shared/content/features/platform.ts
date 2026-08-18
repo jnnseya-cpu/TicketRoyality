@@ -6,67 +6,89 @@ const AUTHOR = 'TicketRoyality';
 export const PLATFORM_ARTICLES: Article[] = [
   {
     slug: 'developer-api-and-webhooks',
-    status: 'draft',
-    title: 'The API door: sandbox, signed webhooks, idempotency',
+    status: 'shipped',
+    title: 'The API door: scoped keys, a sandbox, signed webhooks',
     kind: 'feature',
     cluster: 'platform',
     tags: ['api', 'webhooks', 'developers', 'integration'],
     excerpt:
-      'Build against a sandbox before you touch real money, verify every webhook by signature, and retry safely because every write is idempotent.',
+      'Read your events and tickets from your own systems, build against a sandbox that touches nothing real, and verify every webhook by signature. Read-only today, and we say so.',
     published: '2026-08-14T14:00:00.000Z',
-    updated: '2026-08-14T14:00:00.000Z',
-    readMinutes: 6,
+    updated: '2026-08-18T12:00:00.000Z',
+    readMinutes: 5,
     author: AUTHOR,
     blocks: [
       {
         type: 'paragraph',
-        text: 'Most ticketing APIs are a read-only feed of events with a sales endpoint bolted on later. That shape works until the first time you need to reconcile a refund, and then it does not work at all.',
+        text: 'Most ticketing APIs are announced long before they exist. This one is small and finished rather than large and promised: two read endpoints, keys that carry only the permissions you give them, a sandbox that cannot touch real data, and webhooks you can prove came from us.',
       },
-      { type: 'heading', text: 'Sandbox first' },
+      { type: 'heading', text: 'What it does today, exactly' },
       {
         type: 'paragraph',
-        text: 'A full sandbox with its own keys, its own data and its own webhooks. You can create events, sell tickets, trigger refunds and drive edge cases without moving a penny. An integration whose first real test is a live on-sale is an integration that will fail during one.',
+        text: 'Two endpoints under /api/v1. GET /events returns your own events with tier prices and how many have sold. GET /tickets returns tickets for them, filterable by event. Both are GETs. There is no write API — you cannot create an event, place an order or scan a ticket through it — and there are no SDKs. When those exist they will be on the developers page and not before.',
+      },
+      { type: 'heading', text: 'The sandbox is a different key, not a setting' },
+      {
+        type: 'paragraph',
+        text: 'A tr_test_ key reads fixtures and touches nothing real. A tr_live_ key reads your account. They are separate credentials rather than a mode on one, because a request must not be able to reach live data by leaving something out — which is exactly how a first integration attempt ends up scanning tickets at a real door.',
+      },
+      {
+        type: 'paragraph',
+        text: 'The fixtures are deliberately awkward: a sold-out tier, a ticket already redeemed, a ticket refunded. A fresh live account has none of those, so an integration built against one breaks on the first real evening. Sandbox addresses sit on the reserved .invalid domain, so nothing sent to them can leave your own machine.',
+      },
+      { type: 'heading', text: 'Keys are scoped, and attendee data has its own scope' },
+      {
+        type: 'paragraph',
+        text: 'A key carries only what you grant it. Names and email addresses sit behind attendees:read, separate from tickets:read — so a key pasted into a reporting dashboard can count ticket sales without ever being able to export a mailing list. That distinction is what makes handing a key to somebody else a small decision rather than a large one.',
+      },
+      {
+        type: 'paragraph',
+        text: 'We store only a hash of your key, never the key. It is shown once, when you create it, and after that we genuinely cannot show it again — a lost key is replaced rather than recovered. That is not inconvenience for its own sake: a database of plaintext API keys is a database of everybody\u2019s ticket data, and the owners could not tell it had leaked, because the keys keep working.',
       },
       { type: 'heading', text: 'Every webhook is signed' },
       {
         type: 'paragraph',
-        text: 'Webhooks carry an HMAC signature computed over the raw request body. Verify it before parsing, compare in constant time, and reject anything that fails.',
+        text: 'Each delivery carries a TicketRoyality-Signature header: an HMAC-SHA256 over the timestamp and the raw body, using your endpoint\u2019s own secret. Verify it before parsing, compare in constant time, and reject anything where the timestamp is more than five minutes old.',
       },
       {
         type: 'paragraph',
-        text: 'Two details cause most integration bugs here. Sign the raw bytes — re-serialising the JSON first changes them and every signature stops matching. And an unsigned endpoint is an open one: anyone who learns the URL can post you a fake payment confirmation, and the only thing stopping them is the check you skipped.',
-      },
-      { type: 'heading', text: 'Idempotent by default' },
-      {
-        type: 'paragraph',
-        text: 'Every write takes an idempotency key. Retrying a request that already succeeded returns the original result rather than performing the action again. Networks time out after the server has committed, and a retry loop without idempotency is how one order becomes four.',
+        text: 'Two details cause most integration bugs here. Sign the raw bytes — re-serialising the JSON first changes them and every signature stops matching. And check the timestamp, not only the signature: a genuine delivery somebody captured stays valid forever unless the time it was sent is part of what was signed.',
       },
       { type: 'heading', text: 'Failure is a retry, not a loss' },
       {
         type: 'paragraph',
-        text: 'A webhook we cannot confirm you processed is redelivered with backoff. Respond only when you have durably handled the event — acknowledging on receipt and then failing internally makes the delivery guarantee worthless.',
+        text: 'A delivery your server does not accept is retried with an increasing delay across five attempts. After the last one it is marked failed and stays in your delivery log with the status code and the error. Nothing disappears quietly — silence is the one outcome that would make a webhook system untrustworthy.',
       },
-      { type: 'heading', text: 'Versioned' },
       {
         type: 'paragraph',
-        text: 'Breaking changes ship as a new version. The version you built against keeps behaving the way it did, with deprecation announced ahead of removal rather than discovered through an outage.',
+        text: 'Deliveries are queued rather than sent inline, so a ticket is issued whether or not your server is up. Nothing in the path that takes somebody\u2019s money waits on somebody else\u2019s infrastructure.',
       },
-      { type: 'heading', text: 'Keys are scoped' },
+      { type: 'heading', text: 'What we do not send' },
       {
         type: 'paragraph',
-        text: 'API keys carry only the permissions they need. A key for reading the catalogue cannot issue a refund. Compromise then costs you a rotation rather than an incident.',
+        text: 'There is no ticket.issued event, deliberately. Issuance runs in a separate deployable from the app, so an event fired from here would be a guess about something that had not happened yet — and a webhook arriving before the tickets exist is worse than no webhook. order.completed is the honest one: the money arrived, and the tickets follow. We also send ticket.redeemed, ticket.refunded and donation.received.',
+      },
+      { type: 'heading', text: 'Your endpoint must be public' },
+      {
+        type: 'paragraph',
+        text: 'Endpoints must be https, and private addresses are refused — localhost, 10.x, 192.168.x, and the cloud metadata address. A URL we POST to on a schedule from inside our own network is otherwise a request-forgery tool aimed at us, and you would be the one paying for it.',
       },
     ],
     answers: [
       {
         question: 'Does TicketRoyality have an API?',
         answer:
-          'Yes — a versioned REST API with a full sandbox, scoped keys, idempotent writes and HMAC-signed webhooks. You can create events, sell tickets and trigger refunds in sandbox without moving real money.',
+          'Yes, a read API: GET /api/v1/events and GET /api/v1/tickets, with scoped keys, a sandbox and HMAC-signed webhooks. There is no write API yet — you cannot create events, place orders or scan tickets through it.',
       },
       {
         question: 'How do I verify a TicketRoyality webhook?',
         answer:
-          'Compute an HMAC over the raw request body — not a re-serialised copy — and compare it against the signature header in constant time. Reject anything that does not match before parsing the payload.',
+          'Compute an HMAC-SHA256 over the timestamp and the raw request body — not a re-serialised copy — with your endpoint secret, and compare it to the v1 value in the signature header in constant time. Reject anything where the timestamp is more than five minutes old.',
+      },
+      {
+        question: 'Can I test without touching real data?',
+        answer:
+          'Yes. A tr_test_ key reads fixture data and cannot reach your live account at all, because live and test are different keys rather than a mode on one key.',
       },
     ],
     linkSlots: [{ heading: 'Live events in the catalogue', query: '', href: '/events' }],

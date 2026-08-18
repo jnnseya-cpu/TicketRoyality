@@ -124,7 +124,7 @@ export const SELLING_ARTICLES: Article[] = [
   },
   {
     slug: 'affiliate-and-promoter-network',
-    status: 'draft',
+    status: 'shipped',
     title: 'Pay promoters for sales, not for promises',
     kind: 'feature',
     cluster: 'selling',
@@ -152,12 +152,16 @@ export const SELLING_ARTICLES: Article[] = [
       },
       {
         type: 'paragraph',
-        text: 'The model is last-touch within a stated attribution window, published to promoters before they start. Everyone is working to the same rule, and it is written down.',
+        text: 'The rule here is the simplest one that can be stated in a sentence: the link a buyer arrived through last is the one credited, recorded on the order at the moment the money lands. There is no decaying window and no split between two promoters — those need a model everyone can check, and half of one is worse than none. If two of your promoters both touched a sale, the second one is paid.',
       },
-      { type: 'heading', text: 'Payouts run through the same ledger as everything else' },
+      { type: 'heading', text: 'Commission is recorded server-side, once' },
       {
         type: 'paragraph',
-        text: 'Promoter commission is calculated against completed, non-refunded sales and settles alongside your own payout. A refunded ticket reverses the commission on it, which is the behaviour you want and the behaviour that spreadsheets always get wrong.',
+        text: 'The rate comes from the stored link, never from the browser — a code travels with the buyer and nothing else does, so a crafted request cannot name its own commission. Each attribution is keyed to the payment that created it, so a redelivered webhook cannot pay a promoter twice. An allocation that straddles a boundary earns only on the part inside it.',
+      },
+      {
+        type: 'paragraph',
+        text: 'What is not built, and worth saying: a refund does not yet reverse the commission recorded against it, and payouts are not automated — commission is a figure you can see and reconcile, not money that moves on its own. Check the report before you pay anybody.',
       },
       { type: 'heading', text: 'Where this differs from the influencer programme' },
       {
@@ -341,7 +345,7 @@ export const SELLING_ARTICLES: Article[] = [
   },
   {
     slug: 'loyalty-and-fan-rewards',
-    status: 'draft',
+    status: 'shipped',
     title: 'Rewarding the people who keep coming back',
     kind: 'feature',
     cluster: 'selling',
@@ -372,17 +376,21 @@ export const SELLING_ARTICLES: Article[] = [
         type: 'paragraph',
         text: 'For an event that sells out, early access is worth more than a discount and costs the organiser nothing at all — the tickets sell either way. It converts loyalty into something the fan genuinely wants while leaving margin untouched, which is a rare combination.',
       },
-      { type: 'heading', text: 'Earned on attendance, not on spend' },
+      { type: 'heading', text: 'Counted from tickets, per organiser' },
       {
         type: 'paragraph',
-        text: 'Points accrue when a ticket is scanned at the door rather than when it is bought. A scheme rewarding purchase rewards the person who buys ten tickets and attends alone; a scheme rewarding attendance rewards the person who actually shows up, which is the behaviour worth reinforcing.',
+        text: 'Standing is worked out live from the tickets somebody actually holds with you, rather than kept as a stored points balance. That matters more than it sounds: a refund removes the event from the count on its own, with no repair step and no counter quietly drifting out of line with reality. A cancelled or refunded ticket earns nothing.',
+      },
+      {
+        type: 'paragraph',
+        text: 'It is per organiser rather than platform-wide. Somebody who comes to your nights every month is your regular, and that standing is yours — not something they carry across to a competitor who happens to use the same platform.',
       },
     ],
     answers: [
       {
         question: 'How do fans get presale access?',
         answer:
-          'Loyalty tier status, earned through attendance at previous events, unlocks presale windows before general on-sale. Points accrue when a ticket is scanned at the door rather than when it is purchased.',
+          'Loyalty tier status unlocks presale windows before general on-sale, enforced server-side rather than by a secret link. Standing is counted live from the tickets somebody holds with that organiser, so a refunded ticket stops counting on its own.',
       },
     ],
     linkSlots: [{ heading: 'Series worth following', query: '', href: '/events' }],
