@@ -18,9 +18,11 @@ import { formatCurrency } from '@/shared/utils';
 import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { resolveLinePrice, tierSaleWindow } from '@/shared/pricing';
+import { meetsTier } from '@/shared/loyalty-tiers';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { Input } from '@/frontend/components/ui/input';
 import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
-import type { Event } from '@/shared/types';
+import type { Event, Membership } from '@/shared/types';
 
 /**
  * Buy box. Tier picker + quantity, then either add-to-cart or a direct checkout
@@ -54,6 +56,30 @@ export function TicketBox({ event }: { event: Event }) {
   const [quantity, setQuantity] = React.useState(1);
   const [bitripayLoading, setBitripayLoading] = React.useState(false);
   const [selectedSeats, setSelectedSeats] = React.useState<string[]>([]);
+
+  /*
+   * The buyer's standing with this organiser, so a gated tier can say why rather than
+   * failing at the payment page. The server checks this again when the card is charged —
+   * this is an explanation, not a permission.
+   */
+  const [membership, setMembership] = React.useState<Membership | null>(null);
+
+  React.useEffect(() => {
+    if (!user) {
+      setMembership(null);
+      return;
+    }
+    let cancelled = false;
+    authedFetch(`/api/membership?organizerId=${encodeURIComponent(event.organizerId)}`)
+      .then((r) => r.json())
+      .then((data: { membership?: Membership }) => {
+        if (!cancelled) setMembership(data.membership ?? null);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [user, event.organizerId]);
 
   const tier = visibleTiers.find((t) => t.id === tierId) ?? visibleTiers[0];
 
@@ -139,6 +165,7 @@ export function TicketBox({ event }: { event: Event }) {
   };
 
   const selectedWindow = tier ? tierSaleWindow(tier) : ({ onSale: true } as const);
+  const loyaltyOk = meetsTier(membership?.tier ?? 'none', tier?.minLoyaltyTier);
 
   /*
    * Seats, when the tier has a section mapped to it. A tier with no section sells
@@ -417,10 +444,18 @@ export function TicketBox({ event }: { event: Event }) {
           variant="royal"
           className="w-full"
           onClick={handleAddToCart}
-          disabled={!selectedWindow.onSale}
+          disabled={!selectedWindow.onSale || !loyaltyOk}
         >
             <ShoppingCart className="h-4 w-4" /> Add to cart
           </Button>
+        )}
+
+        {tier?.minLoyaltyTier && tier.minLoyaltyTier !== 'none' && !loyaltyOk && (
+          <p className="rounded-md border border-dashed border-border p-3 text-center text-sm text-muted-foreground">
+            {user
+              ? `${tier.name} opens to returning customers first. You have been to ${membership?.eventsAttended ?? 0} of this organiser's events.`
+              : `${tier.name} opens to returning customers first — sign in and we will check.`}
+          </p>
         )}
 
         {!selectedWindow.onSale && (
@@ -431,7 +466,7 @@ export function TicketBox({ event }: { event: Event }) {
           </p>
         )}
 
-        {!isFree && selectedWindow.onSale && (
+        {!isFree && selectedWindow.onSale && loyaltyOk && (
           <>
             <div className="relative">
               <Separator />

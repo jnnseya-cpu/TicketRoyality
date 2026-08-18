@@ -5,6 +5,7 @@ import { isStripeConfigured, readCheckoutSession, verifyWebhook } from '@/backen
 import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { recordBookingPayment } from '@/backend/services/hospitality';
 import { recordAttribution } from '@/backend/services/partners';
+import { settlePassPurchase } from '@/backend/services/season-passes';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
 
@@ -120,6 +121,32 @@ export async function POST(request: Request) {
           }
 
           return NextResponse.json({ received: true, booking: paid.status });
+        }
+
+        /*
+         * A season pass. One payment, a ticket in every covered fixture.
+         *
+         * Each issuance gets its own id derived from this payment and the event, so the
+         * whole thing is idempotent per fixture and a redelivery creates nothing. The
+         * tickets come out of the issuance that already exists — there is still only one.
+         */
+        if (checkout.passId) {
+          const settled = await settlePassPurchase({
+            providerEventId: event.id,
+            passId: checkout.passId,
+            userId: checkout.userId ?? '',
+            attendeeName: checkout.customerName ?? 'Pass holder',
+            attendeeEmail: checkout.customerEmail ?? '',
+            providerRef: checkout.paymentIntentId,
+          });
+
+          if (!settled.ok && settled.reason === 'unavailable') {
+            // 500 so Stripe redelivers: a paid pass with no tickets is the worst
+            // outcome available here.
+            return NextResponse.json({ error: 'datastore_unavailable' }, { status: 500 });
+          }
+
+          return NextResponse.json({ received: true, pass: settled.ok ? settled.issued : 0 });
         }
 
         // Metadata is set when the checkout session is created. Without it there is

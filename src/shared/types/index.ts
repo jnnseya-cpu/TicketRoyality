@@ -297,6 +297,14 @@ export interface TicketTier {
   salesStart?: string;
   salesEnd?: string;
   /**
+   * The loyalty tier required to buy this.
+   *
+   * A members' presale that is only a secret link is a presale that leaks in one
+   * screenshot. This is checked server-side at checkout against attendance the buyer
+   * actually has, so the early window belongs to the people who earned it.
+   */
+  minLoyaltyTier?: LoyaltyTier;
+  /**
    * Reserved by a checkout in progress. Subtracted by `availableInTier()`, which has
    * always read this field — it simply had nowhere to come from until checkout holds
    * existed. Separate from `quantity` on purpose: `quantity` is the organiser's
@@ -488,6 +496,60 @@ export interface Sponsor {
   url?: string;
   /** Their tracked link, so reach is measured rather than asserted. */
   code?: string;
+}
+
+/**
+ * A season pass: one purchase covering a run of events.
+ *
+ * ## Why it issues a ticket per event rather than admitting on the pass
+ *
+ * A ticket redeems **once** — that property stops one ticket admitting two people, it is
+ * transactional, tested, and enforced in `firestore.rules`. A pass that admitted at every
+ * fixture would have to redeem twenty times, which means either weakening that rule for
+ * everything or growing a second door path beside it.
+ *
+ * So buying a pass issues one ticket per covered event, through the issuance that already
+ * exists. That is also what a season ticket has always physically been: a book of
+ * tickets. Everything downstream — the door, zones, sessions, transfer, refunds — works
+ * unchanged, because there is nothing new to work on.
+ *
+ * `tierIds` names which tier the pass takes in each event, so a pass consumes real
+ * inventory in each one and a fixture cannot be oversold by pass holders nobody counted.
+ */
+export interface SeasonPass {
+  id: string;
+  organizerId: string;
+  name: string;
+  description?: string;
+  /** What the whole pass costs, in major units, charged once. */
+  price: number;
+  currency: string;
+  /** How many passes exist. */
+  quantity: number;
+  sold?: number;
+  /** The events it covers, and the tier it takes in each. */
+  eventIds: string[];
+  tierIds: Record<string, string>;
+  active: boolean;
+  createdAt: string;
+}
+
+/**
+ * What an organiser's returning customers have earned.
+ *
+ * Computed from tickets rather than stored, for the same reason seat availability is:
+ * a stored counter needs something to decrement it when a ticket is refunded, and there
+ * is no such thing. A number derived from live tickets cannot drift.
+ */
+export type LoyaltyTier = 'none' | 'member' | 'regular' | 'patron';
+
+export interface Membership {
+  organizerId: string;
+  userId: string;
+  /** Distinct events attended — not tickets bought, which is mostly party size. */
+  eventsAttended: number;
+  hasSeasonPass: boolean;
+  tier: LoyaltyTier;
 }
 
 export interface Coupon {

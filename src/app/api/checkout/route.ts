@@ -8,6 +8,8 @@ import type { Coupon, TicketTier } from '@/shared/types';
 import { applyCoupon, resolveLinePrice, tierSaleWindow } from '@/shared/pricing';
 import { codeOpensTier } from '@/backend/services/access-codes';
 import { REF_COOKIE } from '@/backend/services/partners';
+import { getPass, passAvailability } from '@/backend/services/season-passes';
+import { meetsTier, membershipFor } from '@/backend/services/loyalty';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -176,6 +178,28 @@ export async function POST(request: Request) {
         // over a discount would turn a promotion outage into a sales outage.
       }
     }
+  } else if (form.get('passId')) {
+    /*
+     * A season pass. One line, one charge, and a ticket in every covered fixture once it
+     * settles — see `season-passes.ts`.
+     *
+     * Availability is checked across every fixture **before** the card, because a pass
+     * that can only seat somebody at nine of ten nights is a refund and an apology, and
+     * finding that out afterwards is the expensive way.
+     */
+    const passId = String(form.get('passId'));
+    const pass = await getPass(passId);
+    if (!pass) return fail('That season pass no longer exists');
+
+    const availability = await passAvailability(passId);
+    if (!availability.ok) return fail(availability.error);
+
+    lines.push({
+      name: `${pass.name} — season pass`,
+      amount: pass.price,
+      quantity: 1,
+      currency: pass.currency,
+    });
   } else {
     const eventId = String(form.get('eventId') ?? '');
     const tierId = String(form.get('tierId') ?? '');
@@ -191,7 +215,7 @@ export async function POST(request: Request) {
       try {
         const doc = await getAdminDb().collection('events').doc(eventId).get();
         const data = doc.data() as
-          | { title?: string; currency?: string; ticketTiers?: TicketTier[] }
+          | { title?: string; currency?: string; organizerId?: string; ticketTiers?: TicketTier[] }
           | undefined;
         const tier = data?.ticketTiers?.find((t) => t.id === tierId);
         if (!tier) return fail('That ticket type is no longer on sale');
@@ -205,6 +229,24 @@ export async function POST(request: Request) {
               ? 'That ticket type is not on sale yet'
               : 'That ticket type has closed'
           );
+        }
+
+        /*
+         * A members' presale, enforced against attendance the buyer actually has.
+         *
+         * A presale that is only a secret link leaks in one screenshot; this is the
+         * server deciding, so the early window belongs to the people who earned it.
+         */
+        if (tier.minLoyaltyTier && tier.minLoyaltyTier !== 'none') {
+          const buyerId = String(form.get('userId') ?? '');
+          const organizerId = data?.organizerId as string | undefined;
+          const membership = buyerId && organizerId
+            ? await membershipFor(organizerId, buyerId)
+            : null;
+
+          if (!membership || !meetsTier(membership.tier, tier.minLoyaltyTier)) {
+            return fail(`${tier.name} is open to returning customers first`);
+          }
         }
         amount = resolveLinePrice(tier, amount);
         name = `${data?.title ?? 'Event'} — ${tier.name}`;
@@ -290,6 +332,8 @@ export async function POST(request: Request) {
         seats: chosenSeats.join(','),
         // Just the code. What it is worth is decided server-side at attribution time.
         ref: referral ?? '',
+        // Set only on a season pass, which settles into one ticket per covered fixture.
+        passId: String(form.get('passId') ?? ''),
       },
     });
     return NextResponse.redirect(url, { status: 303 });

@@ -356,6 +356,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Season passes are read publicly through the API (a pass on sale is a product), and
+       written only by the route that proves the caller owns every event the pass covers —
+       otherwise a pass would sell another organiser's seats. Purchases are the record that
+       one payment issued a run of tickets, and are the idempotency gate for it. */
+    match /season_passes/{id} {
+      allow read, write: if false;
+    }
+
+    match /season_pass_purchases/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }

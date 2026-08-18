@@ -94,6 +94,8 @@ export function readCheckoutSession(session: Stripe.Checkout.Session) {
     holdId: session.metadata?.holdId || undefined,
     /** Set when the payment is a hospitality deposit or balance rather than a ticket sale. */
     bookingId: session.metadata?.bookingId || undefined,
+    /** Set on a season pass, which settles into one ticket per covered fixture. */
+    passId: session.metadata?.passId || undefined,
     /** The partner link that sent this buyer, if any. */
     ref: session.metadata?.ref || undefined,
     /**

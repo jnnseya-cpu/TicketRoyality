@@ -87,6 +87,8 @@ const ticketTierSchema = z.object({
   /** `datetime-local` strings. Empty means no bound at that end. */
   salesStart: z.string().optional(),
   salesEnd: z.string().optional(),
+  /** Gates the tier on attendance the buyer actually has. `none` is everybody. */
+  minLoyaltyTier: z.enum(['none', 'member', 'regular', 'patron']),
 });
 
 const seatingSchema = z.object({
@@ -348,6 +350,7 @@ function defaultsFor(event?: Event): FormValues {
           accessCode: '',
           salesStart: '',
           salesEnd: '',
+          minLoyaltyTier: 'none' as const,
         },
       ],
       seating: [],
@@ -392,6 +395,7 @@ function defaultsFor(event?: Event): FormValues {
       visibility: tier.visibility ?? ('public' as const),
       salesStart: tier.salesStart ? toLocalInput(tier.salesStart) : '',
       salesEnd: tier.salesEnd ? toLocalInput(tier.salesEnd) : '',
+      minLoyaltyTier: tier.minLoyaltyTier ?? ('none' as const),
       // Deliberately blank: an existing code is never sent back to the browser. Leaving
       // it empty means "keep what is stored"; typing replaces it.
       accessCode: '',
@@ -537,6 +541,7 @@ export function CreateEventForm({
           ...(tier.visibility === 'hidden' ? { visibility: 'hidden' as const } : {}),
           ...(tier.salesStart ? { salesStart: new Date(tier.salesStart).toISOString() } : {}),
           ...(tier.salesEnd ? { salesEnd: new Date(tier.salesEnd).toISOString() } : {}),
+          ...(tier.minLoyaltyTier !== 'none' ? { minLoyaltyTier: tier.minLoyaltyTier } : {}),
         })),
         seating:
           values.seating.length > 0
@@ -1099,6 +1104,42 @@ export function CreateEventForm({
                 />
 
                 {/*
+                  A members' presale. Combined with the window above this is the real
+                  thing: opens early, and only to people who have actually been before.
+                */}
+                <FormField
+                  control={form.control}
+                  name={`ticketTiers.${index}.minLoyaltyTier`}
+                  render={({ field: f }) => (
+                    <FormItem className="sm:col-span-4">
+                      <FormLabel>Who may buy it</FormLabel>
+                      <Select onValueChange={f.onChange} value={f.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">Anyone</SelectItem>
+                          <SelectItem value="member">
+                            Been to one of my events before
+                          </SelectItem>
+                          <SelectItem value="regular">
+                            Been to four, or holds a season pass
+                          </SelectItem>
+                          <SelectItem value="patron">Been to ten</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription className="text-xs">
+                        Checked against their real attendance with you when they pay, not just
+                        hidden on the page. Loyalty is per organiser — your regulars, not
+                        somebody else&rsquo;s.
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+
+                {/*
                   Sales window. A presale is not a separate product — it is an early tier
                   that opens sooner and closes when the general one starts, so it sells,
                   counts and reconciles exactly like everything else.
@@ -1262,6 +1303,7 @@ export function CreateEventForm({
                   accessCode: '',
                   salesStart: '',
                   salesEnd: '',
+                  minLoyaltyTier: 'none',
                 })
               }
             >
