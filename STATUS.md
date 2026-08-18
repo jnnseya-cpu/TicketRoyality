@@ -238,6 +238,18 @@ is where two support queues become one confusing one. A paid seat lost between c
 and webhook fails loudly into the operations queue — never silently. Emulator: 24/24.
 docs/24 records the wider Venue OS vision this came from, with its own honest gap map.
 
+### Whole-pass transfer (sports card)
+
+One link moves every remaining fixture of a season pass — gathered by the pass's own
+tier per fixture (a separately bought GA ticket for the same night never rides along),
+accepted in one transaction: every ticket re-owned, every rotation seed reseeded (the
+sender's wallet codes die), every QR re-signed, the loyalty holder record following the
+person who now attends while the original buyer stays on the purchase as the money's
+history. Fixtures already attended or refunded stay put — that is the sender's history,
+not the platform's to move. Sender card on the customer dashboard; claim page mirrors
+the single-ticket one (deliberate accept, never a prefetch side effect). Emulator:
+16/16. docs/24 part 2 (§30–46) is filed with the same honest four-way sort as part 1.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

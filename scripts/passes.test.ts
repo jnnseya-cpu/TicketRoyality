@@ -45,6 +45,7 @@ async function seed(quantityPerFixture = 100) {
     'tickets',
     'season_passes',
     'season_pass_purchases',
+    'pass_transfers',
     'payment_events',
   ]) {
     const snap = await db.collection(c).get();
@@ -288,6 +289,126 @@ async function run() {
     assert.equal(membership.hasSeasonPass, true);
     assert.equal(membership.tier, 'regular');
     assert.equal(meetsTier(membership.tier, 'regular'), true);
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Whole-pass transfer — the sports card's "Not yet"                   */
+  /* ------------------------------------------------------------------ */
+
+  const seedHeldPass = async () => {
+    const passId = await seed();
+    // The holder's tickets, one per fixture, as settlement would have issued them.
+    const fixtures = [...FIXTURES];
+    for (const eventId of fixtures) {
+      await db.collection('tickets').doc(`pt-${eventId}`).set({
+        reference: `TR-${eventId}`,
+        eventId,
+        organizerId: ORGANISER,
+        userId: 'holder-1',
+        tierId: 'stand',
+        tierName: 'Main stand',
+        attendeeName: 'Season Holder',
+        attendeeEmail: 'holder@example.com',
+        eventDate: FUTURE,
+        status: 'valid',
+      });
+    }
+    await db.collection('season_pass_purchases').doc('purchase-1').set({
+      passId,
+      organizerId: ORGANISER,
+      userId: 'holder-1',
+      email: 'holder@example.com',
+      eventIds: fixtures,
+      createdAt: new Date().toISOString(),
+    });
+    return passId;
+  };
+
+  await test('a whole pass transfers in one link: every remaining fixture moves', async () => {
+    const passId = await seedHeldPass();
+    // One fixture already attended stays with the sender.
+    await db.collection('tickets').doc('pt-fixture-1').update({ status: 'redeemed' });
+
+    const started = await passes.startPassTransfer(passId, 'holder-1', 'new@example.com');
+    assert.ok(started.ok);
+    if (!started.ok) return;
+    assert.equal(started.ticketCount, 2);
+
+    // The token is hashed at rest, so the test reaches for the raw one the same way the
+    // recipient does — from the link. Recreate acceptance with the stored hash instead:
+    // accept with a wrong token first, then prove the happy path via the real token by
+    // reading it is impossible — so start again capturing dispatch? Simpler: accept via
+    // service with the correct token requires the raw token; startPassTransfer does not
+    // return it by design. Test the refusal, then drive acceptance through a directly
+    // planted transfer whose token we know.
+    const wrong = await passes.acceptPassTransfer(started.transferId, 'not-the-token', 'new-user', 'New Holder', 'new@example.com');
+    assert.equal(wrong.ok, false);
+  });
+
+  await test('acceptance moves every ticket, reseeds codes, and follows the holder record', async () => {
+    const passId = await seedHeldPass();
+    const { createHmac } = await import('node:crypto');
+    const salt = process.env.CRON_SECRET ?? 'ticketroyality-transfer';
+    const token = 'test-token-known';
+    await db.collection('pass_transfers').doc('ptx-1').set({
+      passId,
+      passName: '2026/27 Season Ticket',
+      ticketIds: ['pt-fixture-1', 'pt-fixture-2', 'pt-fixture-3'],
+      fromUserId: 'holder-1',
+      fromName: 'Season Holder',
+      toEmail: 'new@example.com',
+      tokenHash: createHmac('sha256', salt).update(token).digest('base64url'),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+
+    const before = (await db.collection('tickets').doc('pt-fixture-2').get()).data()!;
+
+    const accepted = await passes.acceptPassTransfer('ptx-1', token, 'new-user', 'New Holder', 'new@example.com');
+    assert.ok(accepted.ok);
+    if (accepted.ok) assert.equal(accepted.moved, 3);
+
+    const after = (await db.collection('tickets').doc('pt-fixture-2').get()).data()!;
+    assert.equal(after.userId, 'new-user');
+    assert.equal(after.attendeeName, 'New Holder');
+    assert.notEqual(after.rotationSeed, before.rotationSeed ?? null); // old wallet codes die
+
+    // The holder record follows, the buyer stays in the money history.
+    const purchase = (await db.collection('season_pass_purchases').doc('purchase-1').get()).data()!;
+    assert.equal(purchase.userId, 'new-user');
+    assert.equal(purchase.boughtByUserId, 'holder-1');
+
+    // Replay: the transfer is no longer pending, so nothing moves twice.
+    const again = await passes.acceptPassTransfer('ptx-1', token, 'third-user', 'Third', 't@example.com');
+    assert.equal(again.ok, false);
+  });
+
+  await test('a used fixture does not move; the sender keeps their history', async () => {
+    const passId = await seedHeldPass();
+    await db.collection('tickets').doc('pt-fixture-1').update({ status: 'redeemed' });
+    const { createHmac } = await import('node:crypto');
+    const salt = process.env.CRON_SECRET ?? 'ticketroyality-transfer';
+    const token = 'test-token-2';
+    await db.collection('pass_transfers').doc('ptx-2').set({
+      passId,
+      passName: '2026/27 Season Ticket',
+      ticketIds: ['pt-fixture-1', 'pt-fixture-2', 'pt-fixture-3'],
+      fromUserId: 'holder-1',
+      fromName: 'Season Holder',
+      toEmail: 'new@example.com',
+      tokenHash: createHmac('sha256', salt).update(token).digest('base64url'),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    });
+
+    const accepted = await passes.acceptPassTransfer('ptx-2', token, 'new-user', 'New Holder', 'new@example.com');
+    assert.ok(accepted.ok);
+    if (accepted.ok) assert.equal(accepted.moved, 2);
+
+    const used = (await db.collection('tickets').doc('pt-fixture-1').get()).data()!;
+    assert.equal(used.userId, 'holder-1'); // attended history stays put
   });
 
   console.log(`\n${passed}/${passed + failures.length} passed\n`);

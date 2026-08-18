@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/frontend/components/
 import { DeleteAccountDialog } from '@/frontend/components/dashboard/DeleteAccountDialog';
 import { ProfileForm } from '@/frontend/components/dashboard/ProfileForm';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { PassTransfer } from '@/frontend/components/dashboard/PassTransfer';
 import { TicketCard } from '@/frontend/components/dashboard/TicketCard';
 import { useAuth } from '@/frontend/hooks/use-auth';
 import { getUserTickets } from '@/shared/data/repositories';
@@ -133,6 +134,7 @@ function CustomerDashboard({ profile }: { profile: UserProfile }) {
               <TabsTrigger value="past">Past ({past.length})</TabsTrigger>
             </TabsList>
             <TabsContent value="upcoming">
+              <div className="mb-6"><PassTransfer /></div>
               <div className="grid gap-4 md:grid-cols-2">
                 {upcoming.map((ticket) => (
                   <TicketCard key={ticket.id} ticket={ticket} />

@@ -57,3 +57,33 @@ Movement → Revenue → Intelligence.
 
 Every claim about these features on the public site follows STATUS.md discipline: not
 described in the present tense until built, tested and verified.
+
+## Part 2 — §30–46 (filed 18 Aug, evening)
+
+**Already built when filed:**
+- §32 Seat gifting — per-ticket transfer with revoke-and-reissue semantics (rotation
+  seed reseeded, QR re-signed; the old holder's codes die inside a window). "One master
+  order, assigned tickets" is what a multi-ticket purchase plus transfers already is.
+- §34 Upgrades marketplace — the paid upgrade shipped with §14: pay the difference, the
+  old seat frees itself because the ticket no longer occupies it.
+- §36 Promoter ledger (core) — partner links carry allocations; sales, clicks and
+  commission are counted server-side. Returned/comp breakdowns are reporting extensions.
+- **Whole-pass transfer** (sports card) — built the day this part arrived: one link
+  moves every remaining fixture; attended fixtures stay in the sender's history; codes
+  reseed per ticket; the loyalty holder record follows while the buyer stays in the
+  money history. Emulator 16/16.
+
+**Near-term buildable:** §31 split payment with adjacency (group lock = the existing
+hold with a longer TTL + per-member payment links; needs deliberate money design), §35
+sponsor allocation ageing + release (the hold-release reporting item), §37 command
+centre (display over scans/occupancy the platform already records), §39 occupancy
+intelligence (same data), §42 occasion packages (bundles over existing tiers), §45
+orphan recovery offers (the free-move engine exists; the offer flow is new).
+
+**Needs history/telemetry first:** §38 fraud heatmaps beyond per-gate counts, §44
+sell-out engine, §46 predictive maps — models before data is the 16-articles mistake.
+
+**Vendor-gated / policy-gated:** §33 controlled resale (product policy + payments
+design first — resale money movement is a compliance surface), §40 seat-linked
+commerce (merchant-side operations), §43 sponsor-branded surfaces (sales inventory,
+buildable any time), §30 group options with split pay (after §31's money design).
