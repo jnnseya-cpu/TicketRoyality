@@ -28,7 +28,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/al
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
-import type { VenueZone } from '@/shared/types';
+import type { EventSession, VenueZone } from '@/shared/types';
 import { cn } from '@/shared/utils';
 import { decodeTicketQr } from '@/shared/tickets/qr';
 
@@ -63,10 +63,12 @@ export function TicketScanner({
   eventId,
   eventTitle,
   zones = [],
+  sessions = [],
 }: {
   eventId: string;
   eventTitle: string;
   zones?: VenueZone[];
+  sessions?: EventSession[];
 }) {
   /*
    * Which door this phone is. Defaults to the main gate — the one that redeems — because
@@ -74,6 +76,12 @@ export function TicketScanner({
    * let people in without ever using their ticket up.
    */
   const [zoneId, setZoneId] = React.useState('');
+  /*
+   * Which session this phone is checking into, when it is a workshop door rather than a
+   * building door. Mutually exclusive with a zone by construction: choosing one clears
+   * the other, because a phone is standing at exactly one kind of door.
+   */
+  const [sessionId, setSessionId] = React.useState('');
   const [direction, setDirection] = React.useState<'in' | 'out'>('in');
 
   /*
@@ -217,7 +225,13 @@ export function TicketScanner({
           response = await authedFetch('/api/tickets/redeem', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ raw, eventId, zoneId: zoneId || undefined, direction }),
+            body: JSON.stringify({
+              raw,
+              eventId,
+              zoneId: zoneId || undefined,
+              sessionId: sessionId || undefined,
+              direction,
+            }),
           });
         } catch {
           if (!manifest) {
@@ -320,7 +334,7 @@ export function TicketScanner({
     // downloading the ticket list mid-event would leave this callback holding the `null`
     // it captured, so the door would refuse every offline scan while the screen said it
     // was ready. Both are stale-closure bugs the linter catches and a queue does not.
-    [eventId, zoneId, direction, manifest]
+    [eventId, zoneId, sessionId, direction, manifest]
   );
 
   const start = React.useCallback(async () => {
@@ -402,7 +416,10 @@ export function TicketScanner({
                   in without ever using their ticket. */}
               <button
                 type="button"
-                onClick={() => setZoneId('')}
+                onClick={() => {
+                  setZoneId('');
+                  setSessionId('');
+                }}
                 className={cn(
                   'rounded-full border px-3 py-1 text-xs transition-colors',
                   zoneId === ''
@@ -416,7 +433,10 @@ export function TicketScanner({
                 <button
                   key={zone.id}
                   type="button"
-                  onClick={() => setZoneId(zone.id)}
+                  onClick={() => {
+                    setZoneId(zone.id);
+                    setSessionId('');
+                  }}
                   className={cn(
                     'rounded-full border px-3 py-1 text-xs transition-colors',
                     zoneId === zone.id
@@ -460,6 +480,42 @@ export function TicketScanner({
                 ? 'A zone scan checks the ticket may be in this room. It does not use the ticket up.'
                 : 'The main gate redeems the ticket. Each ticket can pass it once.'}
             </p>
+          </div>
+        )}
+
+        {sessions.length > 0 && (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Or checking into a session?
+            </p>
+            {/*
+              A session scan records attendance and leaves the ticket alone — the
+              certificate and the no-show numbers are built from these. Reservation-only
+              sessions refuse tickets with no place booked, server-side.
+            */}
+            <div className="flex flex-wrap gap-2">
+              {sessions.map((session) => (
+                <button
+                  key={session.id}
+                  type="button"
+                  onClick={() => {
+                    setSessionId(sessionId === session.id ? '' : session.id);
+                    setZoneId('');
+                  }}
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-xs transition-colors',
+                    sessionId === session.id
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground'
+                  )}
+                >
+                  {session.title}
+                  {session.capacity != null && (
+                    <span className="ml-1 opacity-70">cap {session.capacity}</span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

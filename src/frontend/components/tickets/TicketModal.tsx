@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Download, Printer } from 'lucide-react';
+import { Award, Download, Printer } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
 import {
@@ -18,6 +18,7 @@ import { Logo } from '@/frontend/components/common/Logo';
 import { formatCurrency, formatEventDate } from '@/shared/utils';
 import type { Ticket } from '@/shared/types';
 import { QR_VERSION, encodeTicketQr } from '@/shared/tickets/qr';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { TransferTicket } from '@/frontend/components/tickets/TransferTicket';
 import { ChangeSeat } from '@/frontend/components/tickets/ChangeSeat';
 import {
@@ -165,6 +166,14 @@ export function TicketModal({
             </div>
           )}
 
+          {/*
+            The other side of "a redeemed ticket cannot move": once they are inside, the
+            ticket becomes proof they attended, and that proof has an audience — an
+            employer, a CPD assessor — who has no account here. The link this mints
+            verifies for whoever it is shown to.
+          */}
+          {ticket.status === 'redeemed' && <CertificateLink ticketId={ticket.id} />}
+
           <div className="border-t border-dashed border-border pt-4">
             <h3 className="text-center font-headline text-lg font-semibold">{ticket.eventTitle}</h3>
           </div>
@@ -224,5 +233,37 @@ export function TicketModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Mints and opens the shareable certificate page for an attended ticket. */
+function CertificateLink({ ticketId }: { ticketId: string }) {
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const open = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await authedFetch(
+        `/api/tickets/certificate?ticketId=${encodeURIComponent(ticketId)}`
+      );
+      const data = (await response.json()) as { url?: string; error?: string };
+      if (!response.ok || !data.url) throw new Error(data.error ?? 'Not available.');
+      window.open(data.url, '_blank', 'noopener');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Not available.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1">
+      <Button type="button" variant="outline" className="w-full" onClick={open} disabled={busy}>
+        <Award className="h-4 w-4" /> Certificate of attendance
+      </Button>
+      {error ? <p className="text-center text-xs text-destructive">{error}</p> : null}
+    </div>
   );
 }

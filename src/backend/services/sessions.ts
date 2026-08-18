@@ -268,3 +268,156 @@ export async function attendeesFor(
     return [];
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Per-session check-in — the conferences card's "Not yet"                    */
+/* -------------------------------------------------------------------------- */
+
+const CHECKINS = 'session_checkins';
+
+export type SessionCheckInResult =
+  | { ok: true; sessionTitle: string; attendeeName: string; checkedIn: number; capacity: number | null }
+  | {
+      ok: false;
+      status: 400 | 403 | 404 | 409 | 503;
+      kind: 'no-event' | 'no-session' | 'no-ticket' | 'not-registered' | 'already' | 'unavailable';
+      error: string;
+      /** On 'already': when, so the door can say "checked in at 14:05" and move on. */
+      at?: string;
+    };
+
+/**
+ * Mark a ticket holder as actually in the room for one session.
+ *
+ * ## Check-in is not redemption and not registration
+ *
+ * Redemption consumes the ticket at the front door, once. Registration reserves a place
+ * weeks earlier. Check-in is the third fact — *they turned up* — and it is the one a
+ * certificate of attendance stands on and the one a workshop's no-show rate is computed
+ * from. It never touches ticket status, so scanning into a session cannot lock anybody
+ * out of the building.
+ *
+ * ## A capped session requires the reservation
+ *
+ * That is what the reservation was for. Waving in walk-ins past capacity would let the
+ * door quietly break the number the organiser ordered chairs against; an uncapped
+ * session takes any valid ticket for the event.
+ *
+ * ## Scanning twice reports, it does not error
+ *
+ * The same idempotency-by-document-id as everywhere else money or attendance is
+ * recorded: the second scan learns when the first happened. One document per ticket per
+ * session, `create` not `set`, so two doors racing cannot double-count a person.
+ */
+export async function checkInToSession(
+  eventId: string,
+  sessionId: string,
+  ticketId: string,
+  byUid: string
+): Promise<SessionCheckInResult> {
+  if (!isAdminConfigured()) {
+    return { ok: false, status: 503, kind: 'unavailable', error: 'Check-in is unavailable.' };
+  }
+
+  const db = getAdminDb();
+
+  try {
+    return await db.runTransaction<SessionCheckInResult>(async (tx) => {
+      const checkinRef = db.collection(CHECKINS).doc(registrationId(ticketId, sessionId));
+      const [eventSnap, ticketSnap, checkinSnap, regSnap] = await Promise.all([
+        tx.get(db.collection('events').doc(eventId)),
+        tx.get(db.collection('tickets').doc(ticketId)),
+        tx.get(checkinRef),
+        tx.get(db.collection(REGISTRATIONS).doc(registrationId(ticketId, sessionId))),
+      ]);
+
+      if (!eventSnap.exists) {
+        return { ok: false, status: 404, kind: 'no-event', error: 'That event no longer exists.' };
+      }
+
+      if (checkinSnap.exists) {
+        const at = String(checkinSnap.data()?.at ?? '');
+        return {
+          ok: false,
+          status: 409,
+          kind: 'already',
+          error: `Already checked in${at ? ` at ${new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ''}.`,
+          at,
+        };
+      }
+
+      const sessions = (eventSnap.data()?.sessions ?? []) as EventSession[];
+      const session = sessions.find((s) => s.id === sessionId);
+      if (!session) {
+        return { ok: false, status: 404, kind: 'no-session', error: 'That session is not on this event.' };
+      }
+
+      if (!ticketSnap.exists) {
+        return { ok: false, status: 404, kind: 'no-ticket', error: 'No such ticket.' };
+      }
+      const ticket = ticketSnap.data() as {
+        eventId: string;
+        status: string;
+        attendeeName?: string;
+        userId?: string;
+      };
+      if (ticket.eventId !== eventId) {
+        return { ok: false, status: 409, kind: 'no-ticket', error: 'That ticket is for a different event.' };
+      }
+      // `redeemed` is the normal state here — they came through the front door first.
+      // `valid` is accepted too: an online attendee joining a workshop never met a gate.
+      if (ticket.status !== 'valid' && ticket.status !== 'redeemed') {
+        return { ok: false, status: 409, kind: 'no-ticket', error: 'That ticket cannot attend.' };
+      }
+
+      const capacity = session.capacity ?? null;
+      if (capacity !== null && !regSnap.exists) {
+        return {
+          ok: false,
+          status: 403,
+          kind: 'not-registered',
+          error: `${session.title} is reservation-only, and this ticket has no place booked.`,
+        };
+      }
+
+      const countSnap = await tx.get(
+        db.collection(CHECKINS).where('eventId', '==', eventId).where('sessionId', '==', sessionId)
+      );
+
+      tx.create(checkinRef, {
+        eventId,
+        sessionId,
+        ticketId,
+        attendeeName: ticket.attendeeName ?? 'Attendee',
+        userId: ticket.userId ?? '',
+        at: new Date().toISOString(),
+        by: byUid,
+      });
+
+      return {
+        ok: true,
+        sessionTitle: session.title,
+        attendeeName: ticket.attendeeName ?? 'Attendee',
+        checkedIn: countSnap.size + 1,
+        capacity,
+      };
+    });
+  } catch (error) {
+    reportError(error, { scope: 'sessions.checkin', eventId, sessionId });
+    return { ok: false, status: 503, kind: 'unavailable', error: 'Check-in failed. Try again.' };
+  }
+}
+
+/** The sessions one ticket was actually seen at — what a certificate stands on. */
+export async function sessionsAttended(ticketId: string): Promise<Array<{ sessionId: string; at: string }>> {
+  if (!isAdminConfigured()) return [];
+  try {
+    const snap = await getAdminDb().collection(CHECKINS).where('ticketId', '==', ticketId).get();
+    return snap.docs
+      .map((d) => ({ sessionId: String(d.data().sessionId), at: String(d.data().at) }))
+      .sort((a, b) => a.at.localeCompare(b.at));
+  } catch (error) {
+    reportError(error, { scope: 'sessions.attended', ticketId });
+    return [];
+  }
+}

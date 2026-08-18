@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { requireUser } from '@/backend/auth/require-user';
 import { redeemAtDoor } from '@/backend/services/redeem';
+import { checkInToSession } from '@/backend/services/sessions';
 import { admitToZone } from '@/backend/services/zones';
 import { decodeTicketQr } from '@/shared/tickets/qr';
 
@@ -23,7 +24,13 @@ export async function POST(request: Request) {
   const caller = await requireUser(request);
   if (!caller.ok) return NextResponse.json({ error: caller.error }, { status: caller.status });
 
-  let body: { raw?: string; eventId?: string; zoneId?: string; direction?: 'in' | 'out' };
+  let body: {
+    raw?: string;
+    eventId?: string;
+    zoneId?: string;
+    sessionId?: string;
+    direction?: 'in' | 'out';
+  };
   try {
     body = await request.json();
   } catch {
@@ -49,6 +56,28 @@ export async function POST(request: Request) {
    * be in that room and whether the room is full, and leaves `status` alone. The main
    * gate, with no zone, is what redeems.
    */
+  /*
+   * A session scan is the third kind of door (redeem consumes, zone admits, this
+   * records): it marks the holder present in one session, for the no-show numbers and
+   * the certificate, and touches nothing else. Same shape as the zone branch on
+   * purpose — one scanner, one parser, three meanings.
+   */
+  if (body.sessionId) {
+    const checkin = await checkInToSession(
+      eventId,
+      String(body.sessionId),
+      decoded.payload.t,
+      caller.uid
+    );
+
+    return checkin.ok
+      ? NextResponse.json({ ok: true, session: checkin })
+      : NextResponse.json(
+          { error: checkin.error, kind: checkin.kind, at: checkin.at },
+          { status: checkin.status }
+        );
+  }
+
   if (body.zoneId) {
     const zone = await admitToZone(
       decoded.payload.t,

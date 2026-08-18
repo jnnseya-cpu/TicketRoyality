@@ -208,6 +208,24 @@ Pure-function spec: 43/43 in pricing tests. The stadiums card's "Not yet" is clo
 the checkout path; post-purchase upgrades of already-issued tickets are the theatres
 card's paid-move item, still queued.
 
+### Per-session check-in and certificates (conferences card)
+
+Two of the card's three "Not yet"s close; speaker portals remain and the copy now says
+only that.
+
+- **Check-in** is the third kind of door: redeem consumes the ticket once, a zone
+  admits, a session scan *records* — they turned up — and touches nothing else. Same
+  scanner, same parser, a session selector beside the zone one. Capped sessions refuse
+  tickets with no reservation (that is what the reservation was for); scanning twice
+  reports the first time and counts once, idempotent by document id. Emulator: 22/22.
+- **Certificates** are a signed page, deliberately not a PDF pipeline: the owner mints
+  a link from their redeemed ticket (organiser can too), the link carries an HMAC over
+  the ticket id under `QR_SIGNING_KEY`, and it renders for whoever it is shown to — an
+  employer or CPD assessor needs no account. It states attendance from the door scan,
+  lists the sessions actually scanned into, and prints to PDF in any browser. An
+  invalid or unredeemed link is a plain 404: a verifier probing ids learns nothing, and
+  a certificate for someone who never arrived cannot exist.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

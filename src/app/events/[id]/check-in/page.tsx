@@ -53,7 +53,12 @@ export default async function CheckInPage({ params }: { params: Promise<{ id: st
         </AlertDescription>
       </Alert>
 
-      <TicketScanner eventId={event.id} eventTitle={event.title} zones={event.zones ?? []} />
+      <TicketScanner
+        eventId={event.id}
+        eventTitle={event.title}
+        zones={event.zones ?? []}
+        sessions={event.sessions ?? []}
+      />
 
       {/* Bands are a second door, not a replacement: a venue usually runs both, QR at the
           box office and tags at the barrier. */}

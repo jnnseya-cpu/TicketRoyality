@@ -38,7 +38,7 @@ let sessions: typeof import('../src/backend/services/sessions');
 const DAY = '2026-11-12';
 
 async function seed(capacity: number | null = 2) {
-  for (const c of ['events', 'tickets', 'session_registrations']) {
+  for (const c of ['events', 'tickets', 'session_registrations', 'session_checkins']) {
     const snap = await db.collection(c).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -286,6 +286,79 @@ async function run() {
     const room = await sessions.attendeesFor(EVENT, 'workshop-a');
     assert.equal(room.length, 1);
     assert.equal(room[0].ticketId, 't-1');
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Check-in — they turned up (the conferences card's "Not yet")        */
+  /* ------------------------------------------------------------------ */
+
+  await test('a redeemed ticket checks into an uncapped session', async () => {
+    await seed();
+    await ticket('t1', { status: 'redeemed' });
+
+    const result = await sessions.checkInToSession(EVENT, 'keynote', 't1', 'door-1');
+    assert.equal(result.ok, true);
+    if (result.ok) {
+      assert.equal(result.sessionTitle, 'Opening keynote');
+      assert.equal(result.checkedIn, 1);
+    }
+  });
+
+  await test('checking in twice reports the first time, and counts once', async () => {
+    await seed();
+    await ticket('t1', { status: 'redeemed' });
+    await sessions.checkInToSession(EVENT, 'keynote', 't1', 'door-1');
+
+    const again = await sessions.checkInToSession(EVENT, 'keynote', 't1', 'door-2');
+    assert.equal(again.ok, false);
+    if (!again.ok) assert.equal(again.kind, 'already');
+
+    const count = await db.collection('session_checkins').get();
+    assert.equal(count.size, 1);
+  });
+
+  await test('a capped session refuses a ticket with no reservation', async () => {
+    await seed();
+    await ticket('t1', { status: 'redeemed' });
+
+    const result = await sessions.checkInToSession(EVENT, 'workshop-a', 't1', 'door-1');
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.kind, 'not-registered');
+  });
+
+  await test('a reserved place checks in, and check-in does not consume the ticket', async () => {
+    await seed();
+    await ticket('t1', { status: 'redeemed' });
+    await sessions.registerForSession(EVENT, 'workshop-a', 't1', USER);
+
+    const result = await sessions.checkInToSession(EVENT, 'workshop-a', 't1', 'door-1');
+    assert.equal(result.ok, true);
+
+    const stored = (await db.collection('tickets').doc('t1').get()).data()!;
+    assert.equal(stored.status, 'redeemed'); // untouched — check-in is not redemption
+  });
+
+  await test('a ticket for another event cannot check in here', async () => {
+    await seed();
+    await ticket('t1', { status: 'redeemed', eventId: 'someone-elses-event' });
+
+    const result = await sessions.checkInToSession(EVENT, 'keynote', 't1', 'door-1');
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.kind, 'no-ticket');
+  });
+
+  await test('sessionsAttended lists exactly what was scanned, in order', async () => {
+    await seed();
+    await ticket('t1', { status: 'redeemed' });
+    await sessions.registerForSession(EVENT, 'workshop-a', 't1', USER);
+    await sessions.checkInToSession(EVENT, 'keynote', 't1', 'door-1');
+    await sessions.checkInToSession(EVENT, 'workshop-a', 't1', 'door-1');
+
+    const attended = await sessions.sessionsAttended('t1');
+    assert.deepEqual(
+      attended.map((a) => a.sessionId),
+      ['keynote', 'workshop-a']
+    );
   });
 
   console.log(`\n${passed}/${passed + failures.length} passed\n`);
