@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/frontend/components/ui/form';
 import { Input } from '@/frontend/components/ui/input';
 import { useAuth } from '@/frontend/hooks/use-auth';
-import { authErrorMessage } from '@/shared/errors';
+import { describeError } from '@/shared/errors';
 
 const schema = z.object({ email: z.string().email('Enter a valid email address.') });
 type FormValues = z.infer<typeof schema>;
@@ -31,8 +31,8 @@ export default function ForgotPasswordPage() {
       await resetPassword(values.email);
       setSent(true);
     } catch (error) {
-      const code = (error as { code?: string })?.code ?? '';
-      form.setError('email', { message: authErrorMessage(code) });
+      console.error('[forgot-password]', error);
+      form.setError('email', { message: describeError(error) });
     } finally {
       setSubmitting(false);
     }

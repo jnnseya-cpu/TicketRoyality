@@ -35,7 +35,7 @@ import {
 import { Textarea } from '@/frontend/components/ui/textarea';
 import { useAuth } from '@/frontend/hooks/use-auth';
 import { useToast } from '@/frontend/hooks/use-toast';
-import { authErrorMessage } from '@/shared/errors';
+import { describeError } from '@/shared/errors';
 import { COUNTRIES } from '@/shared/constants/countries';
 import { cn } from '@/shared/utils';
 
@@ -192,11 +192,13 @@ export function OrganiserRegistrationForm() {
       });
       router.push('/dashboard/organiser');
     } catch (error) {
-      const code = (error as { code?: string })?.code ?? '';
+      // The toast is a sentence; this is the whole object, with the Firestore path and
+      // the rejected payload on it when that is what failed.
+      console.error('[register:organiser]', error);
       toast({
         variant: 'destructive',
         title: 'Registration failed',
-        description: authErrorMessage(code),
+        description: describeError(error),
       });
     } finally {
       setSubmitting(false);

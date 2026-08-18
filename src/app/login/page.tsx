@@ -31,7 +31,7 @@ import { PasswordInput } from '@/frontend/components/ui/password-input';
 import { Logo } from '@/frontend/components/common/Logo';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { dashboardPathFor, useAuth } from '@/frontend/hooks/use-auth';
-import { authErrorMessage } from '@/shared/errors';
+import { describeError } from '@/shared/errors';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email address.'),
@@ -58,8 +58,8 @@ export default function LoginPage() {
       toast({ title: 'Welcome back', description: `Signed in as ${values.email}` });
       router.push(dashboardPathFor(profile?.userType));
     } catch (error) {
-      const code = (error as { code?: string })?.code ?? '';
-      form.setError('password', { message: authErrorMessage(code) });
+      console.error('[login]', error);
+      form.setError('password', { message: describeError(error) });
     } finally {
       setSubmitting(false);
     }

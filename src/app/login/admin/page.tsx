@@ -30,7 +30,7 @@ import { Input } from '@/frontend/components/ui/input';
 import { PasswordInput } from '@/frontend/components/ui/password-input';
 import { dashboardPathFor, useAuth } from '@/frontend/hooks/use-auth';
 import { useToast } from '@/frontend/hooks/use-toast';
-import { authErrorMessage } from '@/shared/errors';
+import { describeError } from '@/shared/errors';
 import type { UserType } from '@/shared/types';
 
 /**
@@ -84,8 +84,8 @@ export default function AdminLoginPage() {
       toast({ title: 'Administrator signed in', description: values.email });
       router.push('/dashboard/superuser');
     } catch (error) {
-      const code = (error as { code?: string })?.code ?? '';
-      form.setError('password', { message: authErrorMessage(code) });
+      console.error('[login:admin]', error);
+      form.setError('password', { message: describeError(error) });
     } finally {
       setSubmitting(false);
     }

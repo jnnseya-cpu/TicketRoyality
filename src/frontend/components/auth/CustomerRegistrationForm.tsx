@@ -33,7 +33,7 @@ import {
 } from '@/frontend/components/ui/select';
 import { useAuth } from '@/frontend/hooks/use-auth';
 import { useToast } from '@/frontend/hooks/use-toast';
-import { authErrorMessage } from '@/shared/errors';
+import { describeError } from '@/shared/errors';
 import { COUNTRIES } from '@/shared/constants/countries';
 
 /** Minimum age to purchase a ticket. */
@@ -132,11 +132,11 @@ export function CustomerRegistrationForm() {
       });
       router.push('/dashboard/customer');
     } catch (error) {
-      const code = (error as { code?: string })?.code ?? '';
+      console.error('[register:customer]', error);
       toast({
         variant: 'destructive',
         title: 'Registration failed',
-        description: authErrorMessage(code),
+        description: describeError(error),
       });
     } finally {
       setSubmitting(false);
