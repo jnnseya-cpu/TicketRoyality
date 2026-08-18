@@ -457,6 +457,42 @@ To remove admin rights from an account, add `--revoke`. The script only ever upd
 `userType` — it never overwrites the document, so the wallet balance and profile
 survive.
 
+## The scheduler — nothing sweeps without it
+
+`/api/cron/release-holds` does five jobs, and **nothing calls it on its own**. Until a
+scheduler does, all five silently do not happen:
+
+| Job | What breaks while nobody calls it |
+| --- | --- |
+| Release expired checkout holds | Abandoned checkouts hold seats for ever, and an event reads sold out while real buyers are turned away |
+| Expire lapsed hospitality bookings | A table whose balance was never paid stays reserved |
+| Clear consumed seat locks | A refunded seat can never be resold |
+| Close auction lots | The auction runs past its closing time, all night |
+| Deliver webhooks | Integrations receive nothing, and the queue grows |
+
+Create the job once (Cloud Scheduler is already in the vendor list):
+
+```bash
+gcloud scheduler jobs create http ticketroyality-sweep \
+  --project ticketroyality \
+  --location europe-west1 \
+  --schedule "* * * * *" \
+  --uri "https://ticketroyality.com/api/cron/release-holds" \
+  --http-method GET \
+  --headers "Authorization=Bearer $CRON_SECRET"
+```
+
+Every minute, because a held seat is unsellable and a minute of phantom sell-out on a
+fast-moving on-sale is real money. Check it is working:
+
+```bash
+curl -s -H "Authorization: Bearer $CRON_SECRET" \
+  https://ticketroyality.com/api/cron/release-holds | jq
+```
+
+`implemented: true` with counts for `released`, `lotsClosed` and `webhooks`. A `401`
+means `CRON_SECRET` did not reach the runtime.
+
 ## Verify it actually works
 
 Do these in order. Each one catches a different failure.

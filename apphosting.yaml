@@ -138,10 +138,19 @@ env:
     availability:
       - RUNTIME
 
-  # Scheduled sweeps (/api/cron/*). While off: the cron routes refuse every caller,
-  # so nothing releases stale checkout holds.
+  # Scheduled sweeps (/api/cron/*). While off: the cron routes refuse every caller, so
+  # nothing releases stale checkout holds, closes auction lots, or delivers webhooks.
   - variable: CRON_SECRET
     secret: CRON_SECRET
+    availability:
+      - RUNTIME
+
+  # Hashes public API keys. While unset the key store falls back to QR_SIGNING_KEY, and
+  # if neither is set `createKey` refuses outright rather than hashing with an empty
+  # string — a key hashed with a constant is not hashed, and storing it that way is the
+  # same as storing it in plaintext.
+  - variable: API_KEY_SECRET
+    secret: API_KEY_SECRET
     availability:
       - RUNTIME
 
