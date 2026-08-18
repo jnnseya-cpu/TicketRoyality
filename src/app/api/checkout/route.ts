@@ -259,7 +259,18 @@ export async function POST(request: Request) {
     lines.push({ name, amount, quantity, currency });
   }
 
-  if (lines.length === 0) return NextResponse.json({ error: 'Nothing to check out.' }, { status: 400 });
+  /*
+   * A gift, read before the emptiness check because a donation on its own is a complete
+   * checkout: somebody giving £20 to a charity is not buying anything, and refusing them
+   * for having an empty basket would be the wrong answer to the right question.
+   */
+  const donationMinor = Math.max(0, Math.round(Number(form.get('donationMinor') ?? 0)));
+
+  if (lines.length === 0 && donationMinor === 0) {
+    return NextResponse.json({ error: 'Nothing to check out.' }, { status: 400 });
+  }
+
+  const currency = lines[0]?.currency ?? 'GBP';
 
   /*
    * The service fee, as its own Stripe line so the buyer's receipt itemises what the
@@ -276,7 +287,27 @@ export async function POST(request: Request) {
       name: 'TicketRoyality Service Fee',
       amount: toMajor(quote.serviceFeeMinor),
       quantity: 1,
-      currency: lines[0].currency,
+      currency,
+    });
+  }
+
+  /*
+   * A gift, added after the quote so it is **not** part of the fee base.
+   *
+   * Charging a percentage of a donation would be indefensible for a charity, and it is
+   * the kind of line that gets quoted back in public. So the donation carries no platform
+   * fee at all: the card cost on it is ours. The order matters — computing fees over a
+   * list that already contained the donation would silently charge for it.
+   *
+   * It is also a separate amount for a legal reason, not a presentational one: Gift Aid
+   * is claimed on a gift and never on a payment for admission.
+   */
+  if (donationMinor > 0) {
+    lines.push({
+      name: 'Donation',
+      amount: toMajor(donationMinor),
+      quantity: 1,
+      currency,
     });
   }
 
@@ -334,6 +365,9 @@ export async function POST(request: Request) {
         ref: referral ?? '',
         // Set only on a season pass, which settles into one ticket per covered fixture.
         passId: String(form.get('passId') ?? ''),
+        // The gift, kept apart from the ticket money all the way to the record.
+        donationMinor: String(donationMinor),
+        donationOrganiserId: donationMinor > 0 ? String(form.get('donationOrganiserId') ?? '') : '',
       },
     });
     return NextResponse.redirect(url, { status: 303 });

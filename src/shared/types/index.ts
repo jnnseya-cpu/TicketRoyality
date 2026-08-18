@@ -414,6 +414,23 @@ export interface Event {
   currency: string;
   ticketTiers: TicketTier[];
   seating?: SeatingSection[];
+  /**
+   * Fundraising alongside the tickets.
+   *
+   * Off unless the organiser turns it on. A donation is a **separate amount** from the
+   * ticket price, carries no platform fee, and is the only part Gift Aid can ever be
+   * claimed on — a ticket is a payment for admission, and claiming on one is the mistake
+   * that costs a charity the whole claim back with interest.
+   */
+  giving?: {
+    enabled: boolean;
+    /** Shown beside the ask. A donor is entitled to know who they are giving to. */
+    charityNumber?: string;
+    /** "£25 buys a week of meals" — what the money does, in the organiser's words. */
+    appeal?: string;
+    /** Offered as buttons, in major units. The donor can always type their own. */
+    suggested?: number[];
+  };
   /** Doors within the venue. Absent means one undifferentiated gate. */
   zones?: VenueZone[];
   /** Tables sold as inventory. Each references the tier that carries its price. */

@@ -398,6 +398,21 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Donations and Gift Aid declarations.
+       Closed to every client in both directions. A declaration carries a donor's home
+       address and a statement about their tax position, and a donation record names who
+       gave what to whom — neither is something one signed-in user should be able to read
+       about another, and a client write could manufacture a declaration that a charity
+       would then claim against. Written by the webhook and the giving API, read through
+       the API scoped to the charity's own records. */
+    match /donations/{id} {
+      allow read, write: if false;
+    }
+
+    match /gift_aid_declarations/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }

@@ -5,6 +5,7 @@ import { isStripeConfigured, readCheckoutSession, verifyWebhook } from '@/backen
 import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { recordBookingPayment } from '@/backend/services/hospitality';
 import { recordAttribution } from '@/backend/services/partners';
+import { recordDonation } from '@/backend/services/donations';
 import { settlePassPurchase } from '@/backend/services/season-passes';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
@@ -59,6 +60,42 @@ export async function POST(request: Request) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const checkout = readCheckoutSession(event.data.object as Stripe.Checkout.Session);
+
+        /*
+         * A gift, recorded before anything else in this branch and independently of it.
+         *
+         * It rides on the same card payment as the tickets, but it is a different thing
+         * in law: Gift Aid is claimed on a gift and never on a payment for admission. So
+         * it gets its own record, keyed by its own id derived from this Stripe event, and
+         * the ticket issuance below is untouched by it. A donation that fails to record
+         * must not cost anyone their tickets, so this never returns early on failure —
+         * it reports and carries on.
+         */
+        if (checkout.donationMinor > 0 && checkout.donationOrganiserId) {
+          const recorded = await recordDonation({
+            providerEventId: `${event.id}__gift`,
+            organizerId: checkout.donationOrganiserId,
+            eventId: checkout.eventId,
+            userId: checkout.userId,
+            donorName: checkout.customerName ?? 'Anonymous',
+            donorEmail: checkout.customerEmail ?? '',
+            amountMinor: checkout.donationMinor,
+            currency: checkout.currency,
+            providerRef: checkout.paymentIntentId,
+          });
+
+          if (recorded === 'unavailable') {
+            reportError(new Error('donation not recorded'), {
+              scope: 'stripe.donation',
+              stripeEventId: event.id,
+            });
+          }
+        }
+
+        // A gift on its own — no tickets to issue, nothing further to do here.
+        if (checkout.donationMinor > 0 && !checkout.eventId && !checkout.bookingId && !checkout.passId) {
+          return NextResponse.json({ received: true, donation: true });
+        }
 
         /*
          * A hospitality deposit or balance, which is a payment against a booking rather

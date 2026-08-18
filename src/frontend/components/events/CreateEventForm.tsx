@@ -238,6 +238,11 @@ const schema = z
     currency: z.string().min(3),
     ticketTiers: z.array(ticketTierSchema).min(1, 'Add at least one ticket tier.'),
     seating: z.array(seatingSchema),
+    /* Fundraising alongside the tickets. Off unless it is switched on. */
+    givingEnabled: z.boolean(),
+    givingCharityNumber: z.string().optional(),
+    givingAppeal: z.string().max(160, 'Keep the appeal to one line.').optional(),
+    givingSuggested: z.string().optional(),
     zones: z.array(zoneSchema),
     hospitality: z.array(hospitalitySchema),
     speakers: z.array(speakerSchema),
@@ -380,6 +385,10 @@ function defaultsFor(event?: Event): FormValues {
         },
       ],
       seating: [],
+      givingEnabled: false,
+      givingCharityNumber: '',
+      givingAppeal: '',
+      givingSuggested: '5, 10, 25',
       zones: [],
       hospitality: [],
       speakers: [],
@@ -431,6 +440,10 @@ function defaultsFor(event?: Event): FormValues {
       // it empty means "keep what is stored"; typing replaces it.
       accessCode: '',
     })),
+    givingEnabled: event.giving?.enabled ?? false,
+    givingCharityNumber: event.giving?.charityNumber ?? '',
+    givingAppeal: event.giving?.appeal ?? '',
+    givingSuggested: (event.giving?.suggested ?? [5, 10, 25]).join(', '),
     seating: (event.seating ?? []).map((section) => ({
       ...section,
       tierId: section.tierId ?? '',
@@ -578,6 +591,26 @@ export function CreateEventForm({
           ...(tier.salesEnd ? { salesEnd: new Date(tier.salesEnd).toISOString() } : {}),
           ...(tier.minLoyaltyTier !== 'none' ? { minLoyaltyTier: tier.minLoyaltyTier } : {}),
         })),
+        /*
+         * Fundraising. Only written when it is on, so an event that never asked for
+         * donations carries no giving block at all rather than a disabled one.
+         */
+        ...(values.givingEnabled
+          ? {
+              giving: {
+                enabled: true,
+                ...(values.givingCharityNumber?.trim()
+                  ? { charityNumber: values.givingCharityNumber.trim() }
+                  : {}),
+                ...(values.givingAppeal?.trim() ? { appeal: values.givingAppeal.trim() } : {}),
+                suggested: (values.givingSuggested ?? '')
+                  .split(/[,\s]+/)
+                  .map((n) => Number(n))
+                  .filter((n) => Number.isFinite(n) && n > 0)
+                  .slice(0, 4),
+              },
+            }
+          : { giving: { enabled: false } }),
         seating:
           values.seating.length > 0
             ? values.seating.map((section) => ({
@@ -1804,6 +1837,90 @@ export function CreateEventForm({
             >
               <PlusCircle className="h-4 w-4" /> Add hospitality package
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* --------------------------------------------------------------- */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Fundraising</CardTitle>
+            <CardDescription>
+              Let buyers add a donation alongside their ticket. We take no fee on donations.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField
+              control={form.control}
+              name="givingEnabled"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div className="space-y-0.5 pr-4">
+                    <FormLabel>Ask for donations</FormLabel>
+                    <FormDescription className="text-xs">
+                      A donation is a separate amount from the ticket price and carries no
+                      platform fee. It is also the only part Gift Aid can be claimed on — a
+                      ticket is a payment for admission, and claiming on one costs a charity
+                      the whole claim back.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {form.watch('givingEnabled') && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="givingAppeal"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>What the money does</FormLabel>
+                      <FormControl>
+                        <Input placeholder="£25 buys a week of hot meals" {...field} />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        One line, shown beside the ask. Concrete beats grateful.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="givingSuggested"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Suggested amounts</FormLabel>
+                      <FormControl>
+                        <Input placeholder="5, 10, 25" {...field} />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Up to four. The donor can always type their own.
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="givingCharityNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Registered charity number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="1234567" {...field} />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Shown to donors. Leave blank if you are not a registered charity —
+                        you can still take donations, but not claim Gift Aid on them.
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 

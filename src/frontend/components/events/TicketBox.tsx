@@ -15,6 +15,7 @@ import { useAuth } from '@/frontend/hooks/use-auth';
 import { useCart } from '@/frontend/hooks/use-cart';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { formatCurrency } from '@/shared/utils';
+import { DonationBox } from '@/frontend/components/giving/DonationBox';
 import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { resolveLinePrice, tierSaleWindow } from '@/shared/pricing';
@@ -54,6 +55,9 @@ export function TicketBox({ event }: { event: Event }) {
       'general'
   );
   const [quantity, setQuantity] = React.useState(1);
+  /* A gift riding along with the tickets, in minor units. Zero unless the organiser has
+     turned fundraising on and the buyer chose an amount. */
+  const [donationMinor, setDonationMinor] = React.useState(0);
   const [bitripayLoading, setBitripayLoading] = React.useState(false);
   const [selectedSeats, setSelectedSeats] = React.useState<string[]>([]);
 
@@ -389,6 +393,14 @@ export function TicketBox({ event }: { event: Event }) {
           </div>
         </div>
 
+        {/*
+          Placed **above** the total, never after it. A donation is optional, but once it
+          is chosen it is part of what the card is charged — and a page that adds an
+          amount below the total it just showed is doing the exact thing the drip-pricing
+          rules exist to stop, optional or not.
+        */}
+        <DonationBox event={event} onAmountChange={setDonationMinor} />
+
         <Separator />
 
         {/*
@@ -414,10 +426,20 @@ export function TicketBox({ event }: { event: Event }) {
               </span>
             </div>
           )}
+          {donationMinor > 0 && (
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="text-muted-foreground">Donation</span>
+              <span className="tabular-nums">
+                {formatCurrency(toMajor(donationMinor), event.currency)}
+              </span>
+            </div>
+          )}
           <div className="flex items-baseline justify-between pt-1">
             <span className="text-sm font-medium">Total</span>
             <span className="font-headline text-2xl font-bold text-primary">
-              {isFree ? 'Free' : formatCurrency(toMajor(quote.buyerTotalMinor), event.currency)}
+              {isFree && donationMinor === 0
+                ? 'Free'
+                : formatCurrency(toMajor(quote.buyerTotalMinor + donationMinor), event.currency)}
             </span>
           </div>
           {!isFree && (
@@ -494,6 +516,15 @@ export function TicketBox({ event }: { event: Event }) {
               {/* The seats are re-locked server-side inside the hold transaction, so this
                   is what the buyer chose, not what they are entitled to. */}
               <input type="hidden" name="seats" value={selectedSeats.join(',')} />
+              {/* The gift. Added to the Stripe session after the fee is computed, so it
+                  is charged with no platform fee, and recorded separately from the ticket
+                  because Gift Aid can never be claimed on a payment for admission. */}
+              <input type="hidden" name="donationMinor" value={donationMinor} />
+              <input
+                type="hidden"
+                name="donationOrganiserId"
+                value={donationMinor > 0 ? event.organizerId : ''}
+              />
               <Button
                 type="submit"
                 variant="outline"
@@ -507,12 +538,24 @@ export function TicketBox({ event }: { event: Event }) {
               </Button>
             </form>
 
+            {/*
+              A donation rides on the Stripe session only. The other rails would charge
+              the ticket total and drop the gift, so the buyer would pay less than the
+              total they were just shown and the charity would never see the money. Better
+              to say so than to take a payment that quietly disagrees with the page.
+            */}
+            {donationMinor > 0 && (
+              <p className="text-center text-xs text-muted-foreground">
+                Donations are card-only for now. Remove the donation to pay another way.
+              </p>
+            )}
+
             {methods.bitripay && (
             <Button
               variant="outline"
               className="w-full"
               onClick={handleBitripay}
-              disabled={bitripayLoading}
+              disabled={bitripayLoading || donationMinor > 0}
             >
               {bitripayLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -523,9 +566,9 @@ export function TicketBox({ event }: { event: Event }) {
             </Button>
             )}
 
-            {userProfile ? (
+            {userProfile && donationMinor === 0 ? (
               <OfflinePayment event={event} amount={lineTotal} user={userProfile} />
-            ) : (
+            ) : userProfile ? null : (
               <p className="text-center text-xs text-muted-foreground">
                 <Link href="/login" className="text-primary hover:underline">
                   Log in

@@ -96,6 +96,16 @@ export function readCheckoutSession(session: Stripe.Checkout.Session) {
     bookingId: session.metadata?.bookingId || undefined,
     /** Set on a season pass, which settles into one ticket per covered fixture. */
     passId: session.metadata?.passId || undefined,
+    /**
+     * A gift travelling alongside the tickets, in minor units.
+     *
+     * Separate from the ticket price for a reason that is not presentational: Gift Aid is
+     * claimed on a gift and never on a payment for admission, so the two must be distinct
+     * amounts from the moment the money lands.
+     */
+    donationMinor: Number(session.metadata?.donationMinor ?? 0),
+    /** The charity the gift belongs to — the organiser of the event it was given at. */
+    donationOrganiserId: session.metadata?.donationOrganiserId || undefined,
     /** The partner link that sent this buyer, if any. */
     ref: session.metadata?.ref || undefined,
     /**
