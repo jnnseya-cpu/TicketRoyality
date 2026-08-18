@@ -128,6 +128,8 @@ const seatingSchema = z.object({
   tierId: z.string().optional(),
   /** How the rows lie — docs/23 §5. Geometry only; seat labels never change. */
   shape: z.enum(['straight', 'curve', 'arc', 'angled', 'vertical']).optional(),
+  /** docs/23 §10 — refuse selections that strand a single empty seat. */
+  preventOrphans: z.boolean().optional(),
   curveDegrees: z.coerce.number().int().min(10).max(180).optional(),
   /**
    * The room, when it is not a rectangle.
@@ -779,6 +781,7 @@ export function CreateEventForm({
                 ...(section.shape && section.shape !== 'straight'
                   ? { shape: section.shape, curveDegrees: section.curveDegrees }
                   : {}),
+                ...(section.preventOrphans ? { preventOrphans: true } : {}),
                 // Only written when the room actually has a shape: an empty array would
                 // turn every rectangle into an irregular map holding no seats.
                 ...(section.rowSpec && section.rowSpec.length > 0
@@ -2395,6 +2398,22 @@ export function CreateEventForm({
                   )}
                 />
 
+                <FormField
+                  control={form.control}
+                  name={`seating.${index}.preventOrphans`}
+                  render={({ field: f }) => (
+                    <FormItem className="flex items-center gap-3 space-y-0 sm:col-span-4">
+                      <FormControl>
+                        <Checkbox checked={f.value ?? false} onCheckedChange={f.onChange} />
+                      </FormControl>
+                      <Label className="cursor-pointer text-sm">
+                        Prevent stranded single seats — refuse a selection that would leave one
+                        empty seat on its own. Singles that already exist are never blamed on a
+                        new buyer.
+                      </Label>
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name={`seating.${index}.shape`}

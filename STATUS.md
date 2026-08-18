@@ -234,7 +234,7 @@ The honest state of the rest:
 | Spec § | Requirement | State |
 | --- | --- | --- |
 | §5, §19 | Row shapes from coordinates, SVG rendering, zoom/pan | **Built** (phase 1). Freeform per-seat positioning and circular/radial are not. |
-| §10, §15, §25 | Holds with TTL, atomic seat locks, orphan avoidance | **Built before the spec arrived** — `holds.ts`, seat locks in the hold transaction, orphan penalty in `bestAvailable()`. Orphan rule is a scoring penalty, not a blocking option. |
+| §10, §15, §25 | Holds with TTL, atomic seat locks, orphan prevention | **Built.** Holds/locks predate the spec; §10 is now also a blocking rule — `preventOrphans` per section, enforced at hold time via `orphansCreated()` (pure, 32/32 in seating tests: gangways end runs, pre-existing singles are never blamed on a new buyer). A policy gate outside the lock transaction, deliberately — double-booking safety stays in the locks. |
 | §9 | Find-seats-together | **Built** as best-available (together > centre > front, told when split). Party-mix (2 adults + 3 children) waits on per-seat ticket types. |
 | §11, §12 | GA zones, hybrid reserved+standing | **Built** — capacity tiers beside seated sections in one event. |
 | §13 | Tables | **Built** as hospitality packages (whole-table, deposit, balance, guests). Per-chair sale of a table is not. |

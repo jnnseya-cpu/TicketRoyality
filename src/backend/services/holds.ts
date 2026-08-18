@@ -2,7 +2,7 @@ import 'server-only';
 
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
-import { seatBelongsToTier } from '@/shared/seating';
+import { orphansCreated, seatBelongsToTier } from '@/shared/seating';
 import type { SeatingSection, TicketTier } from '@/shared/types';
 
 /**
@@ -105,6 +105,45 @@ export async function placeHold(
   const db = getAdminDb();
   const eventRef = db.collection('events').doc(eventId);
   const holdRef = db.collection('checkout_holds').doc();
+
+  /*
+   * docs/23 §10 — the organiser's no-stranded-singles rule, checked before the locks.
+   *
+   * A policy gate, deliberately outside the transaction: the taken set is a read of
+   * sold tickets and live locks, and reading it transactionally would drag the whole
+   * tickets collection into every hold. A racing buyer can therefore strand a single
+   * once in a while — which is the price of the rule staying cheap, and exactly the
+   * miss `bestAvailable`'s penalty already tolerates. Double-booking remains impossible
+   * either way: that guarantee lives in the seat locks, not here.
+   */
+  let takenForOrphans: Set<string> | null = null;
+  if (seats.length > 0) {
+    try {
+      const eventSnap = await eventRef.get();
+      const sections = (eventSnap.data()?.seating ?? []) as SeatingSection[];
+      const guarded = sections.find(
+        (section) =>
+          section.preventOrphans &&
+          seats.some((seat) => seatBelongsToTier([section], section.tierId ?? tierId, seat))
+      );
+      if (guarded) {
+        const { takenSeats } = await import('@/backend/services/seats');
+        takenForOrphans = new Set(await takenSeats(eventId));
+        const stranded = orphansCreated(guarded, takenForOrphans, seats);
+        if (stranded.length > 0) {
+          return {
+            ok: false,
+            reason: 'seat-taken',
+            error: `That selection would leave ${stranded.join(', ')} stranded on ${
+              stranded.length === 1 ? 'its' : 'their'
+            } own — please choose seats that do not leave a single empty one.`,
+          };
+        }
+      }
+    } catch {
+      // The rule is a courtesy to the organiser; a failed read must not block a sale.
+    }
+  }
 
   try {
     return await db.runTransaction<PlaceHoldResult>(async (tx) => {

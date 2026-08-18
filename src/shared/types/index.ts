@@ -287,6 +287,11 @@ export interface SeatingSection {
    * Ignored for the other shapes.
    */
   curveDegrees?: number;
+  /**
+   * docs/23 §10 — refuse selections that strand a single empty seat, at hold time.
+   * Off by default; best-available always *prefers* tidy selections either way.
+   */
+  preventOrphans?: boolean;
 }
 
 /**

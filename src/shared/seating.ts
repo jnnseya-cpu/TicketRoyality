@@ -458,3 +458,62 @@ export function sectionBounds(positioned: PositionedSeat[]): {
     height: Math.max(...ys) + pad - minY,
   };
 }
+
+/**
+ * The single empty seats a proposed selection would strand — docs/23 §10.
+ *
+ * A seat is stranded when it is free and both neighbours in its run are not, where a
+ * run ends at a gangway or the end of the row: nobody buys the one seat between two
+ * strangers, so every stranded single is a seat the organiser probably never sells.
+ *
+ * Only *newly* stranded seats are reported. A room can already contain singles — from
+ * earlier sales, or because the organiser turned this rule on late — and refusing a
+ * buyer over an orphan they did not create punishes the wrong person.
+ *
+ * `bestAvailable` treats stranding as a score penalty, because an assistant should
+ * prefer tidy and accept untidy. This is the other posture — a rule the organiser can
+ * switch on (`preventOrphans` on the section), enforced at hold time — and the two
+ * deliberately share nothing but this file, so a picker and a policy cannot drift.
+ */
+export function orphansCreated(
+  section: SeatingSection,
+  taken: Set<string>,
+  chosen: string[]
+): string[] {
+  const chosenSet = new Set(chosen.map((seat) => seat.trim().toUpperCase()));
+
+  const stranded = (unavailable: Set<string>): Set<string> => {
+    const found = new Set<string>();
+    const rows = new Map<string, Seat[]>();
+    for (const seat of sectionSeats(section)) {
+      if (!rows.has(seat.row)) rows.set(seat.row, []);
+      rows.get(seat.row)!.push(seat);
+    }
+
+    for (const row of rows.values()) {
+      // Split the row into runs at gangways, then look for free singletons.
+      let run: Seat[] = [];
+      const flush = () => {
+        for (let i = 0; i < run.length; i += 1) {
+          const seat = run[i];
+          if (unavailable.has(seat.label)) continue;
+          const leftFree = i > 0 && !unavailable.has(run[i - 1].label);
+          const rightFree = i < run.length - 1 && !unavailable.has(run[i + 1].label);
+          if (!leftFree && !rightFree) found.add(seat.label);
+        }
+        run = [];
+      };
+      for (const seat of row) {
+        run.push(seat);
+        if (seat.aisleAfter) flush();
+      }
+      flush();
+    }
+    return found;
+  };
+
+  const before = stranded(taken);
+  const after = stranded(new Set([...taken, ...chosenSet]));
+
+  return [...after].filter((label) => !before.has(label) && !chosenSet.has(label)).sort();
+}

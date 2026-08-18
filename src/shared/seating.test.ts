@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 
 import {
   SEAT_PITCH,
+  orphansCreated,
   bestAvailable,
   generatedRowNames,
   seatBelongsToTier,
@@ -338,5 +339,35 @@ test('bounds cover every seat with a margin', () => {
   }
 });
 
+/* ----------------------------- orphan prevention (§10) -------------------- */
+
+test('choosing the middle of a free run strands nothing at the edges', () => {
+  const one = section({ rows: 1, seatsPerRow: 5 });
+  // ● X X ● ● — A1 left alone next to the wall? A1's right neighbour A2 is taken,
+  // and A1 is at the run edge with no left neighbour: stranded.
+  assert.deepEqual(orphansCreated(one, new Set(), ['A2', 'A3']), ['A1']);
+});
+
+test('a tidy block strands nobody', () => {
+  const one = section({ rows: 1, seatsPerRow: 5 });
+  assert.deepEqual(orphansCreated(one, new Set(), ['A1', 'A2']), []);
+});
+
+test('an already-stranded single is not blamed on the new buyer', () => {
+  const one = section({ rows: 1, seatsPerRow: 5 });
+  // A2 taken long ago strands A1. The new buyer takes A4+A5, stranding only A3.
+  assert.deepEqual(orphansCreated(one, new Set(['A2']), ['A4', 'A5']), ['A3']);
+});
+
+test('a gangway ends the run — a single across the aisle is not stranded', () => {
+  const one = section({
+    rows: 1,
+    seatsPerRow: 6,
+    rowSpec: [{ name: 'A', seats: 6, aisleAfter: [3] }],
+  });
+  // Taking A4 A5 A6 leaves A1–A3 whole; taking A1 A2 strands A3 against the aisle.
+  assert.deepEqual(orphansCreated(one, new Set(), ['A4', 'A5', 'A6']), []);
+  assert.deepEqual(orphansCreated(one, new Set(), ['A1', 'A2']), ['A3']);
+});
 console.log(`\n${passed}/${passed + failures.length} passed\n`);
 if (failures.length > 0) process.exit(1);
