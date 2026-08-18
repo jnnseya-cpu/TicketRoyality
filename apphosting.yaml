@@ -255,3 +255,25 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+  # A *second*, server-side key, for /api/geocode — which turns the venue an organiser
+  # types into the latitude and longitude the map and distance search need.
+  #
+  # It cannot be the key above. That one is restricted to HTTP referrers, and referrer
+  # restrictions apply to the Maps JavaScript, Embed and Static APIs — not to the
+  # Geocoding web service, which is a server-to-server call carrying no referrer. Reusing
+  # it produces REQUEST_DENIED.
+  #
+  # In the console: create a key, Application restrictions -> None (it is never exposed
+  # to a browser), API restrictions -> Geocoding API only. Then:
+  #   firebase apphosting:secrets:set GOOGLE_MAPS_SERVER_KEY
+  #
+  # Commented out until the secret exists — App Hosting validates every secret reference
+  # at rollout, so declaring one that is missing fails the deploy. Uncomment after
+  # creating it. While unset, the coordinate fields stay hand-editable and the route says
+  # so rather than failing silently.
+  #
+  # - variable: GOOGLE_MAPS_SERVER_KEY
+  #   secret: GOOGLE_MAPS_SERVER_KEY
+  #   availability:
+  #     - RUNTIME

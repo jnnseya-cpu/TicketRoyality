@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { CalendarIcon, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { CalendarIcon, Loader2, MapPin, PlusCircle, Trash2 } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
 import { Calendar } from '@/frontend/components/ui/calendar';
@@ -47,6 +47,7 @@ import { useToast } from '@/frontend/hooks/use-toast';
 import { createEvent, updateEvent } from '@/shared/data/repositories';
 import { CATEGORY_GROUPS, categoryValue, parseCategoryValue } from '@/shared/constants/categories';
 import { COUNTRIES } from '@/shared/constants/countries';
+import { CURRENCY_OPTIONS, SETTLEABLE_BY_STRIPE } from '@/shared/constants/currencies';
 import { eventImageSeed } from '@/shared/constants/placeholder-images';
 import type { Event, UserProfile } from '@/shared/types';
 
@@ -529,6 +530,58 @@ export function CreateEventForm({
   const watchedTiers = form.watch('ticketTiers');
   const currency = form.watch('currency');
 
+  /*
+   * Coordinates from the venue, rather than from the organiser.
+   *
+   * Latitude and longitude were two free-text boxes. Almost nobody knows their venue's
+   * coordinates, so they were left blank and the event published with no map and no
+   * distance search — the only two things those numbers feed.
+   *
+   * Runs when the venue field loses focus and there is nothing there yet, so the common
+   * path costs no interaction at all; the button re-runs it after a correction, and
+   * either can be overridden by simply typing over the result.
+   */
+  const [geocoding, setGeocoding] = React.useState(false);
+  const [geocodeNote, setGeocodeNote] = React.useState<string | null>(null);
+
+  const lookUpVenue = React.useCallback(
+    async (options: { overwrite: boolean }) => {
+      const address = (form.getValues('location') ?? '').trim();
+      if (address.length < 3) return;
+
+      if (!options.overwrite && form.getValues('lat') && form.getValues('lng')) return;
+
+      setGeocoding(true);
+      setGeocodeNote(null);
+      try {
+        const response = await authedFetch('/api/geocode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address, country: form.getValues('country') ?? '' }),
+        });
+        const data = await response.json();
+
+        if (data.ok && data.found) {
+          // Six decimals is roughly 10cm — far past what a venue pin needs, and it keeps
+          // the field readable rather than showing fifteen digits of float noise.
+          form.setValue('lat', String(Number(data.lat).toFixed(6)), { shouldDirty: true });
+          form.setValue('lng', String(Number(data.lng).toFixed(6)), { shouldDirty: true });
+          setGeocodeNote(`Matched ${data.formatted}`);
+        } else if (data.ok) {
+          setGeocodeNote('No match for that venue. Add the city, or enter the coordinates yourself.');
+        } else {
+          setGeocodeNote(data.error ?? 'Address lookup is unavailable.');
+        }
+      } catch {
+        // Never fatal. The fields stay editable and the event can still be published.
+        setGeocodeNote('Address lookup is unavailable. You can enter the coordinates yourself.');
+      } finally {
+        setGeocoding(false);
+      }
+    },
+    [form]
+  );
+
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
@@ -972,9 +1025,35 @@ export function CreateEventForm({
                   render={({ field }) => (
                     <FormItem className="sm:col-span-2">
                       <FormLabel>Venue</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Symphony Hall, Birmingham" {...field} />
-                      </FormControl>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            placeholder="Symphony Hall, Birmingham"
+                            {...field}
+                            onBlur={(event) => {
+                              field.onBlur();
+                              void lookUpVenue({ overwrite: false });
+                              event.stopPropagation();
+                            }}
+                          />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={geocoding}
+                          onClick={() => void lookUpVenue({ overwrite: true })}
+                        >
+                          {geocoding ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <MapPin className="h-4 w-4" />
+                          )}
+                          <span className="ml-2 hidden sm:inline">Find</span>
+                        </Button>
+                      </div>
+                      <FormDescription>
+                        {geocodeNote ?? 'The coordinates below are filled in from this.'}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1167,14 +1246,27 @@ export function CreateEventForm({
                         <SelectValue />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
-                      {['GBP', 'USD', 'EUR', 'ZAR', 'NGN', 'KES'].map((code) => (
-                        <SelectItem key={code} value={code}>
-                          {code}
+                    <SelectContent className="max-h-72">
+                      {CURRENCY_OPTIONS.map((currencyOption) => (
+                        <SelectItem key={currencyOption.code} value={currencyOption.code}>
+                          {currencyOption.code} — {currencyOption.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {/*
+                    Named rather than silent. The code chosen here is what the payment
+                    rail is asked to charge, and Stripe does not cover every ISO 4217
+                    currency — CDF among them — so an organiser pricing in Congolese
+                    Francs needs to know before they publish that cards will not settle
+                    it, not after a buyer's card is declined at checkout.
+                  */}
+                  {!SETTLEABLE_BY_STRIPE.has(field.value) ? (
+                    <FormDescription className="text-amber-600 dark:text-amber-500">
+                      Cards cannot settle {field.value}. Tickets priced in it must be paid
+                      through mobile money.
+                    </FormDescription>
+                  ) : null}
                   <FormMessage />
                 </FormItem>
               )}
