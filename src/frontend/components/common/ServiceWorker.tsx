@@ -23,10 +23,26 @@ export function ServiceWorker() {
 
     let cancelled = false;
 
+    let onVisible: (() => void) | null = null;
+
     const register = async () => {
       try {
         const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
         if (cancelled) return;
+
+        /*
+         * Check for a new build every time the app comes back to the foreground.
+         *
+         * Browsers only re-check sw.js on navigation or ~daily — and an installed PWA
+         * is exactly the thing that never navigates and never closes. Live testing hit
+         * this as "the fix deployed but the phone still shows the old bugs": the app
+         * resumed from the background serving last week's bundle. A resume is the
+         * moment the user is looking; that is when the update must be found.
+         */
+        onVisible = () => {
+          if (document.visibilityState === 'visible') void registration.update().catch(() => undefined);
+        };
+        document.addEventListener('visibilitychange', onVisible);
 
         if (registration.waiting) setWaiting(registration.waiting);
 
@@ -50,6 +66,7 @@ export function ServiceWorker() {
     void register();
     return () => {
       cancelled = true;
+      if (onVisible) document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
 

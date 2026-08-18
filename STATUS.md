@@ -502,6 +502,20 @@ button says so.
    picture — data, not code. The new separate cover/picture fields make the fix a
    two-field edit.
 
+### PWA staleness: the installed app now checks for updates on every resume
+
+Live testing reported the pre-fix bugs again ("no checkout, no screen fit, can't add
+tickets" — all three are the auto-zoom overflow pushing right-aligned controls off
+screen, fixed days of commits ago). Code review of the stepper and checkout gating
+found no new defect; the phone was serving a stale bundle. Root cause worth fixing:
+browsers re-check `sw.js` only on navigation or ~daily, and an installed PWA is
+exactly the thing that never navigates and never closes — a resumed app can sit on
+last week's build while looking current. `ServiceWorker.tsx` now calls
+`registration.update()` every time the app returns to the foreground, so the "new
+version ready — Reload" prompt appears at the moment the user is actually looking.
+Until this ships, the manual fix is: fully close the installed app (swipe away from
+recents) and reopen it.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.
