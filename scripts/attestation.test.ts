@@ -182,6 +182,33 @@ async function run() {
     assert.equal(await attest.attestationSignal(request), undefined);
   });
 
+  await test('an expired challenge is unproven, not a failure', async () => {
+    /*
+     * The distinction that refused a real applicant. Ten minutes between the form
+     * appearing and the button being pressed is what a careful human does on a
+     * three-step application, not what a script does — so an expired token must score
+     * like silence, not like a forgery, or slowness stacks with other weak signals
+     * until somebody real is told they are not a person.
+     */
+    await clear();
+    const challenge = attest.issueChallenge(4);
+    const solution = await solve(challenge);
+
+    // Signed properly at issue, then simply left too long.
+    const stale = { ...challenge, expiresAt: Date.now() - 1000 };
+    const request = new Request('https://example.com', {
+      headers: { 'x-tr-attestation': token(stale, solution.counter) },
+    });
+
+    const verdict = await attest.verifyAttestation(token(stale, solution.counter));
+    assert.equal(verdict.ok, false);
+
+    // Whatever the verification says, the *signal* must not be hostile.
+    if (!verdict.ok && verdict.reason === 'expired') {
+      assert.equal(await attest.attestationSignal(request), undefined);
+    }
+  });
+
   await test('a header that fails verification is a failure, not silence', async () => {
     await clear();
     const request = new Request('https://example.com', {

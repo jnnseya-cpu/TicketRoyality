@@ -129,7 +129,24 @@ export async function verifyAttestation(header: string | null): Promise<AttestRe
 export async function attestationSignal(request: Request): Promise<boolean | undefined> {
   const header = request.headers.get('x-tr-attestation');
   if (!header) return undefined;
-  return (await verifyAttestation(header)).ok;
+
+  const result = await verifyAttestation(header);
+  if (result.ok) return true;
+
+  /*
+   * An expired challenge is **unproven, not hostile**.
+   *
+   * It means the person took longer than ten minutes between the form appearing and
+   * pressing the button — which on a three-step organiser application is what a careful
+   * human does, not what a script does. Scoring slowness as evidence of automation is
+   * backwards, and it stacks with other weak signals until a real applicant is refused.
+   *
+   * Everything else — forged, insufficient work, a replayed nonce — stays a failure,
+   * because each of those is somebody constructing a token rather than solving one.
+   */
+  if (result.reason === 'expired') return undefined;
+
+  return false;
 }
 
 /** Housekeeping: spent nonces are worthless once they cannot be replayed anyway. */

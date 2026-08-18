@@ -76,9 +76,26 @@ export async function POST(request: Request) {
 
   const assessment = assessRisk(signals);
 
+  /*
+   * The bar to refuse a sign-up outright is deliberately higher than the generic
+   * `severe` band.
+   *
+   * Every account created here lands in a queue a human reviews — an organiser cannot
+   * publish until they are approved — so the cost of letting a doubtful sign-up through
+   * is that somebody looks at it, while the cost of a wrong refusal is a real applicant
+   * who is told they are not a person and does not come back. This file already argues
+   * that asymmetry for the honeypot; the threshold should honour it too.
+   *
+   * 85 means the honeypot plus a second strong signal, or three independent ones. One
+   * weak signal — a role address, an unproven attestation, a slow form — can no longer
+   * combine into a refusal on its own.
+   */
+  const REFUSE_AT = 85;
+  const refuse = assessment.score >= REFUSE_AT;
+
   // The reasons stay server-side. Telling a bot which signal it failed is free tuning
   // advice; the person on the other end gets a plain sentence instead.
-  if (assessment.action === 'refuse') {
+  if (refuse) {
     console.warn('[signup-gate] refused', {
       score: assessment.score,
       band: assessment.band,
@@ -89,13 +106,12 @@ export async function POST(request: Request) {
 
   return NextResponse.json(
     {
-      allowed: assessment.action !== 'refuse',
+      allowed: !refuse,
       action: assessment.action,
       // A human-facing sentence, never the rule that produced it.
-      message:
-        assessment.action === 'refuse'
-          ? 'We could not verify this sign-up. If you are a person, please contact info@ticketroyality.com and we will sort it out.'
-          : undefined,
+      message: refuse
+        ? 'We could not verify this sign-up. If you are a person, please contact info@ticketroyality.com and we will sort it out.'
+        : undefined,
     },
     { headers: { 'Cache-Control': 'no-store' } }
   );
