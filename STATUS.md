@@ -413,9 +413,21 @@ sweep. The one residual card risk is Stripe's ~2% FX conversion when charging US
 from a GBP-settled account — that is an account setting (enable a USD balance), not
 a pricing change, and it is on the owner's checklist.
 
-When the KODA API goes live, this panel is replaced by KODA's own interface with the
-country taken from the event, per the owner's direction — the pricing above is
-already country-keyed, so that swap changes the payment surface, not the price.
+### KODA checkout wired — the sending half of a half-live integration
+
+Correcting the record: KODA **was** live — keys set, `/webhooks/koda` verifying
+signatures and issuing idempotently — but nothing ever called `createIntent`, so no
+buyer had ever reached KODA's interface and mobile money always fell through to the
+manual panel. Now wired end-to-end: `/api/koda-checkout` re-prices server-side
+(engine, CD config: service fee + 2% on top of the operator's percentage), reserves
+the seats, creates the intent with the hold id as the idempotency key, and sends the
+buyer to KODA's hosted checkout; the webhook now carries holdId/seats/mix through to
+issuance so seated and mixed orders work exactly as they do on Stripe. USD/CDF only —
+KODA's corridor. The buy box shows "Pay with Mobile Money" whenever KODA's keys are
+live and the event's currency qualifies; the manual pay-to-this-number panel remains
+the fallback when they are not. **Not yet tested against the live KODA API from this
+environment** — the first real intent needs the owner's test purchase, same as the
+standing Stripe one.
 
 ## Seat-map engine — docs/23 gap analysis
 

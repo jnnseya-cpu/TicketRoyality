@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { CreditCard, Loader2, Minus, Plus, ShoppingCart, Wallet } from 'lucide-react';
+import { CreditCard, Loader2, Minus, Plus, ShoppingCart, Smartphone, Wallet } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/frontend/components/ui/card';
@@ -246,6 +246,49 @@ export function TicketBox({ event }: { event: Event }) {
       title: 'Added to cart',
       description: `${quantity} × ${tier.name} — ${event.title}`,
     });
+  };
+
+  const [kodaLoading, setKodaLoading] = React.useState(false);
+
+  /*
+   * KODA hosted mobile money. The server re-prices everything from the stored tier and
+   * reserves the seats before creating the intent; this handler only carries ids and
+   * counts, then follows the returned checkout URL — KODA's own interface takes it from
+   * there, and its signed webhook is what issues the tickets.
+   */
+  const handleKoda = async () => {
+    if (!tier) return;
+    setKodaLoading(true);
+    try {
+      const response = await authedFetch('/api/koda-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: event.id,
+          tierId: tier.id,
+          quantity: effectiveQuantity,
+          seats: orderedSeats,
+          ...(hasTypes
+            ? {
+                mix: mixEntries.map((entry) => ({
+                  typeId: entry.type.id,
+                  quantity: entry.count,
+                })),
+              }
+            : {}),
+        }),
+      });
+      const data = (await response.json()) as { url?: string; error?: string };
+      if (!response.ok || !data.url) throw new Error(data.error ?? 'Mobile money is unavailable.');
+      window.location.assign(data.url);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Mobile money unavailable',
+        description: error instanceof Error ? error.message : 'Try another payment method.',
+      });
+      setKodaLoading(false);
+    }
   };
 
   const handleBitripay = async () => {
@@ -856,7 +899,37 @@ export function TicketBox({ event }: { event: Event }) {
             </Button>
             )}
 
-            {userProfile && donationMinor === 0 ? (
+            {/*
+              Mobile money, two shapes with one price. When KODA's keys are live the
+              buyer goes to KODA's hosted interface (USD/CDF only — its corridor) and
+              the signed webhook issues; the manual pay-to-this-number panel is the
+              fallback for when KODA is unconfigured or the currency rules it out.
+              Both are priced by the same engine call, so the total never depends on
+              which surface the buyer happened to see.
+            */}
+            {userProfile &&
+            donationMinor === 0 &&
+            methods.koda &&
+            ['USD', 'CDF'].includes(event.currency?.toUpperCase() ?? '') ? (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleKoda}
+                disabled={
+                  kodaLoading ||
+                  (isSeated && !seatsChosen) ||
+                  (hasTypes && effectiveQuantity === 0) ||
+                  Boolean(companionIssue)
+                }
+              >
+                {kodaLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Smartphone className="h-4 w-4" />
+                )}
+                Pay with Mobile Money
+              </Button>
+            ) : userProfile && donationMinor === 0 ? (
               // The same lines the card quote prices — one engine, so the mobile-money
               // total can never quietly diverge from what every other rail charges.
               <OfflinePayment

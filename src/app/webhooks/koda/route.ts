@@ -30,6 +30,12 @@ interface KodaMetadata {
   quantity?: string;
   attendeeName?: string;
   attendeeEmail?: string;
+  /** Issuance consumes the hold so seats go held → sold in one step. */
+  holdId?: string;
+  /** Comma-joined seat labels, one per ticket, in mix order. */
+  seats?: string;
+  /** JSON-encoded MixEntry[] for a mixed-price order. */
+  mix?: string;
 }
 
 export async function POST(request: Request) {
@@ -85,6 +91,18 @@ export async function POST(request: Request) {
 
       const quantity = Math.max(1, Number(meta.quantity ?? 1));
 
+      // Carried from the intent we created; tolerated when absent because older
+      // intents (and any manual KODA dashboard test) never set them.
+      const seats = (meta.seats ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+      let mix: Array<{ typeId: string; typeName: string; price: number; quantity: number }> | undefined;
+      if (meta.mix) {
+        try {
+          mix = JSON.parse(meta.mix);
+        } catch {
+          mix = undefined;
+        }
+      }
+
       try {
         const outcome = await recordPaymentEvent({
           providerEventId,
@@ -103,6 +121,9 @@ export async function POST(request: Request) {
           attendeeName: meta.attendeeName ?? 'Ticket holder',
           attendeeEmail: meta.attendeeEmail ?? '',
           providerRef: data.intent_id,
+          ...(seats.length > 0 ? { seats } : {}),
+          ...(meta.holdId ? { holdId: meta.holdId } : {}),
+          ...(mix && mix.length > 0 ? { mix } : {}),
         });
 
         if (outcome === 'unavailable') {
