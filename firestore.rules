@@ -325,11 +325,17 @@ service cloud.firestore {
     }
 
     /* Seat locks. Created inside the checkout hold transaction and deleted when the hold
-       is released. A client write could take a seat without paying for it, or free a seat
-       somebody has already bought. Which seats are gone is answered by
-       `/api/events/[id]/seats`, which returns labels and never who is sitting in them. */
+       is released. A client WRITE could take a seat without paying for it, or free a seat
+       somebody has already bought — writes stay closed absolutely.
+
+       Reads opened deliberately (docs/25 §86): a lock carries an event id, a seat label
+       and an opaque hold id — exactly what the seat map already shows everyone, and
+       nothing about a person. Streaming them is what makes B4 grey out in Customer A's
+       browser within seconds of Customer B holding it, without polling; sold seats stay
+       served by `/api/events/[id]/seats`, which still never says who sits anywhere. */
     match /seat_locks/{id} {
-      allow read, write: if false;
+      allow read: if true;
+      allow write: if false;
     }
 
     /* Spent proof-of-work nonces. Denied to every client: a document here is what stops a

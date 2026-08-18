@@ -76,9 +76,11 @@ export async function moveSeat(
 
   const db = getAdminDb();
   const ticketRef = db.collection('tickets').doc(ticketId);
+  /** Captured inside the transaction for the webhook after it commits. */
+  let movedContext: { organizerId: string; eventId: string } | null = null;
 
   try {
-    return await db.runTransaction<SwapResult>(async (tx) => {
+    const outcome = await db.runTransaction<SwapResult>(async (tx) => {
       const snap = await tx.get(ticketRef);
       if (!snap.exists) return refuse('no-ticket', 'That ticket no longer exists.');
 
@@ -149,8 +151,25 @@ export async function moveSeat(
       tx.delete(lockRef);
 
       tx.update(ticketRef, { seat, seatMovedAt: new Date().toISOString() });
+      movedContext = { organizerId: String(event.organizerId ?? ''), eventId: ticket.eventId };
       return { ok: true, seat, previousSeat: ticket.seat };
     });
+
+    // docs/25 §76 — after the commit, never inside it: a webhook is a consequence,
+    // and a slow endpoint must not hold a Firestore transaction open.
+    // TS cannot see the closure assignment, so it narrows the let to null; re-widen.
+    const moved = movedContext as { organizerId: string; eventId: string } | null;
+    if (outcome.ok && moved && outcome.previousSeat !== outcome.seat) {
+      const { queueEvent } = await import('@/backend/services/webhooks');
+      await queueEvent(moved.organizerId, 'seat.moved', {
+        ticketId,
+        eventId: moved.eventId,
+        fromSeat: outcome.previousSeat,
+        toSeat: outcome.seat,
+      }).catch(() => undefined);
+    }
+
+    return outcome;
   } catch (error) {
     // ALREADY_EXISTS: a checkout is holding that seat, or another move claimed it first.
     if ((error as { code?: number }).code === 6) {
@@ -340,9 +359,10 @@ export async function applyPaidMove(input: {
 
   const db = getAdminDb();
   const seat = input.toSeat.trim().toUpperCase();
+  let upgradeContext: { organizerId: string; eventId: string } | null = null;
 
   try {
-    return await db.runTransaction(async (tx) => {
+    const outcome = await db.runTransaction(async (tx) => {
       const dedupeRef = db.collection('upgrade_events').doc(input.providerEventId);
       const dedupe = await tx.get(dedupeRef);
       if (dedupe.exists) return { ok: true, duplicate: true };
@@ -404,8 +424,23 @@ export async function applyPaidMove(input: {
         at: new Date().toISOString(),
       });
 
+      upgradeContext = { organizerId: String(event.organizerId ?? ''), eventId: ticket.eventId };
       return { ok: true };
     });
+
+    const upgraded = upgradeContext as { organizerId: string; eventId: string } | null;
+    if (outcome.ok && !outcome.duplicate && upgraded) {
+      const { queueEvent } = await import('@/backend/services/webhooks');
+      await queueEvent(upgraded.organizerId, 'seat.upgraded', {
+        ticketId: input.ticketId,
+        eventId: upgraded.eventId,
+        toSeat: seat,
+        toTierId: input.toTierId,
+        differenceMajor: input.differenceMajor,
+      }).catch(() => undefined);
+    }
+
+    return outcome;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'failed';
     // Paid money with no seat to grant is a P1 the operations queue must see.

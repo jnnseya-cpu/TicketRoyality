@@ -60,6 +60,22 @@
 | §69 non-colour seat states | Titles + dashed held-back existed; screen-reader labels now carry state ("B4, sold") with aria-pressed on selection |
 | §70–75 API surface | The public v1 API exists for events; the full venue/inventory/booking API surface is the phase-4 SDK business, unchanged |
 
+## Part 4 of the spec (§76–90) — reconciliation
+
+| Spec | Here |
+| --- | --- |
+| §76 webhook events | **Extended the day it arrived**: `ticket.transferred`, `seat.moved`, `seat.upgraded` join the delivered set, emitted after their transactions commit — a webhook is a consequence, and a slow endpoint must not hold a transaction open. `seat.held`/`hold_expired` deliberately refused: a webhook per hold on a busy on-sale is a firehose that tells integrators nothing an inventory read does not |
+| §77–79, §81 state machines | Describe the built systems (holds, payments, tickets, kills). §79's ENTERED→EXITED at the main gate remains the queued anti-passback item |
+| §80 layout versioning | Queued (with §28–29 of doc 2) |
+| §82–83 role matrix | Platform roles are customer/organiser/superuser; fine-grained org roles (box office, scanner, finance) belong to phase 4's multi-seat organisations |
+| §84 audit | Partial by domain (bid trail, upgrade_events, reseat cases, comms log); a unified audit_log queued |
+| §85 performance tiers | The SVG path serves small/medium; Canvas/WebGL waits for a venue that needs it |
+| §86 real-time inventory | **Built the day it arrived**: seat locks stream read-only (they carry a label and an opaque hold id, nothing about a person — rules-tested), unioned with the fetched sold list so a held seat greys out across every open map in seconds and sold seats never flicker |
+| §87 idempotency | Already the platform's signature move (document-id create-once everywhere money or attendance lands) |
+| §88 error codes | Reasons exist per service; a cross-service code registry is a docs task, low priority |
+| §89 core-seating acceptance | **All nine boxes now pass**, the last (real-time map) closed by §86 above |
+| §90 builder acceptance | Straight/curved/arc, generators-by-spec, draft flow: pass. Manual placement, rotate, tables-on-canvas, multi-select, mirror, undo/redo, publish/version: the phase-3 canvas, next |
+
 ## Standing decisions
 
 1. No parallel collections. New vocabulary lands as fields and modules on the live

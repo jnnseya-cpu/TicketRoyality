@@ -3,6 +3,9 @@
 import * as React from 'react';
 import { AlertCircle, Loader2, Wand2, ZoomIn, ZoomOut } from 'lucide-react';
 
+import { db, isFirebaseConfigured } from '@/shared/firebase/client';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+
 import { Button } from '@/frontend/components/ui/button';
 import {
   seatPositions,
@@ -50,6 +53,29 @@ export function SeatPicker({
   onChange: (seats: string[]) => void;
 }) {
   const [taken, setTaken] = React.useState<Set<string>>(new Set());
+  /*
+   * Live holds — docs/25 §86, and the last box of §89's acceptance list. `taken` above
+   * is the fetched truth (sold + held at load time); this set streams the seat locks as
+   * they are created and released, so B4 greys out here within seconds of somebody else
+   * holding it, and comes back the moment their checkout dies. Locks carry a label and
+   * an opaque hold id and nothing about a person — the rules open them read-only for
+   * exactly this reason. The two sets are unioned at render: sold seats never flicker
+   * free while a lock expires, because the fetched list still contains them.
+   */
+  const [liveHeld, setLiveHeld] = React.useState<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    const unsubscribe = onSnapshot(
+      query(collection(db, 'seat_locks'), where('eventId', '==', eventId)),
+      (snap) => {
+        setLiveHeld(new Set(snap.docs.map((d) => String(d.data().seat ?? '').toUpperCase())));
+      },
+      // A failed stream degrades to the fetched snapshot — the checkout still decides.
+      () => undefined
+    );
+    return unsubscribe;
+  }, [eventId]);
   const [loading, setLoading] = React.useState(true);
   const [failed, setFailed] = React.useState(false);
   const [split, setSplit] = React.useState(0);
@@ -170,7 +196,7 @@ export function SeatPicker({
         const rows = sectionRows(section);
 
         const seatState = (label: string): 'free' | 'taken' | 'held-back' =>
-          taken.has(label)
+          taken.has(label) || liveHeld.has(label)
             ? 'taken'
             : unavailable.has(label) || accessible.has(label)
               ? 'held-back'

@@ -294,6 +294,31 @@ async function main() {
     await assertFails(getDoc(doc(customer, 'auction_lots', 'lot-1')));
   });
 
+  console.log('\nfirestore.rules — seat locks stream, and only stream\n');
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'seat_locks', 'evt-1__B4'), {
+      eventId: 'evt-1',
+      seat: 'B4',
+      holdId: 'hold-1',
+      createdAt: '2026-08-18T00:00:00.000Z',
+    });
+  });
+
+  await test('anyone may watch which seats are held — it is what the map shows', async () => {
+    await assertSucceeds(getDoc(doc(anon, 'seat_locks', 'evt-1__B4')));
+    await assertSucceeds(
+      getDocs(query(collection(anon, 'seat_locks'), where('eventId', '==', 'evt-1')))
+    );
+  });
+
+  await test('no client can take or free a seat by writing a lock', async () => {
+    await assertFails(
+      setDoc(doc(customer, 'seat_locks', 'evt-1__B5'), { eventId: 'evt-1', seat: 'B5' })
+    );
+    await assertFails(updateDoc(doc(customer, 'seat_locks', 'evt-1__B4'), { seat: 'B9' }));
+  });
+
   console.log('\nfirestore.rules — privilege escalation\n');
 
   await test('a user cannot promote themselves to superuser', async () => {

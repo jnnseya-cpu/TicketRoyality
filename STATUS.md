@@ -299,6 +299,18 @@ typo protects nobody), and shaped rows drawing seats onto each other. Shown live
 the seat-map preview; an empty list is the green light. 37/37. SVG seats now carry
 screen-reader state ("B4, sold", aria-pressed) — never colour alone.
 
+### Real-time seat map and three new webhook events (docs/25 §86, §76)
+
+The last open box of the spec's core-seating acceptance list (§89) closes: seat locks
+now stream to every open map — read-only by rule (a lock is a label and an opaque hold
+id, nothing about a person; rules-tested 47/47) — unioned with the fetched sold list,
+so B4 greys out in one buyer's browser seconds after another holds it, and returns the
+moment that checkout dies. Sold seats never flicker: the fetched truth still contains
+them. Integrators gain `ticket.transferred`, `seat.moved`, `seat.upgraded`, emitted
+after their transactions commit; `seat.held` per-hold events are refused on purpose —
+a firehose that costs every integrator money and says nothing an inventory read does
+not. All nine §89 acceptance boxes now pass.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

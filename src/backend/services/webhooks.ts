@@ -45,12 +45,24 @@ export type WebhookEvent =
   | 'order.completed'
   | 'ticket.redeemed'
   | 'ticket.refunded'
+  | 'ticket.transferred'
+  | 'seat.moved'
+  | 'seat.upgraded'
   | 'donation.received';
 
+/*
+ * docs/25 §76, adopted selectively. `seat.held` and `seat.hold_expired` are deliberately
+ * NOT events: a webhook per hold on a busy on-sale is a firehose that costs every
+ * integrator money to receive and tells them nothing an inventory poll does not.
+ * Events are things that changed an outcome — money, ownership, a seat.
+ */
 export const ALL_EVENTS: WebhookEvent[] = [
   'order.completed',
   'ticket.redeemed',
   'ticket.refunded',
+  'ticket.transferred',
+  'seat.moved',
+  'seat.upgraded',
   'donation.received',
 ];
 

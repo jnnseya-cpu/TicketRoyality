@@ -296,6 +296,20 @@ export async function acceptTransfer(
           'It is now in their account and no longer scans on yours.',
         ],
       }).catch(() => undefined);
+
+      // docs/25 §76 — integrators hear ownership change the moment it happens.
+      const ticket = (await db.collection('tickets').doc(result.ticketId).get()).data() as
+        | { organizerId?: string; eventId?: string }
+        | undefined;
+      if (ticket?.organizerId) {
+        const { queueEvent } = await import('@/backend/services/webhooks');
+        await queueEvent(ticket.organizerId, 'ticket.transferred', {
+          ticketId: result.ticketId,
+          eventId: ticket.eventId,
+          fromUserId: transfer.fromUserId,
+          toUserId,
+        }).catch(() => undefined);
+      }
     }
 
     return result;
