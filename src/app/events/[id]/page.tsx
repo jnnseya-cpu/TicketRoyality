@@ -37,6 +37,10 @@ export async function generateMetadata({
     title: event.title,
     description: event.description.slice(0, 160),
     openGraph: { title: event.title, images: [event.imageUrl] },
+    // A private event's link still renders; search engines are asked not to index it,
+    // because "only people with the link" and "first result for the event's name"
+    // cannot both be true.
+    ...(event.listing === 'unlisted' ? { robots: { index: false, follow: false } } : {}),
   };
 }
 

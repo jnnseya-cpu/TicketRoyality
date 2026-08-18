@@ -86,10 +86,22 @@ export async function getEvents(options?: { featuredOnly?: boolean; max?: number
       where('status', '==', 'published'),
       ...(options?.featuredOnly ? [where('featured', '==', true)] : []),
       orderBy('date', 'asc'),
-      ...(options?.max ? [fsLimit(options.max)] : []),
+      // Over-fetched slightly when a max is set, because unlisted events are dropped
+      // below and a page asking for 6 should still get 6.
+      ...(options?.max ? [fsLimit(options.max * 2)] : []),
     ];
     const snapshot = await getDocs(query(collection(db, COLLECTIONS.events), ...constraints));
-    return snapshot.docs.map((d) => fromSnapshot<Event>(d));
+    /*
+     * Unlisted events are filtered here, not with a `!=` clause: Firestore's `!=`
+     * excludes documents where the field is absent, which would silently hide every
+     * event created before listing existed. The link-only promise lives in this one
+     * function because every public surface — homepage, browse, sitemap,
+     * recommendations — lists through it.
+     */
+    const events = snapshot.docs
+      .map((d) => fromSnapshot<Event>(d))
+      .filter((event) => event.listing !== 'unlisted');
+    return options?.max ? events.slice(0, options.max) : events;
   } catch (error) {
     rethrowAsPermissionError(error, { path: COLLECTIONS.events, operation: 'list' });
   }

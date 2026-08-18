@@ -468,6 +468,14 @@ export interface Event {
   recurrence?: Recurrence;
   dynamicPricing?: DynamicPricing;
 
+  /**
+   * Who can find the event. 'public' (and absent, which is every event created before
+   * this existed) appears in browse, search, the homepage and the sitemap. 'unlisted'
+   * is reachable only by its link: still published, still buyable, never listed.
+   * Enforced at the single query every public surface uses — getEvents() — so a new
+   * surface built on it inherits the rule instead of re-remembering it.
+   */
+  listing?: 'public' | 'unlisted';
   featured?: boolean;
   /**
    * The organiser asked for homepage placement. `featured` itself is granted by a

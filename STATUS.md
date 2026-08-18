@@ -1,6 +1,6 @@
 # Status — what is actually built
 
-**Last verified: 17 August 2026, against the code on `claude/optimistic-heisenberg-0n2w42`.**
+**Last verified: 18 August 2026, against the code on `claude/optimistic-heisenberg-0n2w42`.**
 
 Operating rules for changing this codebase are in `/CLAUDE.md`.
 
@@ -134,7 +134,6 @@ is precisely what caused the confusion this file exists to end.
 | --- | --- | --- |
 | **International cards lose money above ~£166** | Not a bug — an arithmetic consequence of the published rate, found by modelling the full cost stack. Net of VAT the fee earns 3.99 ÷ 1.2 = **3.325%** of face; an international card costs 3.25% of face **plus fee** = **3.38%** of face. The 49p fixed component covers the gap on small tickets and is exhausted around £166, going permanently negative from about £193. It bites exactly where §26 says the percentage is meant to earn — VIP, hospitality, premium. The fee cannot be varied by payment method (that is a surcharge), so the levers are a negotiated international rate, routing, or a higher headline percentage. Pinned by test. | `shared/fees.test.ts` |
 | **Per-order pricing snapshot** | The quote is written into the Stripe session metadata (`pricingVersion`, `faceMinor`, `serviceFeeMinor`, `buyerTotalMinor`, `organiserPayoutMinor`) but **not yet persisted to a Firestore document on issuance**. Until it is, the unit-economics console recomputes historical orders from today's config, which is exactly what the brief forbids for accounting. The console says so on its own face. | `api/checkout`, `services/profitability.ts` |
-| **Cart checkout trusts posted amounts** | The single-event path re-reads the tier price from Firestore; the multi-item cart path still prices from the amounts the browser posts, so a hand-crafted POST could understate a cart. Needs a per-item event+tier lookup. Pre-existing, now narrowed to one path. | `api/checkout` |
 | **Ticket delivery email shows face value** | The issuance email is built in `functions/`, a separate package that cannot import `shared/fees.ts`. It still itemises face value only. Not a pricing error — the buyer already paid the all-in total and Stripe's receipt itemises the fee — but the two should agree. | `functions/src/templates.ts` |
 | **Stripe API itself, unexercised** | The loop is proven from "a signed webhook has been verified and recorded" onward. Creating a checkout session, Stripe signing the webhook, and money actually moving all happen on Stripe's side and cannot be simulated here. **One test-mode purchase against the live Stripe API is still required before real money moves**, and only someone with the keys and network access can run it. | `api/checkout`, `api/stripe-webhook` |
 | Comms **callers** — the rest | The revenue-critical three are wired (refund processed, issuance failed/oversold, organiser approved/declined). Payouts, event changes, cancellations and waitlists still complete without telling anyone. | `docs/04` M10 |
@@ -144,7 +143,6 @@ is precisely what caused the confusion this file exists to end.
 
 
 | Ticket recommendations | Nothing renders on the ticket | `docs/04` M3a |
-| Public API + sandbox | No developer API. `/developers` is a marketing page. | `docs/04` M13 |
 | **App Check enforcement (B6, remaining half)** | Still not enforced, and it is the half that matters: login throttling raises the cost of credential stuffing **through our form**, but a script calling Firebase Auth directly never touches it. App Check enforces at the Firebase service itself. **Blocked on a reCAPTCHA Enterprise site key from the Google Cloud console** — same project, no new vendor, but it cannot be created from here. Until it exists, do not describe the platform as protected against automated account attacks. | `shared/security/appcheck.ts` |
 
 | Organiser profile `get` rule | `firestore.rules` allows **anyone** to read a full organiser `users` document by uid — including email, phone, address and date of birth. The public pages no longer expose it, but the rule still permits a direct SDK read. Should be narrowed to a public projection or a separate collection. | `firestore.rules` |
@@ -155,7 +153,47 @@ is precisely what caused the confusion this file exists to end.
 | SMS / WhatsApp delivery | **Blocked, not pending.** No approved provider exists inside the vendor list (`CLAUDE.md` §1). The channels are declared in the catalogue; `dispatch()` records and sends nothing. | `docs/04` M10 |
 | Error tracking | Not wired. Google Cloud Error Reporting is available in-project; Sentry would be a new vendor. | `docs/21` |
 | Google Maps key | No key is set, so event pages fall back to a text address panel instead of a map. Not a new vendor — the same Google Cloud project. Needs an HTTP-referrer restriction before it goes in, or the key can be lifted and billed to this project. | `docs/07` |
-| **Free tickets are charged the 50p admin fee** | `settle()` computes `adminFee * lines.length` with no price check, so a £0 ticket still costs the organiser 50p. Percentage commission on £0 is correctly £0. The industries page promised "free tickets carry no commission" — that copy has been corrected to match the code, **not** the other way round, because which one is right is a commercial decision. It matters most for places of worship, charity and weddings, where a 300-guest free list currently costs £150. | `src/shared/pricing.ts` |
+
+
+## 18 August 2026 — first live test day, and what it changed
+
+Everything below was driven by one person actually testing the platform. Each row was
+verified the way this file demands: typecheck, lint, production build, and the tests
+named beside it.
+
+| Change | State | Evidence |
+| --- | --- | --- |
+| Errors name themselves | `describeError()` reads what an error actually is — auth, Firestore, Storage, permission — instead of generalising everything to "Something went wrong". Unknown codes print in brackets. | `shared/errors.ts` |
+| Registration | Fixed twice over: the browser SDK now sets `ignoreUndefinedProperties` (a blank optional field refused the whole profile write with `invalid-argument`), and the rules suite covers the registration write itself — six cases that did not exist when the deployed rules refused it. 42/42. | `shared/firebase/client.ts`, `scripts/rules.test.ts` |
+| Welcome email | `/api/account/welcome` dispatches `account.welcome.*`, which the catalogue declared and nothing ever sent. Idempotent by a transactional claim on the profile; recipient read server-side from the verified token. | `api/account/welcome` |
+| Fee copy in email | The approval email said "5% plus 50p" — the abandoned model. Organiser terms now stated as the code implements them: 0%, keep 100% of face. | `api/admin/organiser-decision` |
+| Featured placement | Was free to anyone who ticked a checkbox: the form wrote `featured: true` directly and nothing checked. Now request/grant: form writes `featuredRequested`, rules refuse `featured` from non-superusers (tested), superuser dashboard gained the grant/revoke queue. The dashboard's invented "Revenue streams" figures (tickets × £2.45 etc.) are gone. | `firestore.rules`, `dashboard/FeaturedPlacements.tsx` |
+| Free tickets obtainable | A wholly free order previously dead-ended in Stripe (zero-amount sessions refused). Checkout now writes the same `payment_events` document a paid webhook writes — provider `free`, one issuance path for both. Direct "Get N free tickets" button on free tiers. **Issuance itself runs in deployed Cloud Functions; `firebase deploy --only functions` is part of go-live.** | `api/checkout` |
+| AI event drafting | "Start with AI" on the create form: brief in → title, description, category (clamped to the real taxonomy), tiers out — all editable, nothing saved until submit. Task `event-draft` in the gateway. | `backend/ai/tasks.ts` |
+| Venue → coordinates | `/api/geocode` fills lat/lng from the venue name. Needs `GOOGLE_MAPS_SERVER_KEY` (Geocoding API only, server-side — referrer restrictions do not apply to it); says so plainly while unset. | `api/geocode` |
+| Currencies | Full ISO 4217 list, CDF included, corridors first. The form warns when cards cannot settle the chosen currency (Stripe has no CDF — that corridor is mobile money). | `shared/constants/currencies.ts` |
+| Sponsor logos | Uploaded via the media library, not pasted URLs. | `CreateEventForm` |
+| Placement enquiry | Was a `mailto:` link — silently nothing on machines without a mail client. Now posts through `dispatch()` to the platform inbox. | `api/partners/enquiry` |
+| Private events | `listing: 'unlisted'` — link-only, off homepage/browse/search/sitemap, `noindex`, still buyable. Default remains public; the toggle is on the publish card. Enforced in `getEvents()`, the one query every public surface uses. | `repositories.ts` |
+| Company name | Organisers are identified by company name across header and profile (`accountDisplayName()`), and can finally edit it in settings. | `shared/utils.ts` |
+| Seat shapes (docs/23 phase 1) | Sections render straight, curved, arc, angled or vertical from derived coordinates — same labels whatever the shape, so nothing money-side moves. SVG picker with zoom; organiser preview from the same geometry. 28/28. | `shared/seating.ts` |
+
+## Seat-map engine — docs/23 gap analysis
+
+The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.
+The honest state of the rest:
+
+| Spec § | Requirement | State |
+| --- | --- | --- |
+| §5, §19 | Row shapes from coordinates, SVG rendering, zoom/pan | **Built** (phase 1). Freeform per-seat positioning and circular/radial are not. |
+| §10, §15, §25 | Holds with TTL, atomic seat locks, orphan avoidance | **Built before the spec arrived** — `holds.ts`, seat locks in the hold transaction, orphan penalty in `bestAvailable()`. Orphan rule is a scoring penalty, not a blocking option. |
+| §9 | Find-seats-together | **Built** as best-available (together > centre > front, told when split). Party-mix (2 adults + 3 children) waits on per-seat ticket types. |
+| §11, §12 | GA zones, hybrid reserved+standing | **Built** — capacity tiers beside seated sections in one event. |
+| §13 | Tables | **Built** as hospitality packages (whole-table, deposit, balance, guests). Per-chair sale of a table is not. |
+| §1, §2, §6, §7, §18, §26 | Seat ≠ ticket type ≠ price; per-seat categories; Adult/Child on adjacent seats in one order | **Not built — phase 2, and the heart of the spec.** Today a section maps to one tier; the price is the tier's. Requires: attendee types on tiers, per-seat type choice in the picker, per-seat lines through checkout/issuance. |
+| §3, §4, §20–§23, §27 | Canvas builder, drag/rotate, generators, mirror, undo, object palette | **Not built — phase 3.** Today: row-spec editor with live preview, straight or shaped. |
+| §14 | Wheelchair + companion pairing rules | **Partial** — accessible seats are held back from sale; companion linkage and buy-together rules are not. |
+| §16, §17, §24 | Venue as reusable entity, event inventory overlay | **Not built — phase 4.** Seating lives on the event; venues are not yet first-class. |
 
 ## Ordered by what actually blocks revenue
 

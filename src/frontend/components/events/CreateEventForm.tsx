@@ -258,6 +258,7 @@ const schema = z
     recurrenceEndDate: z.date().optional(),
     featured: z.boolean(),
     publish: z.boolean(),
+    unlisted: z.boolean(),
   })
   .superRefine((values, ctx) => {
     // The date+time must be in the future.
@@ -402,6 +403,7 @@ function defaultsFor(event?: Event): FormValues {
       isRecurring: false,
       featured: false,
       publish: true,
+      unlisted: false,
     };
   }
 
@@ -498,6 +500,7 @@ function defaultsFor(event?: Event): FormValues {
     recurrenceEndDate: event.recurrence ? new Date(event.recurrence.endDate) : undefined,
     featured: event.featuredRequested ?? false,
     publish: event.status === 'published',
+    unlisted: event.listing === 'unlisted',
   };
 }
 
@@ -856,6 +859,7 @@ export function CreateEventForm({
          * operations screen, and `firestore.rules` refuses it from anyone else.
          */
         featuredRequested: values.featured,
+        listing: values.unlisted ? ('unlisted' as const) : ('public' as const),
         // Organisers self-approve: publishing is theirs to control, subject to
         // their account being approved at the platform level.
         status: values.publish ? 'published' : 'draft',
@@ -2884,6 +2888,22 @@ export function CreateEventForm({
                     <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                   </FormControl>
                   <Label className="cursor-pointer">Publish immediately</Label>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="unlisted"
+              render={({ field }) => (
+                <FormItem className="flex items-center gap-3 space-y-0">
+                  <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <Label className="cursor-pointer">
+                    Private event — only people with the link can find it. It stays off the
+                    homepage, browse, search and the sitemap; the link itself still sells
+                    tickets normally.
+                  </Label>
                 </FormItem>
               )}
             />
