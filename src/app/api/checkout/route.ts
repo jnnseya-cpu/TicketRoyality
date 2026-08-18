@@ -6,7 +6,7 @@ import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { placeHold, releaseHold } from '@/backend/services/holds';
 import type { Coupon, TicketTier } from '@/shared/types';
-import { applyCoupon, resolveLinePrice, tierSaleWindow } from '@/shared/pricing';
+import { applyCoupon, resolveLinePrice, resolveMix, tierSaleWindow, type MixEntry } from '@/shared/pricing';
 import { codeOpensTier } from '@/backend/services/access-codes';
 import { REF_COOKIE } from '@/backend/services/partners';
 import { getPass, passAvailability } from '@/backend/services/season-passes';
@@ -80,6 +80,8 @@ export async function POST(request: Request) {
    * dying inside Stripe, which refuses zero-amount sessions.
    */
   const claimables: Array<{ eventId: string; tierId: string; quantity: number; currency: string }> = [];
+  /** Attendee-type entries for a mixed single-event order; empty means single-price. */
+  let mixEntries: MixEntry[] = [];
 
   // `items` is a JSON array for cart checkout; single-event checkout sends flat fields.
   const rawItems = form.get('items');
@@ -262,13 +264,46 @@ export async function POST(request: Request) {
         amount = resolveLinePrice(tier, amount);
         name = `${data?.title ?? 'Event'} — ${tier.name}`;
         currency = data?.currency ?? currency;
+
+        /*
+         * A mixed-price order — Adult ×2 + Child ×1 against one tier (docs/23 §26).
+         * The browser posts only type ids and counts; every price comes from the
+         * stored tier, the same no-trust rule as the single-price path. The mix
+         * REPLACES the plain quantity: its total is what the hold reserves and what
+         * issuance mints, so the priced half and the issued half cannot disagree.
+         */
+        const rawMix = String(form.get('mix') ?? '');
+        if (rawMix) {
+          let requestedMix: Array<{ typeId?: unknown; quantity?: unknown }>;
+          try {
+            requestedMix = JSON.parse(rawMix);
+          } catch {
+            return fail('Malformed ticket selection');
+          }
+
+          const resolved = resolveMix(tier, requestedMix);
+          if (!resolved.ok) return fail(resolved.error);
+
+          mixEntries = resolved.entries;
+          for (const entry of resolved.entries) {
+            lines.push({
+              name: `${data?.title ?? 'Event'} — ${tier.name} (${entry.typeName})`,
+              amount: entry.price,
+              quantity: entry.quantity,
+              currency,
+            });
+          }
+          claimables.push({ eventId, tierId, quantity: resolved.total, currency });
+        }
       } catch {
         return fail('Could not confirm the ticket price');
       }
     }
 
-    lines.push({ name, amount, quantity, currency });
-    if (eventId && tierId) claimables.push({ eventId, tierId, quantity, currency });
+    if (mixEntries.length === 0) {
+      lines.push({ name, amount, quantity, currency });
+      if (eventId && tierId) claimables.push({ eventId, tierId, quantity, currency });
+    }
   }
 
   /*
@@ -357,7 +392,11 @@ export async function POST(request: Request) {
   const holdTierId = String(form.get('tierId') ?? '');
 
   if (typeof rawItems !== 'string' && holdEventId && holdTierId) {
-    const quantity = lines[0]?.quantity ?? 1;
+    // A mixed order's total spans several lines; a single-price order is its one line.
+    const quantity =
+      mixEntries.length > 0
+        ? mixEntries.reduce((sum, entry) => sum + entry.quantity, 0)
+        : (lines[0]?.quantity ?? 1);
 
     // A seat per ticket or none at all. Two seats for three tickets would issue a third
     // ticket with no seat and nobody would notice until the door.
@@ -425,6 +464,7 @@ export async function POST(request: Request) {
           // Seats and the hold belong to the single-event path's first line only.
           seats: index === 0 && chosenSeats.length > 0 ? chosenSeats : undefined,
           holdId: index === 0 && holdId ? holdId : undefined,
+          ...(index === 0 && mixEntries.length > 0 ? { mix: mixEntries } : {}),
         });
       }
 
@@ -450,7 +490,13 @@ export async function POST(request: Request) {
         userId: String(form.get('userId') ?? ''),
         eventId: String(form.get('eventId') ?? ''),
         tierId: String(form.get('tierId') ?? ''),
-        quantity: String(form.get('quantity') ?? '1'),
+        quantity:
+          mixEntries.length > 0
+            ? String(mixEntries.reduce((sum, entry) => sum + entry.quantity, 0))
+            : String(form.get('quantity') ?? '1'),
+        // The resolved mix — server prices, not the browser's. Issuance flattens it
+        // onto tickets in this order, which is also the seats' order.
+        ...(mixEntries.length > 0 ? { mix: JSON.stringify(mixEntries) } : {}),
         // §16: the order keeps the pricing it was quoted under, forever. A historical
         // order must never be recomputed from whatever the config says later.
         pricingVersion: String(quote.pricingVersion),

@@ -13,6 +13,8 @@
 import assert from 'node:assert/strict';
 
 import {
+  expandMix,
+  resolveMix,
   applyCoupon,
   availableInTier,
   CHOSEN_PRICE_CEILING,
@@ -282,6 +284,70 @@ test('a closed early bird stops setting the public "from" price', () => {
     ],
   };
   assert.equal(leadPrice(event, NOW), 40);
+});
+
+/* ------------------------- attendee-type mixes (docs/23) ------------------ */
+
+const MIXED_TIER = {
+  attendeeTypes: [
+    { id: 'adult', name: 'Adult', price: 10 },
+    { id: 'child', name: 'Child', price: 5 },
+    { id: 'student', name: 'Student', price: 7 },
+  ],
+};
+
+test('an adult and a child price from the tier, never from the request', () => {
+  const result = resolveMix(MIXED_TIER, [
+    { typeId: 'adult', quantity: 1 },
+    // A hostile request cannot smuggle a price — there is nowhere to put one.
+    { typeId: 'child', quantity: 1 },
+  ]);
+  assert.ok(result.ok);
+  assert.equal(result.total, 2);
+  assert.deepEqual(
+    result.entries.map((e) => [e.typeName, e.price]),
+    [['Adult', 10], ['Child', 5]]
+  );
+});
+
+test('an unknown type refuses the whole mix rather than dropping the line', () => {
+  const result = resolveMix(MIXED_TIER, [
+    { typeId: 'adult', quantity: 1 },
+    { typeId: 'senior', quantity: 1 },
+  ]);
+  assert.equal(result.ok, false);
+});
+
+test('a tier without attendee types accepts no mix', () => {
+  assert.equal(resolveMix({}, [{ typeId: 'adult', quantity: 1 }]).ok, false);
+});
+
+test('zero and rubbish quantities cannot make an empty order', () => {
+  const result = resolveMix(MIXED_TIER, [
+    { typeId: 'adult', quantity: 0 },
+    { typeId: 'child', quantity: 'lots' },
+  ]);
+  assert.equal(result.ok, false);
+});
+
+test('quantities are capped, not trusted', () => {
+  const result = resolveMix(MIXED_TIER, [{ typeId: 'child', quantity: 5000 }]);
+  assert.ok(result.ok);
+  assert.equal(result.total, 10);
+});
+
+test('expandMix pairs the i-th person with the i-th seat, in order', () => {
+  const resolved = resolveMix(MIXED_TIER, [
+    { typeId: 'adult', quantity: 2 },
+    { typeId: 'child', quantity: 1 },
+  ]);
+  assert.ok(resolved.ok);
+  const perTicket = expandMix(resolved.entries);
+  assert.deepEqual(
+    perTicket.map((t) => t.typeName),
+    ['Adult', 'Adult', 'Child']
+  );
+  assert.equal(perTicket[2].price, 5);
 });
 
 const failed = results.filter(([, ok]) => !ok);

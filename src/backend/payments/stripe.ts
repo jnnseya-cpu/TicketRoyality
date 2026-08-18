@@ -169,6 +169,21 @@ export function readCheckoutSession(session: Stripe.Checkout.Session) {
     tierId: session.metadata?.tierId || undefined,
     quantity: Number(session.metadata?.quantity ?? 1),
     holdId: session.metadata?.holdId || undefined,
+    /**
+     * The attendee-type breakdown, JSON in metadata because Stripe metadata is strings.
+     * Parsed defensively: malformed metadata degrades to a single-price order rather
+     * than losing the payment — the money has already moved by the time this is read.
+     */
+    mix: (() => {
+      try {
+        const parsed = JSON.parse(session.metadata?.mix ?? 'null');
+        return Array.isArray(parsed) && parsed.length > 0
+          ? (parsed as Array<{ typeId: string; typeName: string; price: number; quantity: number }>)
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    })(),
     /** Set when the payment is a hospitality deposit or balance rather than a ticket sale. */
     bookingId: session.metadata?.bookingId || undefined,
     /** Set on a season pass, which settles into one ticket per covered fixture. */

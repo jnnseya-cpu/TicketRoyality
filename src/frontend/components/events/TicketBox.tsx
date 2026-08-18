@@ -104,15 +104,43 @@ export function TicketBox({ event }: { event: Event }) {
     );
   }, [tier?.id, tier?.pricing, tier?.suggestedPrice, tier?.minPrice]);
 
+  /*
+   * Attendee types — Adult, Child, Student at their own prices, one order, one payment
+   * (docs/23 §26). Counts per type; the total drives seats, holds and the fee quote.
+   * Prices here are display: the checkout route re-resolves every one from the stored
+   * tier, so a tampered page changes what is shown and not what is charged.
+   */
+  const attendeeTypes = tier?.attendeeTypes ?? [];
+  const hasTypes = attendeeTypes.length > 0;
+  const [mixCounts, setMixCounts] = React.useState<Record<string, number>>({});
+
+  React.useEffect(() => {
+    // Reset to one of the first (headline) type when the tier changes.
+    setMixCounts(hasTypes ? { [attendeeTypes[0].id]: 1 } : {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tier?.id]);
+
+  const mixEntries = attendeeTypes
+    .map((type) => ({ type, count: mixCounts[type.id] ?? 0 }))
+    .filter((entry) => entry.count > 0);
+  const mixTotalQuantity = mixEntries.reduce((sum, entry) => sum + entry.count, 0);
+
   const unitPrice = tier
     ? resolveLinePrice(tier, isChoose ? Number(chosen) : undefined)
     : 0;
-  const lineTotal = unitPrice * quantity;
+  const effectiveQuantity = hasTypes ? mixTotalQuantity : quantity;
+  const lineTotal = hasTypes
+    ? mixEntries.reduce((sum, entry) => sum + entry.type.price * entry.count, 0)
+    : unitPrice * quantity;
   // One engine, so this total and the server's charge cannot disagree.
-  const quote = computeOrderFees([{ faceMinor: toMinor(unitPrice), qty: quantity }]);
+  const quote = computeOrderFees(
+    hasTypes
+      ? mixEntries.map((entry) => ({ faceMinor: toMinor(entry.type.price), qty: entry.count }))
+      : [{ faceMinor: toMinor(unitPrice), qty: quantity }]
+  );
   // A rail with no credentials must not be offered — see use-payment-methods.
   const methods = usePaymentMethods();
-  const isFree = unitPrice === 0;
+  const isFree = hasTypes ? lineTotal === 0 : unitPrice === 0;
 
   const handleAddToCart = () => {
     if (!tier) return;
@@ -178,7 +206,7 @@ export function TicketBox({ event }: { event: Event }) {
    */
   const seatedSections = (event.seating ?? []).filter((s) => s.tierId === tier?.id);
   const isSeated = seatedSections.length > 0;
-  const seatsChosen = selectedSeats.length === quantity;
+  const seatsChosen = selectedSeats.length === effectiveQuantity;
 
   React.useEffect(() => {
     // A seat chosen for the stalls is not a seat in the circle, and four seats are not
@@ -360,12 +388,65 @@ export function TicketBox({ event }: { event: Event }) {
             eventId={event.id}
             sections={event.seating ?? []}
             tierId={tier.id}
-            quantity={quantity}
+            quantity={effectiveQuantity}
             selected={selectedSeats}
             onChange={setSelectedSeats}
           />
         )}
 
+        {hasTypes && (
+          <div className="space-y-2">
+            <span className="text-sm font-medium">Who is coming?</span>
+            {attendeeTypes.map((type) => {
+              const count = mixCounts[type.id] ?? 0;
+              return (
+                <div key={type.id} className="flex items-center justify-between">
+                  <span className="text-sm">
+                    {type.name}
+                    <span className="ml-2 text-muted-foreground">
+                      {type.price === 0 ? 'Free' : formatCurrency(type.price, event.currency)}
+                    </span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() =>
+                        setMixCounts((current) => ({
+                          ...current,
+                          [type.id]: Math.max(0, (current[type.id] ?? 0) - 1),
+                        }))
+                      }
+                      aria-label={`Fewer ${type.name}`}
+                    >
+                      <Minus className="h-3 w-3" />
+                    </Button>
+                    <span className="w-8 text-center font-medium tabular-nums">{count}</span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() =>
+                        setMixCounts((current) => ({
+                          ...current,
+                          [type.id]: Math.min(10, (current[type.id] ?? 0) + 1),
+                        }))
+                      }
+                      aria-label={`More ${type.name}`}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {!hasTypes && (
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium">Quantity</span>
           <div className="flex items-center gap-2">
@@ -392,6 +473,7 @@ export function TicketBox({ event }: { event: Event }) {
             </Button>
           </div>
         </div>
+        )}
 
         {/*
           Placed **above** the total, never after it. A donation is optional, but once it
@@ -412,7 +494,7 @@ export function TicketBox({ event }: { event: Event }) {
         <div className="space-y-1">
           <div className="flex items-baseline justify-between text-sm">
             <span className="text-muted-foreground">
-              {quantity} × ticket value
+              {effectiveQuantity} × ticket value
             </span>
             <span className="tabular-nums">
               {isFree ? 'Free' : formatCurrency(lineTotal, event.currency)}
@@ -455,11 +537,13 @@ export function TicketBox({ event }: { event: Event }) {
           carries no code, so a basket holding one would be refused at checkout — better
           to say so now than after the buyer has assembled an order.
         */}
-        {tier.visibility === 'hidden' || isSeated ? (
+        {tier.visibility === 'hidden' || isSeated || hasTypes ? (
           <p className="text-center text-xs text-muted-foreground">
             {isSeated
               ? 'Reserved seating is bought directly, so the seats are held while you pay.'
-              : 'This ticket type is bought directly rather than through the cart.'}
+              : hasTypes
+                ? 'Mixed ticket types are bought directly — one payment, each person at their own price.'
+                : 'This ticket type is bought directly rather than through the cart.'}
           </p>
         ) : (
           <Button
@@ -498,7 +582,16 @@ export function TicketBox({ event }: { event: Event }) {
           <form action="/api/checkout" method="POST">
             <input type="hidden" name="name" value={`${event.title} — ${tier.name}`} />
             <input type="hidden" name="amount" value={0} />
-            <input type="hidden" name="quantity" value={quantity} />
+            <input type="hidden" name="quantity" value={effectiveQuantity} />
+            {hasTypes && (
+              <input
+                type="hidden"
+                name="mix"
+                value={JSON.stringify(
+                  mixEntries.map((entry) => ({ typeId: entry.type.id, quantity: entry.count }))
+                )}
+              />
+            )}
             <input type="hidden" name="currency" value={event.currency} />
             <input type="hidden" name="eventId" value={event.id} />
             <input type="hidden" name="tierId" value={tier.id} />
@@ -513,8 +606,8 @@ export function TicketBox({ event }: { event: Event }) {
                 disabled={isSeated && !seatsChosen}
               >
                 {isSeated && !seatsChosen
-                  ? `Choose ${quantity - selectedSeats.length} more seat${quantity - selectedSeats.length === 1 ? '' : 's'}`
-                  : `Get ${quantity} free ticket${quantity === 1 ? '' : 's'}`}
+                  ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
+                  : `Get ${effectiveQuantity} free ticket${effectiveQuantity === 1 ? '' : 's'}`}
               </Button>
             ) : (
               <p className="text-center text-sm text-muted-foreground">
@@ -545,7 +638,16 @@ export function TicketBox({ event }: { event: Event }) {
               {/* Carried, not trusted: the route re-resolves it against the stored tier
                   and ignores it outright unless that tier is pay-what-you-want. */}
               <input type="hidden" name="amount" value={unitPrice} />
-              <input type="hidden" name="quantity" value={quantity} />
+              <input type="hidden" name="quantity" value={effectiveQuantity} />
+            {hasTypes && (
+              <input
+                type="hidden"
+                name="mix"
+                value={JSON.stringify(
+                  mixEntries.map((entry) => ({ typeId: entry.type.id, quantity: entry.count }))
+                )}
+              />
+            )}
               <input type="hidden" name="currency" value={event.currency} />
               <input type="hidden" name="eventId" value={event.id} />
               <input type="hidden" name="tierId" value={tier.id} />
@@ -568,11 +670,11 @@ export function TicketBox({ event }: { event: Event }) {
                 type="submit"
                 variant="outline"
                 className="w-full"
-                disabled={isSeated && !seatsChosen}
+                disabled={(isSeated && !seatsChosen) || (hasTypes && effectiveQuantity === 0)}
               >
                 <CreditCard className="h-4 w-4" />
                 {isSeated && !seatsChosen
-                  ? `Choose ${quantity - selectedSeats.length} more seat${quantity - selectedSeats.length === 1 ? '' : 's'}`
+                  ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
                   : 'Pay with Stripe'}
               </Button>
             </form>

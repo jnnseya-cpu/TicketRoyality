@@ -150,6 +150,55 @@ async function run() {
     assert.equal(await tierSold('tier-vip'), 0, 'counter untouched');
   });
 
+  await test('a mixed order prints each person their own type and price, seats in order', async () => {
+    await seed();
+    const result = await issueTickets(
+      db,
+      'evt_mix',
+      payment({
+        quantity: 3,
+        price: 10,
+        seats: ['A10', 'A11', 'A12'],
+        mix: [
+          { typeId: 'adult', typeName: 'Adult', price: 10, quantity: 2 },
+          { typeId: 'child', typeName: 'Child', price: 5, quantity: 1 },
+        ],
+      })
+    );
+
+    assert.equal(result.ticketIds.length, 3);
+    assert.equal(await tierSold('tier-ga'), 3);
+
+    const tickets = (await db.collection('tickets').orderBy('seat').get()).docs.map((d) => d.data());
+    // The i-th mix entry occupies the i-th seat: Adult, Adult, Child on A10–A12.
+    assert.deepEqual(
+      tickets.map((t) => [t.seat, t.attendeeType, t.price]),
+      [
+        ['A10', 'Adult', 10],
+        ['A11', 'Adult', 10],
+        ['A12', 'Child', 5],
+      ]
+    );
+  });
+
+  await test('a mix that disagrees with the quantity is terminal, never issued', async () => {
+    await seed();
+    await assert.rejects(
+      () =>
+        issueTickets(
+          db,
+          'evt_mix_bad',
+          payment({
+            quantity: 3,
+            mix: [{ typeId: 'adult', typeName: 'Adult', price: 10, quantity: 2 }],
+          })
+        ),
+      /Mix totals 2/
+    );
+    assert.equal(await tierSold('tier-ga'), 0);
+    assert.equal((await db.collection('tickets').get()).size, 0);
+  });
+
   await test('a missing event is terminal, not retried', async () => {
     await seed();
     await assert.rejects(

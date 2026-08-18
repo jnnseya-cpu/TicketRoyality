@@ -201,3 +201,76 @@ export function leadPrice(event: Pick<Event, 'ticketTiers'>, now = Date.now()) {
   if (sellable.length === 0) return 0;
   return Math.min(...sellable.map((tier) => tier.price));
 }
+
+/* -------------------------------------------------------------------------- */
+/* Attendee-type mixes — docs/23 §7, §26                                      */
+/* -------------------------------------------------------------------------- */
+
+export interface MixEntry {
+  typeId: string;
+  typeName: string;
+  /** Unit price in major units, resolved from the tier — never from the browser. */
+  price: number;
+  quantity: number;
+}
+
+/** Per-order ceiling on any one attendee type, matching the quantity picker's own cap. */
+const MIX_MAX_PER_TYPE = 10;
+
+/**
+ * Turn what the browser asked for into what the tier actually sells.
+ *
+ * The request is `{typeId, quantity}` pairs and nothing else — no names, no prices.
+ * Everything money-bearing comes from the stored tier, because the browser's copy of a
+ * price is a suggestion from an untrusted machine (the same rule the single-price path
+ * has enforced since the £250-ticket-for-a-penny hole was closed).
+ *
+ * Unknown type ids are refused rather than skipped: a silently dropped line would charge
+ * less than the page showed and issue fewer tickets than the buyer chose, and both
+ * halves of that are wrong. A tier with no `attendeeTypes` accepts no mix at all — its
+ * one price is `price`, and the plain quantity path already handles it.
+ */
+export function resolveMix(
+  tier: Pick<TicketTier, 'attendeeTypes'>,
+  requested: Array<{ typeId?: unknown; quantity?: unknown }>
+): { ok: true; entries: MixEntry[]; total: number } | { ok: false; error: string } {
+  const types = tier.attendeeTypes ?? [];
+  if (types.length === 0) return { ok: false, error: 'This ticket type has a single price.' };
+
+  const entries: MixEntry[] = [];
+
+  for (const item of requested) {
+    const typeId = String(item.typeId ?? '');
+    const quantity = Math.floor(Number(item.quantity));
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+
+    const type = types.find((t) => t.id === typeId);
+    if (!type) return { ok: false, error: 'One of the chosen ticket types no longer exists.' };
+
+    entries.push({
+      typeId: type.id,
+      typeName: type.name,
+      price: Math.max(0, type.price),
+      quantity: Math.min(MIX_MAX_PER_TYPE, quantity),
+    });
+  }
+
+  const total = entries.reduce((sum, entry) => sum + entry.quantity, 0);
+  if (total === 0) return { ok: false, error: 'Choose at least one ticket.' };
+
+  return { ok: true, entries, total };
+}
+
+/**
+ * The mix flattened to one attendee type per ticket, in order.
+ *
+ * This ordering **is the seat assignment**: issuance writes `seats[i]` onto ticket `i`,
+ * so the i-th entry here names who sits in the i-th chosen seat. One definition, used by
+ * the checkout that prices and the issuance that prints, or two tickets could disagree
+ * about which child sits where.
+ */
+export function expandMix(entries: MixEntry[]): Array<{ typeName: string; price: number }> {
+  return entries.flatMap((entry) =>
+    Array.from({ length: entry.quantity }, () => ({ typeName: entry.typeName, price: entry.price }))
+  );
+}

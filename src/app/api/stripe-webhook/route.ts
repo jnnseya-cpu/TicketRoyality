@@ -273,6 +273,9 @@ export async function POST(request: Request) {
           providerRef: checkout.paymentIntentId,
           // Carried so issuance can move the seat from held to sold in one write.
           holdId: checkout.holdId,
+          // The attendee-type breakdown. Issuance prices each ticket from this when
+          // present; `price` above stays the order average for refund arithmetic.
+          ...(checkout.mix ? { mix: checkout.mix } : {}),
           // One seat per ticket, in order. Issuance already writes these; without them a
           // seated event issues tickets with no seat on them.
           ...(checkout.seats.length > 0 ? { seats: checkout.seats } : {}),

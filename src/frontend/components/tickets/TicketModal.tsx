@@ -172,7 +172,12 @@ export function TicketModal({
           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
             <Row label="Attendee" value={ticket.attendeeName} />
             <Row label="Ticket ID" value={<span className="font-mono">{ticket.reference}</span>} />
-            <Row label="Ticket type" value={ticket.tierName} />
+            <Row
+              label="Ticket type"
+              value={
+                ticket.attendeeType ? `${ticket.tierName} — ${ticket.attendeeType}` : ticket.tierName
+              }
+            />
             <Row label="Seat" value={ticket.seat ?? 'General admission'} />
             <Row label="Date & time" value={formatEventDate(ticket.eventDate)} />
             <Row label="Venue" value={ticket.eventLocation} />

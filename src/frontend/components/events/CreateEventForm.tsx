@@ -93,6 +93,20 @@ const ticketTierSchema = z.object({
   salesEnd: z.string().optional(),
   /** Gates the tier on attendance the buyer actually has. `none` is everybody. */
   minLoyaltyTier: z.enum(['none', 'member', 'regular', 'patron']),
+  /**
+   * Prices by who is attending — Adult, Child, Student (docs/23 §7). Empty means the
+   * tier has one price. All types share this tier's capacity, and the server prices
+   * every checkout line from these, never from the browser.
+   */
+  attendeeTypes: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        name: z.string().min(1, 'Name this ticket type.'),
+        price: z.coerce.number().min(0),
+      })
+    )
+    .optional(),
 });
 
 const seatingSchema = z.object({
@@ -440,6 +454,7 @@ function defaultsFor(event?: Event): FormValues {
       minPrice: tier.minPrice ?? 0,
       suggestedPrice: tier.suggestedPrice ?? 0,
       visibility: tier.visibility ?? ('public' as const),
+      attendeeTypes: tier.attendeeTypes ?? [],
       salesStart: tier.salesStart ? toLocalInput(tier.salesStart) : '',
       salesEnd: tier.salesEnd ? toLocalInput(tier.salesEnd) : '',
       minLoyaltyTier: tier.minLoyaltyTier ?? ('none' as const),
@@ -705,6 +720,9 @@ export function CreateEventForm({
           id: tier.id,
           name: tier.name,
           description: tier.description || undefined,
+                ...(tier.attendeeTypes && tier.attendeeTypes.length > 0
+                  ? { attendeeTypes: tier.attendeeTypes }
+                  : {}),
           // On a `choose` tier the stored price is the floor, so every existing
           // "from £x" display, the catalogue lead price and the seat map keep working
           // without knowing pay-what-you-want exists. What is charged is resolved
@@ -1634,6 +1652,88 @@ export function CreateEventForm({
                     />
                   </>
                 )}
+                <FormField
+                  control={form.control}
+                  name={`ticketTiers.${index}.attendeeTypes`}
+                  render={({ field: f }) => {
+                    const types = f.value ?? [];
+                    return (
+                      <FormItem className="sm:col-span-4">
+                        <FormLabel>Attendee prices (optional)</FormLabel>
+                        <FormDescription className="text-xs">
+                          Adult, Child, Student — each at its own price, all sharing this
+                          tier&apos;s capacity, bought together in one payment. Leave empty for
+                          a single-price tier.
+                        </FormDescription>
+                        {types.map((type, typeIndex) => (
+                          <div key={type.id} className="flex items-center gap-2">
+                            <Input
+                              placeholder="Adult"
+                              value={type.name}
+                              onChange={(event) =>
+                                f.onChange(
+                                  types.map((t, i) =>
+                                    i === typeIndex ? { ...t, name: event.target.value } : t
+                                  )
+                                )
+                              }
+                            />
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              className="w-32"
+                              placeholder="10.00"
+                              value={type.price}
+                              onChange={(event) =>
+                                f.onChange(
+                                  types.map((t, i) =>
+                                    i === typeIndex
+                                      ? { ...t, price: Number(event.target.value) }
+                                      : t
+                                  )
+                                )
+                              }
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => f.onChange(types.filter((_, i) => i !== typeIndex))}
+                              aria-label={`Remove ${type.name || 'type'}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            f.onChange([
+                              ...types,
+                              {
+                                id: `type-${types.length + 1}-${index}`,
+                                // The first row seeds from the tier's own price, which is
+                                // almost always the adult rate.
+                                name: types.length === 0 ? 'Adult' : '',
+                                price:
+                                  types.length === 0
+                                    ? Number(watchedTiers[index]?.price) || 0
+                                    : 0,
+                              },
+                            ])
+                          }
+                        >
+                          <PlusCircle className="h-4 w-4" /> Add attendee type
+                        </Button>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
+                />
+
                 <div className="flex items-end">
                   <Button
                     type="button"

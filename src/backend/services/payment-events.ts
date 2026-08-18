@@ -34,6 +34,12 @@ export interface RecordPaymentEvent {
   attendeeName: string;
   attendeeEmail: string;
   seats?: string[];
+  /**
+   * Attendee-type breakdown for a mixed-price order — Adult ×2 + Child ×1 in one
+   * payment. Validated against the stored tier before recording; issuance flattens it
+   * in order onto tickets, the same order `seats` uses. Absent on single-price orders.
+   */
+  mix?: Array<{ typeId: string; typeName: string; price: number; quantity: number }>;
 
   /**
    * The identifier shared between a payment and its refund — Stripe's payment intent

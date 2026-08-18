@@ -63,6 +63,21 @@ export function generateReference(): string {
 export function buildTickets(payment: PaymentEventDoc, event: EventDoc, tierName: string): TicketDoc[] {
   const purchasedAt = new Date().toISOString();
 
+  /*
+   * One attendee type and price per ticket, flattened from the mix in declaration
+   * order — the same order `seats` uses, so the i-th person gets the i-th seat
+   * (docs/23 §26). A mix whose quantities disagree with `quantity` is refused before
+   * this function is reached; when there is no mix, every ticket is the payment's
+   * single price, exactly as before mixes existed.
+   */
+  const perTicket =
+    payment.mix?.flatMap((entry) =>
+      Array.from({ length: entry.quantity }, () => ({
+        typeName: entry.typeName,
+        price: entry.price,
+      }))
+    ) ?? [];
+
   return Array.from({ length: payment.quantity }, (_, index) => {
     const ticket: TicketDoc = {
       reference: generateReference(),
@@ -80,7 +95,7 @@ export function buildTickets(payment: PaymentEventDoc, event: EventDoc, tierName
       attendeeEmail: payment.attendeeEmail,
       tierId: payment.tierId,
       tierName,
-      price: payment.price,
+      price: perTicket[index]?.price ?? payment.price,
       currency: payment.currency,
       status: 'valid',
       purchasedAt,
@@ -91,6 +106,9 @@ export function buildTickets(payment: PaymentEventDoc, event: EventDoc, tierName
     // than empty — a general-admission ticket has no seat, it does not have seat ''.
     const seat = payment.seats?.[index];
     if (seat) ticket.seat = seat;
+
+    const attendeeType = perTicket[index]?.typeName;
+    if (attendeeType) ticket.attendeeType = attendeeType;
 
     return ticket;
   });
@@ -142,6 +160,21 @@ export async function issueTickets(
 
     const tier = tiers[tierIndex];
     const sold = tier.sold ?? 0;
+
+    // A mix that does not sum to the quantity means the priced half and the issued half
+    // of the order came from different requests. Permanent, not retryable: replaying it
+    // cannot make the two agree.
+    if (payment.mix) {
+      const mixTotal = payment.mix.reduce((sum, entry) => sum + entry.quantity, 0);
+      if (mixTotal !== payment.quantity) {
+        throw new PermanentIssuanceError(
+          `Mix totals ${mixTotal} but the payment is for ${payment.quantity}`,
+          // 'failed' rather than a new status: the queue's vocabulary is shared with
+          // the app and the ops console, and the message carries the specifics.
+          'failed'
+        );
+      }
+    }
 
     // The capacity check and the increment are inside the same transaction, which is
     // what makes overselling impossible rather than unlikely. Firestore aborts and

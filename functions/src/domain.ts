@@ -27,6 +27,8 @@ export interface TicketDoc {
   attendeeEmail: string;
   tierId?: string;
   tierName: string;
+  /** Who this admits — "Child", "Student". Absent on single-price tiers. */
+  attendeeType?: string;
   seat?: string;
   price: number;
   currency: string;
@@ -110,6 +112,16 @@ export interface PaymentEventDoc {
   attendeeName: string;
   attendeeEmail: string;
   seats?: string[];
+  /**
+   * Attendee-type breakdown when one payment mixes prices — Adult ×2 + Child ×1 in a
+   * single order (docs/23 §26). Flattened in declaration order onto tickets, the same
+   * order `seats` uses, so the i-th entry names who sits in the i-th seat. When absent
+   * every ticket is `price` at `quantity`, which is every payment recorded before mixes
+   * existed. The sum of these quantities always equals `quantity`; issuance refuses the
+   * payment when it does not, because a mismatch means the two halves of the order came
+   * from different requests.
+   */
+  mix?: Array<{ typeId: string; typeName: string; price: number; quantity: number }>;
 
   /**
    * The provider identifier shared between a payment and its later refund — Stripe's

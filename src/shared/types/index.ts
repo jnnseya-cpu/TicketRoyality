@@ -289,6 +289,24 @@ export interface SeatingSection {
   curveDegrees?: number;
 }
 
+/**
+ * Who is using a seat — docs/23 §2. Adult, Child, Student, Senior, Member.
+ *
+ * The *tier* stays the inventory and the seat category: one pool, one sales window, one
+ * section of the room. An attendee type is a different price for the same place,
+ * depending on who occupies it. That split is the spec's "Seat ≠ Ticket Type ≠ Price":
+ * the section says where, the tier says which pool, the attendee type says who and at
+ * what price — so an adult at £10 and their child at £5 sit side by side in one order,
+ * both consuming the same tier's capacity.
+ */
+export interface AttendeeType {
+  id: string;
+  /** "Adult", "Child", "Student". Printed on the ticket and read at the door. */
+  name: string;
+  /** Major units, same currency as the event. The authoritative price for this type. */
+  price: number;
+}
+
 export interface TicketTier {
   id: string;
   name: string;
@@ -308,6 +326,13 @@ export interface TicketTier {
    * Absent means `fixed`, so every tier that already exists is unchanged.
    */
   pricing?: 'fixed' | 'choose';
+  /**
+   * Prices by who is attending — docs/23 §7. Absent means the tier has exactly one
+   * price, `price`, which is every tier that existed before attendee types did. When
+   * present, `price` remains the headline (usually the adult rate) and each entry is
+   * priced server-side at checkout; all entries consume this tier's `quantity`.
+   */
+  attendeeTypes?: AttendeeType[];
   /** The floor for a `choose` tier. `0` genuinely allows nothing, which is a valid choice. */
   minPrice?: number;
   /** What the page suggests before the buyer types. Never enforced. */
@@ -517,6 +542,8 @@ export interface Ticket {
 
   tierId?: string;
   tierName: string;
+  /** Who this admits — "Child", "Student". Absent on single-price tiers. docs/23 §26. */
+  attendeeType?: string;
   seat?: string;
   price: number;
   currency: string;
