@@ -1,7 +1,28 @@
 'use client';
 
 import * as React from 'react';
-import { CheckCircle2, Loader2, ScanLine, ShieldAlert, ShieldBan, XCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  CloudOff,
+  Download,
+  Loader2,
+  RefreshCw,
+  ScanLine,
+  ShieldAlert,
+  ShieldBan,
+  XCircle,
+} from 'lucide-react';
+
+import {
+  clearQueued,
+  deviceId,
+  isOfflineSupported,
+  loadManifest,
+  queueRedemption,
+  readQueue,
+  saveManifest,
+} from '@/frontend/lib/offline-door';
+import { decideOffline, type OfflineManifest, type QueuedRedemption } from '@/shared/tickets/offline';
 
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
 import { Button } from '@/frontend/components/ui/button';
@@ -55,12 +76,111 @@ export function TicketScanner({
   const [zoneId, setZoneId] = React.useState('');
   const [direction, setDirection] = React.useState<'in' | 'out'>('in');
 
+  /*
+   * Offline mode. Off unless the organiser downloaded a manifest for this event — a door
+   * that silently fell back to a weaker check the moment a network blipped would be a
+   * door nobody could reason about.
+   */
+  const [manifest, setManifest] = React.useState<OfflineManifest | null>(null);
+  const [queued, setQueued] = React.useState<QueuedRedemption[]>([]);
+  const [downloading, setDownloading] = React.useState(false);
+  const [syncing, setSyncing] = React.useState(false);
+  const admittedRef = React.useRef<Set<string>>(new Set());
+
   const [scanning, setScanning] = React.useState(false);
   const [starting, setStarting] = React.useState(false);
   const [outcome, setOutcome] = React.useState<ScanOutcome | null>(null);
   const [cameraError, setCameraError] = React.useState<string | null>(null);
   const scannerRef = React.useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
   const busyRef = React.useRef(false);
+
+  const refreshQueue = React.useCallback(async () => {
+    if (!isOfflineSupported()) return;
+    const entries = await readQueue(eventId);
+    setQueued(entries);
+    admittedRef.current = new Set(entries.map((e) => e.ticketId));
+  }, [eventId]);
+
+  React.useEffect(() => {
+    if (!isOfflineSupported()) return;
+    void loadManifest(eventId).then(setManifest);
+    void refreshQueue();
+  }, [eventId, refreshQueue]);
+
+  const download = async () => {
+    setDownloading(true);
+    try {
+      const response = await authedFetch(`/api/tickets/manifest?eventId=${encodeURIComponent(eventId)}`);
+      if (!response.ok) throw new Error('Could not download the list.');
+      const data = (await response.json()) as OfflineManifest;
+      await saveManifest(data);
+      setManifest(data);
+    } catch {
+      setCameraError('Could not download the ticket list. Try again while you have signal.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const sync = React.useCallback(async () => {
+    const pending = await readQueue(eventId);
+    if (pending.length === 0) return;
+
+    setSyncing(true);
+    try {
+      const response = await authedFetch('/api/tickets/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId, queue: pending }),
+      });
+      if (!response.ok) return;
+
+      const result = (await response.json()) as {
+        applied: number;
+        conflicts: Array<{ ticketId: string; reference: string }>;
+        unknown: string[];
+      };
+
+      /*
+       * Cleared only for what the server accounted for — applied, conflicting or unknown.
+       * Anything it could not process stays queued and goes again, because dropping it
+       * would lose the record that somebody was admitted.
+       */
+      await clearQueued([
+        ...pending
+          .filter(
+            (entry) =>
+              !result.conflicts.some((c) => c.ticketId === entry.ticketId) &&
+              !result.unknown.includes(entry.ticketId)
+          )
+          .slice(0, result.applied)
+          .map((e) => e.ticketId),
+        ...result.conflicts.map((c) => c.ticketId),
+        ...result.unknown,
+      ]);
+
+      if (result.conflicts.length > 0) {
+        setOutcome({
+          kind: 'invalid',
+          detail: `${result.conflicts.length} ticket${result.conflicts.length === 1 ? ' was' : 's were'} already used elsewhere: ${result.conflicts
+            .map((c) => c.reference)
+            .join(', ')}. Everything else synced.`,
+        });
+      }
+
+      await refreshQueue();
+    } finally {
+      setSyncing(false);
+    }
+  }, [eventId, refreshQueue]);
+
+  // Drain automatically the moment signal comes back, because door staff will not be
+  // watching for a button in the middle of an event.
+  React.useEffect(() => {
+    const onOnline = () => void sync();
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [sync]);
 
   const handleDecoded = React.useCallback(
     async (raw: string) => {
@@ -83,14 +203,58 @@ export function TicketScanner({
           return;
         }
 
-        // One POST. The signature check, the ownership check, the status check and the
-        // write all happen inside one server-side transaction, which is what stops two
-        // doors admitting the same ticket at the same moment.
-        const response = await authedFetch('/api/tickets/redeem', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ raw, eventId, zoneId: zoneId || undefined, direction }),
-        });
+        /*
+         * One POST. The signature check, the ownership check, the status check and the
+         * write all happen inside one server-side transaction, which is what stops two
+         * doors admitting the same ticket at the same moment.
+         *
+         * If it cannot be reached and a manifest was downloaded, the door falls back to
+         * deciding locally — see `shared/tickets/offline.ts` for exactly what that
+         * weakens and what it does not.
+         */
+        let response: Response;
+        try {
+          response = await authedFetch('/api/tickets/redeem', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ raw, eventId, zoneId: zoneId || undefined, direction }),
+          });
+        } catch {
+          if (!manifest) {
+            setOutcome({
+              kind: 'invalid',
+              detail: 'No signal, and no ticket list downloaded for this event.',
+            });
+            return;
+          }
+
+          const decision = await decideOffline(manifest, decoded.payload, admittedRef.current);
+          if (!decision.admit) {
+            setOutcome({ kind: 'invalid', detail: decision.error });
+            return;
+          }
+
+          // Written before we say admit. The other order loses admissions on a dropped
+          // tab, and a lost admission is a person counted as absent who is in the room.
+          const entry: QueuedRedemption = {
+            ticketId: decision.ticket.id,
+            reference: decision.ticket.reference,
+            eventId,
+            at: new Date().toISOString(),
+            deviceId: deviceId(),
+          };
+          await queueRedemption(entry);
+          admittedRef.current.add(entry.ticketId);
+          setQueued((current) => [...current, entry]);
+
+          setOutcome({
+            kind: 'valid',
+            reference: decision.ticket.reference,
+            attendee: decision.ticket.attendeeName,
+          });
+          return;
+        }
+
         const body = await response.json();
 
         if (response.ok) {
@@ -151,7 +315,12 @@ export function TicketScanner({
     // door was selected when it was created, so switching from the main gate to the VIP
     // lounge mid-event would keep scanning the gate — silently, and only discovered when
     // the occupancy count never moved.
-    [eventId, zoneId, direction]
+    //
+    // `manifest` is here for the same reason and it is the more expensive omission:
+    // downloading the ticket list mid-event would leave this callback holding the `null`
+    // it captured, so the door would refuse every offline scan while the screen said it
+    // was ready. Both are stale-closure bugs the linter catches and a queue does not.
+    [eventId, zoneId, direction, manifest]
   );
 
   const start = React.useCallback(async () => {
@@ -358,6 +527,70 @@ export function TicketScanner({
             <AlertTitle>Invalid ticket</AlertTitle>
             <AlertDescription>{outcome.detail}</AlertDescription>
           </Alert>
+        )}
+
+        {/*
+          Offline readiness, stated rather than assumed. Door staff need to know before
+          the doors open whether this phone can work without signal — finding out during
+          a queue is finding out too late.
+        */}
+        {isOfflineSupported() && (
+          <div className="space-y-2 rounded-md border border-dashed border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm">
+                <CloudOff className="h-4 w-4 text-muted-foreground" />
+                {manifest ? (
+                  <span>
+                    Ready to scan without signal —{' '}
+                    <span className="font-medium">{manifest.tickets.length}</span> tickets,
+                    downloaded{' '}
+                    {new Date(manifest.fetchedAt).toLocaleTimeString('en-GB', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">
+                    No ticket list downloaded. Without one, no signal means no scanning.
+                  </span>
+                )}
+              </div>
+
+              <Button variant="outline" size="sm" onClick={download} disabled={downloading}>
+                {downloading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                {manifest ? 'Refresh list' : 'Download list'}
+              </Button>
+            </div>
+
+            {queued.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>
+                  <span className="font-medium">{queued.length}</span> scan
+                  {queued.length === 1 ? '' : 's'} waiting to sync.
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => void sync()} disabled={syncing}>
+                  {syncing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Sync now
+                </Button>
+              </div>
+            )}
+
+            {manifest && (
+              <p className="text-xs text-muted-foreground">
+                Offline, this device knows what it has admitted but not what another door
+                has. Anything admitted twice is reported when the scans sync, with both
+                times.
+              </p>
+            )}
+          </div>
         )}
 
         <div className="flex gap-2">
