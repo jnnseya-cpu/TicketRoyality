@@ -135,6 +135,86 @@ async function main() {
     await assertSucceeds(getDocs(collection(admin, 'users')));
   });
 
+  /*
+   * Registration itself, which nothing here covered until it broke.
+   *
+   * Every test above starts from a user document written with the rules switched off,
+   * so the suite could pass in full while the one write a real person actually makes —
+   * creating their own profile, seconds after Firebase Auth accepted them — was refused
+   * by the deployed rules. It was: the rules had never been published, the client saw a
+   * bare permission-denied, and the form reported "Something went wrong."
+   *
+   * The payload below is the one `createUserProfile()` sends, wallet and welcome bonus
+   * included, because a rule that allows a trimmed version of it proves nothing.
+   */
+  console.log('\nfirestore.rules — registration (the write that was refused)\n');
+
+  const NEWCOMER = 'new-1';
+  const newcomer = env.authenticatedContext(NEWCOMER).firestore();
+
+  const signupPayload = (overrides: Record<string, unknown> = {}) => ({
+    uid: NEWCOMER,
+    email: 'newcomer@example.com',
+    fullName: 'A Newcomer',
+    userType: 'organiser',
+    status: 'pending',
+    phone: '+44 7700 900123',
+    companyName: 'Newcomer Live',
+    address: { line1: '2 High St', city: 'London', postcode: 'E1 6AN', country: 'United Kingdom' },
+    createdAt: '2026-08-18T00:00:00.000Z',
+    // Minted client-side by createUserProfile(). `noPrivilegedFields()` guards these on
+    // update, not on create — a new account must be able to arrive holding its welcome
+    // credit, or nobody can register at all.
+    wallet: {
+      balanceAcu: 100,
+      lifetimeGrantedAcu: 100,
+      lifetimePurchasedAcu: 0,
+      lifetimeSpentAcu: 0,
+      lastUpdatedAt: '2026-08-18T00:00:00.000Z',
+    },
+    welcomeBonusGranted: true,
+    ...overrides,
+  });
+
+  await test('a new organiser can create their own pending profile', async () => {
+    await assertSucceeds(setDoc(doc(newcomer, 'users', NEWCOMER), signupPayload()));
+  });
+
+  await test('a new customer can create their own approved profile', async () => {
+    const uid = 'new-2';
+    const db = env.authenticatedContext(uid).firestore();
+    await assertSucceeds(
+      setDoc(
+        doc(db, 'users', uid),
+        signupPayload({ uid, userType: 'customer', status: 'approved' })
+      )
+    );
+  });
+
+  await test('a new organiser cannot self-approve at creation', async () => {
+    const uid = 'new-3';
+    const db = env.authenticatedContext(uid).firestore();
+    await assertFails(setDoc(doc(db, 'users', uid), signupPayload({ uid, status: 'approved' })));
+  });
+
+  await test('a new user cannot mint themselves as superuser', async () => {
+    const uid = 'new-4';
+    const db = env.authenticatedContext(uid).firestore();
+    await assertFails(
+      setDoc(doc(db, 'users', uid), signupPayload({ uid, userType: 'superuser' }))
+    );
+  });
+
+  await test('a new user cannot create a profile at somebody else’s uid', async () => {
+    const uid = 'new-5';
+    const db = env.authenticatedContext(uid).firestore();
+    await assertFails(setDoc(doc(db, 'users', 'new-6'), signupPayload({ uid: 'new-6' })));
+  });
+
+  await test('a signed-out visitor cannot create a profile at all', async () => {
+    await assertFails(setDoc(doc(anon, 'users', 'new-7'), signupPayload({ uid: 'new-7' })));
+  });
+
   console.log('\nfirestore.rules — privilege escalation\n');
 
   await test('a user cannot promote themselves to superuser', async () => {
