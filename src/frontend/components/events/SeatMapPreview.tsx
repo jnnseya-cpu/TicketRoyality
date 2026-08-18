@@ -1,6 +1,12 @@
 'use client';
 
-import { sectionCapacity, sectionRows, sectionSeats } from '@/shared/seating';
+import {
+  seatPositions,
+  sectionBounds,
+  sectionCapacity,
+  sectionRows,
+  sectionSeats,
+} from '@/shared/seating';
 import { cn, formatCurrency } from '@/shared/utils';
 import type { SeatingSection } from '@/shared/types';
 
@@ -38,6 +44,55 @@ export function SeatMapPreview({
 
       {sections.map((section) => {
         const seats = sectionSeats(section);
+
+        /*
+         * A shaped section previews from the same geometry the buyer's picker draws
+         * (docs/23 §5) — one function for both, or the organiser approves a room the
+         * customer never sees.
+         */
+        if (section.shape && section.shape !== 'straight') {
+          const positioned = seatPositions(section);
+          const box = sectionBounds(positioned);
+          return (
+            <div key={section.id} className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span
+                  className="h-3 w-3 rounded-sm"
+                  style={{ backgroundColor: section.color }}
+                  aria-hidden
+                />
+                <span className="font-medium">{section.name}</span>
+                <span className="text-muted-foreground">
+                  {seats.length} seats · {formatCurrency(section.price, currency)}
+                </span>
+              </div>
+              <div className="overflow-auto rounded-md border border-border/60">
+                <svg
+                  viewBox={`${box.minX} ${box.minY} ${box.width} ${box.height}`}
+                  className="w-full"
+                  aria-label={`${section.name} layout preview`}
+                >
+                  {positioned.map((seat) => (
+                    <g key={seat.label} transform={`rotate(${seat.rotation} ${seat.x} ${seat.y})`}>
+                      <rect
+                        x={seat.x - 7}
+                        y={seat.y - 7}
+                        width={14}
+                        height={14}
+                        rx={3}
+                        fill={section.color}
+                        fillOpacity={0.8}
+                      >
+                        <title>{seat.label}</title>
+                      </rect>
+                    </g>
+                  ))}
+                </svg>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div key={section.id} className="space-y-2">
             <div className="flex flex-wrap items-center gap-2 text-sm">

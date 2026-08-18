@@ -274,6 +274,19 @@ export interface SeatingSection {
   unavailableSeats?: string[];
   /** Seats held back for wheelchair users and companions, never sold online. */
   accessibleSeats?: string[];
+  /**
+   * How the rows lie in the room — docs/23 §5, phase 1 of the seat-map engine.
+   *
+   * Geometry only: a seat's identity stays its label, so nothing about holds, locks,
+   * checkout or issuance changes when a section changes shape. Absent means straight,
+   * which is every section built before shapes existed.
+   */
+  shape?: 'straight' | 'curve' | 'arc' | 'angled' | 'vertical';
+  /**
+   * The sweep of a curve/arc section in degrees (10–180). Defaults: curve 40, arc 90.
+   * Ignored for the other shapes.
+   */
+  curveDegrees?: number;
 }
 
 export interface TicketTier {

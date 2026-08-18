@@ -112,6 +112,9 @@ const seatingSchema = z.object({
    * they do not.
    */
   tierId: z.string().optional(),
+  /** How the rows lie — docs/23 §5. Geometry only; seat labels never change. */
+  shape: z.enum(['straight', 'curve', 'arc', 'angled', 'vertical']).optional(),
+  curveDegrees: z.coerce.number().int().min(10).max(180).optional(),
   /**
    * The room, when it is not a rectangle.
    *
@@ -749,6 +752,9 @@ export function CreateEventForm({
                 rows: section.rows,
                 seatsPerRow: section.seatsPerRow,
                 ...(section.tierId ? { tierId: section.tierId } : {}),
+                ...(section.shape && section.shape !== 'straight'
+                  ? { shape: section.shape, curveDegrees: section.curveDegrees }
+                  : {}),
                 // Only written when the room actually has a shape: an empty array would
                 // turn every rectangle into an irregular map holding no seats.
                 ...(section.rowSpec && section.rowSpec.length > 0
@@ -2281,6 +2287,60 @@ export function CreateEventForm({
                   )}
                 />
 
+                <FormField
+                  control={form.control}
+                  name={`seating.${index}.shape`}
+                  render={({ field: f }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>Row layout</FormLabel>
+                      <Select value={f.value ?? 'straight'} onValueChange={f.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="straight">Straight rows</SelectItem>
+                          <SelectItem value="curve">Gently curved</SelectItem>
+                          <SelectItem value="arc">Theatre arc</SelectItem>
+                          <SelectItem value="angled">Angled block</SelectItem>
+                          <SelectItem value="vertical">Vertical (side balcony, coach)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription className="text-xs">
+                        Drawing only — seat F12 stays F12 whatever the shape, so changing this
+                        never touches anything already sold.
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+                {['curve', 'arc'].includes(watchedSeating?.[index]?.shape ?? '') && (
+                  <FormField
+                    control={form.control}
+                    name={`seating.${index}.curveDegrees`}
+                    render={({ field: f }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>Sweep (degrees)</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={10}
+                            max={180}
+                            placeholder={
+                              watchedSeating?.[index]?.shape === 'arc' ? '90' : '40'
+                            }
+                            {...f}
+                            value={f.value ?? ''}
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          How far the arc wraps. 40° is a gentle bow; 180° is a half circle.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 <FormField
                   control={form.control}
                   name={`seating.${index}.rowSpec`}

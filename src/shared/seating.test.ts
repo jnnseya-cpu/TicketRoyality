@@ -8,9 +8,12 @@
 import assert from 'node:assert/strict';
 
 import {
+  SEAT_PITCH,
   bestAvailable,
   generatedRowNames,
   seatBelongsToTier,
+  seatPositions,
+  sectionBounds,
   sectionCapacity,
   sectionSeats,
   suggestedRowNames,
@@ -260,6 +263,79 @@ test('a held-back seat cannot be asked for by name', () => {
   assert.equal(seatBelongsToTier([one], 'tier-1', 'B4'), false);
   assert.equal(seatBelongsToTier([one], 'tier-1', 'C1'), false);
   assert.equal(seatBelongsToTier([one], 'tier-1', ' b3 '), true);
+});
+
+/* ----------------------------- geometry (docs/23 §5) ---------------------- */
+
+test('a straight section positions every seat, one pitch apart', () => {
+  const positioned = seatPositions(section({ rows: 3, seatsPerRow: 4 }));
+  assert.equal(positioned.length, 12);
+  const a = positioned.filter((seat) => seat.row === 'A');
+  assert.equal(a[1].x - a[0].x, SEAT_PITCH);
+  assert.equal(a[0].y, a[3].y);
+  assert.ok(positioned.every((seat) => seat.rotation === 0));
+});
+
+test('geometry never changes what is sold — same labels whatever the shape', () => {
+  const base = section({ rows: 4, seatsPerRow: 10 });
+  const flat = seatPositions({ ...base, shape: 'straight' }).map((s) => s.label);
+  const arc = seatPositions({ ...base, shape: 'arc' }).map((s) => s.label);
+  const angled = seatPositions({ ...base, shape: 'angled' }).map((s) => s.label);
+  assert.deepEqual(arc, flat);
+  assert.deepEqual(angled, flat);
+});
+
+test('an arc bows towards the stage: a row\u2019s ends sit deeper than its centre', () => {
+  const positioned = seatPositions(section({ rows: 2, seatsPerRow: 11, shape: 'arc' }));
+  const rowA = positioned.filter((seat) => seat.row === 'A');
+  const centre = rowA[5];
+  const end = rowA[0];
+  assert.ok(end.y > centre.y, `end ${end.y} should be deeper than centre ${centre.y}`);
+  // And the end seats turn to face the stage.
+  assert.ok(Math.abs(end.rotation) > 5);
+  assert.equal(Math.round(centre.rotation), 0);
+});
+
+test('curved rows keep one seat pitch of arc length between neighbours', () => {
+  const positioned = seatPositions(section({ rows: 1, seatsPerRow: 8, shape: 'curve' }));
+  for (let i = 1; i < positioned.length; i += 1) {
+    const dx = positioned[i].x - positioned[i - 1].x;
+    const dy = positioned[i].y - positioned[i - 1].y;
+    const gap = Math.hypot(dx, dy);
+    // Chord is slightly shorter than arc; it must never bunch up or spread out.
+    assert.ok(Math.abs(gap - SEAT_PITCH) < 2, `gap ${gap}`);
+  }
+});
+
+test('a vertical section runs top to bottom', () => {
+  const positioned = seatPositions(section({ rows: 2, seatsPerRow: 5, shape: 'vertical' }));
+  const a = positioned.filter((seat) => seat.row === 'A');
+  assert.equal(a[0].x, a[4].x);
+  assert.ok(a[4].y > a[0].y);
+});
+
+test('a gangway is wider than a seat gap, in every shape', () => {
+  const withAisle = section({
+    rows: 1,
+    seatsPerRow: 8,
+    rowSpec: [{ name: 'A', seats: 8, aisleAfter: [4] }],
+  });
+  for (const shape of ['straight', 'arc'] as const) {
+    const positioned = seatPositions({ ...withAisle, shape });
+    const before = positioned[3];
+    const after = positioned[4];
+    const gap = Math.hypot(after.x - before.x, after.y - before.y);
+    assert.ok(gap > SEAT_PITCH * 1.5, `${shape}: ${gap}`);
+  }
+});
+
+test('bounds cover every seat with a margin', () => {
+  const positioned = seatPositions(section({ rows: 3, seatsPerRow: 6, shape: 'arc' }));
+  const box = sectionBounds(positioned);
+  for (const seat of positioned) {
+    assert.ok(seat.x > box.minX && seat.x < box.minX + box.width);
+    assert.ok(seat.y > box.minY && seat.y < box.minY + box.height);
+  }
 });
 
 console.log(`\n${passed}/${passed + failures.length} passed\n`);

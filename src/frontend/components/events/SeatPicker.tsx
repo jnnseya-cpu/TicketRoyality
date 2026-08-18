@@ -1,10 +1,16 @@
 'use client';
 
 import * as React from 'react';
-import { AlertCircle, Loader2, Wand2 } from 'lucide-react';
+import { AlertCircle, Loader2, Wand2, ZoomIn, ZoomOut } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
-import { sectionRows, sectionSeats, type Allocation } from '@/shared/seating';
+import {
+  seatPositions,
+  sectionBounds,
+  sectionRows,
+  sectionSeats,
+  type Allocation,
+} from '@/shared/seating';
 import { cn } from '@/shared/utils';
 import type { SeatingSection } from '@/shared/types';
 
@@ -47,6 +53,9 @@ export function SeatPicker({
   const [loading, setLoading] = React.useState(true);
   const [failed, setFailed] = React.useState(false);
   const [split, setSplit] = React.useState(0);
+  // Curved rooms can be wide; zooming multiplies the drawing's width inside a scrollable
+  // container, which gives pan-by-scroll on desktop and native touch panning on a phone.
+  const [zoom, setZoom] = React.useState(1);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -160,6 +169,129 @@ export function SeatPicker({
         const seats = sectionSeats(section);
         const rows = sectionRows(section);
 
+        const seatState = (label: string): 'free' | 'taken' | 'held-back' =>
+          taken.has(label)
+            ? 'taken'
+            : unavailable.has(label) || accessible.has(label)
+              ? 'held-back'
+              : 'free';
+
+        /*
+         * A shaped room — curve, arc, angled, vertical — is drawn from coordinates
+         * (docs/23 §5, §19): SVG in venue-space units, seats as circles that turn to
+         * face the stage. The straight room keeps the row-of-squares rendering below,
+         * unchanged, because every event built before shapes existed is straight and
+         * must keep looking exactly as it did.
+         */
+        if (section.shape && section.shape !== 'straight') {
+          const positioned = seatPositions(section);
+          const box = sectionBounds(positioned);
+          const firstOfRow = new Map<string, (typeof positioned)[number]>();
+          for (const seat of positioned) {
+            if (!firstOfRow.has(seat.row)) firstOfRow.set(seat.row, seat);
+          }
+
+          return (
+            <div key={section.id} className="space-y-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="flex items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 rounded-sm"
+                    style={{ backgroundColor: section.color }}
+                    aria-hidden
+                  />
+                  <span className="font-medium">{section.name}</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setZoom((z) => Math.max(1, z - 0.5))}
+                    aria-label="Zoom out"
+                  >
+                    <ZoomOut className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setZoom((z) => Math.min(3, z + 0.5))}
+                    aria-label="Zoom in"
+                  >
+                    <ZoomIn className="h-3.5 w-3.5" />
+                  </Button>
+                </span>
+              </div>
+
+              <div className="overflow-auto rounded-md border border-border/60">
+                <svg
+                  viewBox={`${box.minX} ${box.minY} ${box.width} ${box.height}`}
+                  style={{ width: `${100 * zoom}%`, minWidth: '100%' }}
+                  role="group"
+                  aria-label={`${section.name} seat map`}
+                >
+                  {[...firstOfRow.values()].map((seat) => (
+                    <text
+                      key={`label-${seat.row}`}
+                      x={seat.x - 16}
+                      y={seat.y + 3}
+                      textAnchor="end"
+                      className="fill-muted-foreground"
+                      fontSize={9}
+                    >
+                      {seat.row}
+                    </text>
+                  ))}
+                  {positioned.map((seat) => {
+                    const state = seatState(seat.label);
+                    const isMine = mine.has(seat.label);
+                    return (
+                      <g
+                        key={seat.label}
+                        transform={`rotate(${seat.rotation} ${seat.x} ${seat.y})`}
+                      >
+                        <rect
+                          x={seat.x - 7}
+                          y={seat.y - 7}
+                          width={14}
+                          height={14}
+                          rx={3}
+                          role="button"
+                          aria-label={`Seat ${seat.label}`}
+                          fill={
+                            state === 'free' ? section.color : state === 'taken' ? '#555' : 'none'
+                          }
+                          fillOpacity={state === 'taken' ? 0.35 : isMine ? 1 : 0.8}
+                          stroke={
+                            isMine ? 'currentColor' : state === 'held-back' ? '#888' : 'none'
+                          }
+                          strokeWidth={isMine ? 2.5 : 1}
+                          strokeDasharray={state === 'held-back' ? '3 2' : undefined}
+                          className={state === 'free' ? 'cursor-pointer' : 'cursor-not-allowed'}
+                          onClick={() => toggle(seat.label, state)}
+                        >
+                          <title>
+                            {state === 'taken'
+                              ? `${seat.label} — sold`
+                              : accessible.has(seat.label)
+                                ? `${seat.label} — accessible seat, booked by phone`
+                                : unavailable.has(seat.label)
+                                  ? `${seat.label} — not sold (restricted view)`
+                                  : seat.label}
+                          </title>
+                        </rect>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div key={section.id} className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -196,11 +328,7 @@ export function SeatPicker({
                            * somebody has it, nobody can use it, or it is being held for a
                            * wheelchair user and is booked by phone.
                            */
-                          const state: 'free' | 'taken' | 'held-back' = taken.has(label)
-                            ? 'taken'
-                            : unavailable.has(label) || accessible.has(label)
-                              ? 'held-back'
-                              : 'free';
+                          const state = seatState(label);
 
                           return (
                             <button

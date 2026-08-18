@@ -338,3 +338,123 @@ export function seatBelongsToTier(
     return sectionSeats(section).some((s) => s.label === label);
   });
 }
+
+/* -------------------------------------------------------------------------- */
+/* Geometry — docs/23 §5, phase 1                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A seat with a place in the room, in venue-space units.
+ *
+ * Geometry is **derived, never stored**. The seat's identity is still its label — F12 is
+ * F12 whether the row is straight or an arc — so a section changing shape moves dots on
+ * a screen and does not touch holds, locks, tickets or anything else that spends money.
+ * That is also why this lives beside `sectionSeats` rather than in a component: the
+ * picker, the builder preview and anything later (a printed map, a door screen) must
+ * draw the same room from the same function or they will disagree about where F12 is.
+ */
+export interface PositionedSeat extends Seat {
+  /** Venue-space units. One seat is SEAT_PITCH wide; the drawing scales, the units do not. */
+  x: number;
+  y: number;
+  /** Degrees. On curved shapes the seat turns to face the stage. */
+  rotation: number;
+}
+
+/** Distance between seat centres along a row, and between rows. Venue units. */
+export const SEAT_PITCH = 22;
+export const ROW_PITCH = 28;
+/** A gangway is wider than a seat gap — it is a walkway, not a missing chair. */
+const AISLE_GAP = SEAT_PITCH * 0.9;
+
+const DEFAULT_SWEEP: Record<string, number> = { curve: 40, arc: 90 };
+
+/**
+ * Where every seat in a section sits.
+ *
+ * Straight is the exact layout the old flex rendering produced, expressed as
+ * coordinates. Curve and arc are concentric circles about a centre behind the stage:
+ * seats keep a constant *arc length* spacing of one seat pitch, so back rows are
+ * naturally longer than front rows — which is what a real raked room does, and why an
+ * arc drawn by scaling a rectangle always looks wrong. Angled shears the block into a
+ * diagonal; vertical turns it on its side for a side balcony or a coach.
+ */
+export function seatPositions(section: SeatingSection): PositionedSeat[] {
+  const seats = sectionSeats(section);
+  const shape = section.shape ?? 'straight';
+
+  if (shape === 'curve' || shape === 'arc') {
+    const sweepDegrees = Math.min(180, Math.max(10, section.curveDegrees ?? DEFAULT_SWEEP[shape]));
+    const rows = sectionRows(section);
+    const widest = Math.max(1, ...rows.map((row) => row.seats));
+    /*
+     * The front row's radius is chosen so the widest row fits inside the sweep at one
+     * seat pitch of arc length per seat. Too small a radius with too many seats would
+     * wrap a row past the sweep; deriving it from the widest row means the organiser
+     * chooses an angle and the room simply fits.
+     */
+    const sweep = (sweepDegrees * Math.PI) / 180;
+    const baseRadius = Math.max((widest * SEAT_PITCH) / sweep, 3 * ROW_PITCH);
+
+    return seats.map((seat) => {
+      const radius = baseRadius + seat.rowIndex * ROW_PITCH;
+      const row = rows[seat.rowIndex];
+      const rowSeats = Math.max(1, row?.seats ?? 1);
+      /*
+       * Arc length from the row's centre line, in seats. `index` counts existing seats
+       * from the left; aisles add walkway width exactly as they do in a straight row.
+       */
+      const aisles = (row?.aisleAfter ?? []).filter((n) => n < (row?.from ?? 1) + seat.index).length;
+      const along =
+        (seat.index - (rowSeats - 1) / 2 + (seat.offset ?? 0) / 2) * SEAT_PITCH + aisles * AISLE_GAP;
+      const theta = along / radius; // radians from the centre line
+
+      return {
+        ...seat,
+        x: Math.round(radius * Math.sin(theta) * 100) / 100,
+        // y grows towards the back of the room; the arc bows towards the stage.
+        y: Math.round((radius - radius * Math.cos(theta) + seat.rowIndex * ROW_PITCH) * 100) / 100,
+        rotation: Math.round(((theta * 180) / Math.PI) * 10) / 10,
+      };
+    });
+  }
+
+  return seats.map((seat) => {
+    const row = sectionRows(section)[seat.rowIndex];
+    const aisles = (row?.aisleAfter ?? []).filter((n) => n < (row?.from ?? 1) + seat.index).length;
+    const along = (seat.index + (seat.offset ?? 0) / 2) * SEAT_PITCH + aisles * AISLE_GAP;
+    const deep = seat.rowIndex * ROW_PITCH;
+
+    switch (shape) {
+      case 'vertical':
+        // Rows run top to bottom — a side balcony, a bus, a boat.
+        return { ...seat, x: deep, y: along, rotation: 0 };
+      case 'angled':
+        // The block shears one half-pitch per row — a diagonal wing.
+        return { ...seat, x: along + deep * 0.75, y: deep, rotation: 0 };
+      default:
+        return { ...seat, x: along, y: deep, rotation: 0 };
+    }
+  });
+}
+
+/** The box the drawing needs, with a margin for the seat glyphs themselves. */
+export function sectionBounds(positioned: PositionedSeat[]): {
+  minX: number;
+  minY: number;
+  width: number;
+  height: number;
+} {
+  if (positioned.length === 0) return { minX: 0, minY: 0, width: SEAT_PITCH, height: ROW_PITCH };
+  const xs = positioned.map((seat) => seat.x);
+  const ys = positioned.map((seat) => seat.y);
+  const pad = SEAT_PITCH;
+  const minX = Math.min(...xs) - pad;
+  const minY = Math.min(...ys) - pad;
+  return {
+    minX,
+    minY,
+    width: Math.max(...xs) + pad - minX,
+    height: Math.max(...ys) + pad - minY,
+  };
+}
