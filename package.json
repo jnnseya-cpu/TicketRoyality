@@ -99,7 +99,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
-    "@firebase/rules-unit-testing": "^5.0.1",
+    "@firebase/rules-unit-testing": "^4.0.1",
     "@types/node": "^22.13.1",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.0.8",
