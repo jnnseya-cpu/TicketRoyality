@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 
 import {
   SEAT_PITCH,
+  expandSeatList,
   orphansCreated,
   bestAvailable,
   generatedRowNames,
@@ -369,5 +370,13 @@ test('a gangway ends the run — a single across the aisle is not stranded', () 
   assert.deepEqual(orphansCreated(one, new Set(), ['A4', 'A5', 'A6']), []);
   assert.deepEqual(orphansCreated(one, new Set(), ['A1', 'A2']), ['A3']);
 });
+test('a seat range expands within its row and nowhere else', () => {
+  assert.deepEqual(expandSeatList('B12-B15, C4 C6'), ['B12', 'B13', 'B14', 'B15', 'C4', 'C6']);
+  assert.deepEqual(expandSeatList('b3-5'), ['B3', 'B4', 'B5']);
+  // A cross-row "range" is not guessed at; it passes through to fail by name later.
+  assert.deepEqual(expandSeatList('B12-C4'), ['B12-C4']);
+  assert.deepEqual(expandSeatList('A1, A1 a1'), ['A1']);
+});
+
 console.log(`\n${passed}/${passed + failures.length} passed\n`);
 if (failures.length > 0) process.exit(1);

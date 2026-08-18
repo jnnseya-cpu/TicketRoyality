@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
 import { CreateEventForm } from '@/frontend/components/events/CreateEventForm';
 import { DynamicSellingPanel } from '@/frontend/components/events/DynamicSellingPanel';
+import { ProductionKillPanel } from '@/frontend/components/dashboard/ProductionKillPanel';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { getEventById } from '@/shared/data/repositories';
 import type { Event } from '@/shared/types';
@@ -71,6 +72,7 @@ export default function EditEventPage() {
             {/* Above the form: it reads the tiers the form edits, so a stale suggestion
                 sitting under an unsaved change would be the confusing order. */}
             <DynamicSellingPanel event={event} />
+            {(event.seating ?? []).length > 0 && <ProductionKillPanel eventId={event.id} />}
             <CreateEventForm profile={profile} existingEvent={event} />
           </div>
         );

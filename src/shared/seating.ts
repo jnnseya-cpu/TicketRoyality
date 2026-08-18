@@ -517,3 +517,33 @@ export function orphansCreated(
 
   return [...after].filter((label) => !before.has(label) && !chosenSet.has(label)).sort();
 }
+
+/**
+ * "B12-B15, C4 C6" → ["B12","B13","B14","B15","C4","C6"] — docs/25 §43.
+ *
+ * The production-kill panel takes seat lists the way a stage manager writes them:
+ * ranges within a row, separated however. A range only expands when both ends share
+ * the same row prefix and the numbers run forward; anything else passes through
+ * verbatim and is caught later by "that seat does not exist", which is a better error
+ * than silently guessing what B12-C4 meant.
+ */
+export function expandSeatList(text: string): string[] {
+  const out: string[] = [];
+  for (const raw of text.split(/[\s,;]+/)) {
+    const token = raw.trim().toUpperCase();
+    if (!token) continue;
+
+    const range = token.match(/^([A-Z]+)(\d+)-([A-Z]*)(\d+)$/);
+    if (range) {
+      const [, rowA, fromStr, rowB, toStr] = range;
+      const from = Number(fromStr);
+      const to = Number(toStr);
+      if ((rowB === '' || rowB === rowA) && to >= from && to - from <= 200) {
+        for (let n = from; n <= to; n += 1) out.push(`${rowA}${n}`);
+        continue;
+      }
+    }
+    out.push(token);
+  }
+  return [...new Set(out)];
+}

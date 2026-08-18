@@ -116,6 +116,9 @@ export const COMMS_CATALOGUE: CommsCategory[] = [
       // To the platform inbox, not the organiser. Enquire used to be a mailto: link,
       // which silently does nothing on any machine without a default mail client — the
       // enquiry looked sent and no one ever received it.
+      // Mandatory: a seat that moved is service information about a thing already paid
+      // for, and nobody may be marketed out of learning where they are sitting.
+      { key: 'ticket.reseated', label: 'Seat changed', subject: 'Your seat for {{event}} has changed to {{seat}}', severity: 'warning', channels: ['email', 'inapp'], audience: ['customer'], mandatory: true },
       { key: 'promo.placement.enquiry', label: 'Placement enquiry', subject: 'Placement enquiry — {{placement}}', severity: 'info', channels: ['email'], audience: ['organiser'] },
     ],
   },

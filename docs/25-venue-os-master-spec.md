@@ -31,6 +31,24 @@
 | §40–41 orders/orderItems | Stripe sessions + payment_events + per-ticket records serve this; a first-class orders collection is a reporting refactor, not a prerequisite |
 | §42 allocations with auto-release | Queued (docs/24 §35) |
 
+## Part 2 of the spec (§43–59) — reconciliation
+
+| Spec | Here |
+| --- | --- |
+| §43 production kill | **Built the day it arrived** — kill list (stage-manager ranges), unsold block instantly on the section, sold become idempotent reseat cases with distinct same-tier suggestions, resolved through the box-office move, holder emailed (`ticket.reseated`, mandatory). Emulator 6/6. Polygon selection waits for the phase-3 canvas; the seat list is the workflow either way |
+| §44 reseat records | Cases + `seatMovedAt`/`upgradedAt` on tickets; a first-class seat_moves ledger is a reporting refactor |
+| §45 upgrade engine flow | Built previously — exactly this sequence |
+| §46 resale | Policy before code (unchanged) |
+| §47–48 zone hierarchy, per-ticket entitlements | Zones are flat and tier-driven; hierarchy + per-ticket overrides open |
+| §49 gate routing | Queued ("access graph lite") |
+| §50 scanner device registry | Open — today any organiser-authenticated phone scans; device trust is a real hardening item, queued |
+| §51 scan ledger | Partial (redemptions, offline sync reports); a unified scan_events ledger open |
+| §52 anti-passback | Built for zones (in/out, occupancy); ticket-level INSIDE/OUTSIDE at the main gate open |
+| §53–55 credentials, rotating QR, offline | Built — this section describes the existing system |
+| §56 fraud engine | The known `sentinel.ts` gap: detection logic exists, nothing feeds it. Wiring it to scan/login telemetry is the queued fix; the blog draft stays held until then |
+| §57 command centre | Queued (display over data already recorded) |
+| §58–59 heatmaps, Seat DNA | Wait for telemetry, as before |
+
 ## Standing decisions
 
 1. No parallel collections. New vocabulary lands as fields and modules on the live

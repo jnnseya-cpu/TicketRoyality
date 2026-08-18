@@ -274,6 +274,19 @@ showed. 48/48 pricing tests. docs/25 files the master spec with a full
 concept-by-concept reconciliation and the standing decision: no parallel collections —
 new vocabulary lands on the live model or waits for phase 4's designed migration.
 
+### Production kills (docs/25 §43–44, docs/24 §27)
+
+The rig lands where row Q was: the organiser types the seats the way a stage manager
+writes them (Q1-Q20, B12-B15 — `expandSeatList`, tested), presses Kill, and the one
+rule holds from every angle: unsold seats leave sale instantly on the section's
+existing `unavailableSeats` (no second source of truth); sold seats become idempotent
+reseat cases — killing the area twice never doubles the queue — each offered a distinct
+free same-tier suggestion and moved through the same box-office `moveSeat` everything
+else uses; the holder is emailed (`ticket.reseated`, mandatory service message) that
+their seat moved and their code did not; redeemed holders are reported for stewards,
+not rewritten. **A sold ticket is never silently invalidated.** Panel on the event edit
+page for seated events. Emulator: 6/6.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.
