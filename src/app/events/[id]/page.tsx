@@ -18,6 +18,7 @@ import { EventSpeakers } from '@/frontend/components/events/EventSpeakers';
 import { EventAgenda } from '@/frontend/components/events/EventAgenda';
 import { HospitalityPackages } from '@/frontend/components/events/HospitalityPackages';
 import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
+import { RichText } from '@/frontend/components/common/RichText';
 import { SimilarEvents } from '@/frontend/components/events/SimilarEvents';
 import { TicketBox } from '@/frontend/components/events/TicketBox';
 import { AuctionLots } from '@/frontend/components/giving/AuctionLots';
@@ -166,9 +167,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
           <section>
             <h2 className="mb-3 font-headline text-xl font-semibold">About this event</h2>
-            <p className="whitespace-pre-line leading-relaxed text-muted-foreground">
-              {event.description}
-            </p>
+            <RichText text={event.description} className="text-muted-foreground" />
           </section>
 
           {event.eventType === 'livestream' && event.streamDetails && (

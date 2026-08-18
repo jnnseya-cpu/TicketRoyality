@@ -480,6 +480,28 @@ button says so.
    header ("Share scanner") — hands the scoped check-in portal to a steward's phone
    in one tap.
 
+### "Everything is wrong in these pictures" — the four screenshots decoded (18 Aug, night)
+
+1. **Every screen cut off at the right** (header hamburger half-visible on all three
+   app screenshots): not layout — **zoom**. Phones auto-zoom the page when a focused
+   input's font is under 16px and never zoom back; our inputs were 14px, so one use of
+   the search box left the whole PWA magnified and clipped. Inputs, textareas and
+   selects are now 16px on mobile (`text-base md:text-sm`), which stops the auto-zoom
+   at the source. Accessibility zoom stays available — pinch still works.
+2. **Raw `**markdown**` on the event page**: the AI event-draft writes bold markdown
+   and the page printed the asterisks. New `RichText` renders paragraphs, bold and
+   italics as React nodes (never injected HTML) — the three things a description
+   legitimately uses, and nothing more.
+3. **KODA asked the buyer for "589 USD" on a US$5.89 order** — a 100× units defect on
+   the KODA side, not this repo's: docs/20 §"Amounts are minor units" is the contract
+   this platform sends (589 = $5.89), and KODA's hosted page rendered the raw minor
+   value as whole dollars. Reported to the owner with the fix KODA needs (divide by
+   the currency's minor factor for display AND for SMS amount-matching, or USD
+   verifications will mismatch by 100×).
+4. **The Théâtre Kin'Ô card showing a travel-ad collage**: the event's own uploaded
+   picture — data, not code. The new separate cover/picture fields make the fix a
+   two-field edit.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.
