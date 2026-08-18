@@ -120,10 +120,69 @@ export function TicketBox({ event }: { event: Event }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tier?.id]);
 
+  /*
+   * Who sits where — docs/23 §8. The steppers define the party (2 Adults, 1 Child);
+   * once seats are chosen, each seat carries its own editable type, defaulted from the
+   * party in order. Editing a seat's type recounts the party from the assignments, so
+   * the two views cannot disagree: the assignments are the authority the moment they
+   * exist, and the steppers become a running total of them.
+   */
+  const [seatTypes, setSeatTypes] = React.useState<Record<string, string>>({});
+
+  React.useEffect(() => {
+    if (!hasTypes || selectedSeats.length === 0) {
+      setSeatTypes({});
+      return;
+    }
+    setSeatTypes((current) => {
+      // Seats keep their assignment across reselection; new seats take the first type
+      // still short of its stepper count, falling back to the headline type.
+      const next: Record<string, string> = {};
+      const counts: Record<string, number> = {};
+      for (const seat of selectedSeats) {
+        const kept = current[seat];
+        if (kept && attendeeTypes.some((t) => t.id === kept)) {
+          next[seat] = kept;
+          counts[kept] = (counts[kept] ?? 0) + 1;
+        }
+      }
+      for (const seat of selectedSeats) {
+        if (next[seat]) continue;
+        const wanting = attendeeTypes.find(
+          (t) => (counts[t.id] ?? 0) < (mixCounts[t.id] ?? 0)
+        );
+        const typeId = wanting?.id ?? attendeeTypes[0].id;
+        next[seat] = typeId;
+        counts[typeId] = (counts[typeId] ?? 0) + 1;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSeats.join(','), hasTypes, tier?.id]);
+
+  const seatAssigned = hasTypes && selectedSeats.length > 0;
+
+  /** The party size the steppers ask for — the seat picker's cap, whatever is assigned. */
+  const partyTarget = attendeeTypes.reduce((sum, type) => sum + (mixCounts[type.id] ?? 0), 0);
+
   const mixEntries = attendeeTypes
-    .map((type) => ({ type, count: mixCounts[type.id] ?? 0 }))
+    .map((type) => ({
+      type,
+      count: seatAssigned
+        ? selectedSeats.filter((seat) => seatTypes[seat] === type.id).length
+        : (mixCounts[type.id] ?? 0),
+    }))
     .filter((entry) => entry.count > 0);
   const mixTotalQuantity = mixEntries.reduce((sum, entry) => sum + entry.count, 0);
+
+  /*
+   * Issuance pairs seats[i] with the i-th person of the flattened mix, so the seats are
+   * posted grouped by type in the same order the mix declares — A10(Adult), A12(Adult),
+   * A11(Child) — and everyone's ticket names the seat they actually chose.
+   */
+  const orderedSeats = seatAssigned
+    ? attendeeTypes.flatMap((type) => selectedSeats.filter((seat) => seatTypes[seat] === type.id))
+    : selectedSeats;
 
   const unitPrice = tier
     ? resolveLinePrice(tier, isChoose ? Number(chosen) : undefined)
@@ -388,10 +447,64 @@ export function TicketBox({ event }: { event: Event }) {
             eventId={event.id}
             sections={event.seating ?? []}
             tierId={tier.id}
-            quantity={effectiveQuantity}
+            quantity={hasTypes ? Math.max(1, partyTarget) : effectiveQuantity}
             selected={selectedSeats}
             onChange={setSelectedSeats}
           />
+        )}
+
+        {/* docs/23 §8 — the basket the spec draws: each chosen seat with its own
+            ticket type and its own price, edited seat by seat, one payment. */}
+        {isSeated && seatAssigned && (
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Who sits where
+            </p>
+            {selectedSeats.map((seat) => {
+              const typeId = seatTypes[seat] ?? attendeeTypes[0].id;
+              const type = attendeeTypes.find((t) => t.id === typeId) ?? attendeeTypes[0];
+              return (
+                <div key={seat} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="font-medium tabular-nums">{seat}</span>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+                      value={typeId}
+                      aria-label={`Ticket type for seat ${seat}`}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setSeatTypes((current) => {
+                          const next = { ...current, [seat]: value };
+                          // The steppers follow the seats: one party, counted one way.
+                          setMixCounts(() => {
+                            const counts: Record<string, number> = {};
+                            for (const chosen of selectedSeats) {
+                              const t = next[chosen] ?? attendeeTypes[0].id;
+                              counts[t] = (counts[t] ?? 0) + 1;
+                            }
+                            return counts;
+                          });
+                          return next;
+                        });
+                      }}
+                    >
+                      {attendeeTypes.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.name} —{' '}
+                          {option.price === 0
+                            ? 'Free'
+                            : formatCurrency(option.price, event.currency)}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="w-16 text-right tabular-nums text-muted-foreground">
+                      {type.price === 0 ? 'Free' : formatCurrency(type.price, event.currency)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
 
         {hasTypes && (
@@ -597,7 +710,7 @@ export function TicketBox({ event }: { event: Event }) {
             <input type="hidden" name="tierId" value={tier.id} />
             <input type="hidden" name="userId" value={user?.uid ?? ''} />
             <input type="hidden" name="accessCode" value={accessCode} />
-            <input type="hidden" name="seats" value={selectedSeats.join(',')} />
+            <input type="hidden" name="seats" value={orderedSeats.join(',')} />
             {user ? (
               <Button
                 type="submit"
@@ -656,7 +769,7 @@ export function TicketBox({ event }: { event: Event }) {
               <input type="hidden" name="accessCode" value={accessCode} />
               {/* The seats are re-locked server-side inside the hold transaction, so this
                   is what the buyer chose, not what they are entitled to. */}
-              <input type="hidden" name="seats" value={selectedSeats.join(',')} />
+              <input type="hidden" name="seats" value={orderedSeats.join(',')} />
               {/* The gift. Added to the Stripe session after the fee is computed, so it
                   is charged with no platform fee, and recorded separately from the ticket
                   because Gift Aid can never be claimed on a payment for admission. */}
