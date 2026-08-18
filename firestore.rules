@@ -383,6 +383,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Wristband bindings. Written only by routes that prove the caller owns the event.
+       A client write could bind a band to somebody else's ticket, or release one so a
+       barred person's band stops matching. The uniqueness of the document id is what stops
+       one tag admitting two people. */
+    match /wristbands/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }

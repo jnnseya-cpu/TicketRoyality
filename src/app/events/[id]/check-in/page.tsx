@@ -6,6 +6,7 @@ import { ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
 import { Logo } from '@/frontend/components/common/Logo';
 import { TicketScanner } from '@/frontend/components/dashboard/TicketScanner';
+import { WristbandDesk } from '@/frontend/components/dashboard/WristbandDesk';
 import { getEventById } from '@/shared/data/repositories';
 import { formatEventDate } from '@/shared/utils';
 
@@ -53,6 +54,12 @@ export default async function CheckInPage({ params }: { params: Promise<{ id: st
       </Alert>
 
       <TicketScanner eventId={event.id} eventTitle={event.title} zones={event.zones ?? []} />
+
+      {/* Bands are a second door, not a replacement: a venue usually runs both, QR at the
+          box office and tags at the barrier. */}
+      <div className="mt-6">
+        <WristbandDesk eventId={event.id} />
+      </div>
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Problem at the gate?{' '}

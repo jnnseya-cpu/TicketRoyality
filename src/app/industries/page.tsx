@@ -60,8 +60,8 @@ const SEGMENTS = [
     name: 'Festivals',
     need: 'Multi-day passes, capacity you cannot exceed',
     detail:
-      'Sell a day pass and a full-weekend pass as separate tiers of one event, each capped independently. Capacity holds under load because tickets are issued in a Firestore transaction, not checked and then written. Arenas, camping and backstage can each be their own zone, capped separately and counted live as people come and go.',
-    next: 'Wristbands are not built \u2014 zones cap and count each area live, but nothing reads an RFID band. Arrival curves are measured from your own past door scans; there is no cross-event prediction.',
+      'Sell a day pass and a full-weekend pass as separate tiers of one event, each capped independently. Capacity holds under load because tickets are issued in a Firestore transaction, not checked and then written. Arenas, camping and backstage can each be their own zone, capped separately and counted live as people come and go. Bind wristbands to tickets and admit on the band with any reader that types a tag \u2014 no app, no driver.',
+    next: 'Arrival curves are measured from your own past door scans; there is no cross-event prediction. Wristbands work with any reader that types a tag \u2014 we do not integrate a specific manufacturer\u2019s API.',
   },
   {
     icon: Music,
