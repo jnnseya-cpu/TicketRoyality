@@ -347,6 +347,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* Session registrations. Written only by the route that proves the caller owns the
+       ticket, inside the transaction that also moves the session's capacity count. A
+       client write here could fill a workshop with other people's tickets — the cheapest
+       denial of service there is against a conference — or take a place without the
+       count moving, which is how a room ends up with more people than chairs. */
+    match /session_registrations/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }

@@ -187,6 +187,44 @@ export interface HospitalityBooking {
   ticketIds?: string[];
 }
 
+/**
+ * One session inside an event — a talk, a workshop, a breakout.
+ *
+ * ## Why this is not a zone and not a separate event
+ *
+ * A zone is a door: it asks whether a ticket may be in a room *now*. A session is a
+ * booking: it asks whether somebody has a place in a workshop *on Thursday at 2pm*,
+ * usually decided weeks earlier, because the workshop holds thirty and the conference
+ * sold nine hundred.
+ *
+ * Running sessions as separate events would give each one its own checkout, its own
+ * ticket and its own reconciliation, and an attendee would buy a conference pass and then
+ * "buy" six free tickets. So a session is inventory *inside* the event, registered
+ * against a ticket that already exists.
+ *
+ * `capacity: null` is the common case — a keynote everybody attends, listed so it appears
+ * on the agenda, with nothing to reserve.
+ */
+export interface EventSession {
+  id: string;
+  title: string;
+  description?: string;
+  /** ISO 8601. The agenda is built by sorting on these, so they are not optional. */
+  start: string;
+  end: string;
+  /** Parallel streams, for an agenda with more than one thing happening at once. */
+  track?: string;
+  /** The room, which is not the venue — "Workshop 2", "Main Hall". */
+  location?: string;
+  speakerNames?: string[];
+  /** `null` means no limit: on the agenda, nothing to reserve. */
+  capacity: number | null;
+  /** Tier ids that may register. Empty means every ticket holder. */
+  allowedTierIds: string[];
+  /** Places taken. Maintained transactionally, never edited by hand. */
+  registered?: number;
+}
+
 export interface SeatingSection {
   id: string;
   name: string;
@@ -334,6 +372,8 @@ export interface Event {
   organizerLogoUrl?: string;
 
   speakers?: Speaker[];
+  /** The agenda. Sessions are inventory inside the event, not separate events. */
+  sessions?: EventSession[];
   sponsors?: Sponsor[];
   recurrence?: Recurrence;
   dynamicPricing?: DynamicPricing;

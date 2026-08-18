@@ -161,6 +161,26 @@ const hospitalitySchema = z.object({
  * be answered with clicks and sales rather than asserted. A sponsor link is normally 0%
  * — it measures, it does not earn.
  */
+/**
+ * A session is inventory inside the event, not a separate event.
+ *
+ * `capacity` is a string so an empty field means "no limit" rather than zero — a keynote
+ * with capacity 0 would be bookable by nobody, which is exactly the mistake a numeric
+ * input with a blank default invites. The same reasoning as venue zones.
+ */
+const sessionSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1, 'Name this session.'),
+  description: z.string().optional(),
+  start: z.string().min(1, 'When does it start?'),
+  end: z.string().min(1, 'When does it end?'),
+  track: z.string().optional(),
+  location: z.string().optional(),
+  speakerNames: z.string().optional(),
+  capacity: z.string().optional(),
+  allowedTierIds: z.array(z.string()),
+});
+
 const sponsorSchema = z.object({
   name: z.string().min(1, 'Name the sponsor.'),
   logoUrl: z.string().url('Enter a valid image URL.'),
@@ -197,6 +217,7 @@ const schema = z
     hospitality: z.array(hospitalitySchema),
     speakers: z.array(speakerSchema),
     sponsors: z.array(sponsorSchema),
+    sessions: z.array(sessionSchema),
     isRecurring: z.boolean(),
     recurrenceFrequency: z.enum(['weekly', 'monthly']).optional(),
     recurrenceEndDate: z.date().optional(),
@@ -232,6 +253,20 @@ const schema = z
      * with no due date can never be chased — the hold that reserves the table would run
      * to the event and the organiser would find out on the night.
      */
+    values.sessions.forEach((session, index) => {
+      if (
+        session.start &&
+        session.end &&
+        new Date(session.end).getTime() <= new Date(session.start).getTime()
+      ) {
+        ctx.addIssue({
+          path: ['sessions', index, 'end'],
+          code: 'custom',
+          message: 'This ends before it starts.',
+        });
+      }
+    });
+
     values.ticketTiers.forEach((tier, index) => {
       if (
         tier.salesStart &&
@@ -320,6 +355,7 @@ function defaultsFor(event?: Event): FormValues {
       hospitality: [],
       speakers: [],
       sponsors: [],
+      sessions: [],
       isRecurring: false,
       featured: false,
       publish: true,
@@ -386,6 +422,18 @@ function defaultsFor(event?: Event): FormValues {
       zoneId: h.zoneId ?? '',
     })),
     speakers: (event.speakers ?? []).map((s) => ({ ...s, photoUrl: s.photoUrl ?? '' })),
+    sessions: (event.sessions ?? []).map((session) => ({
+      id: session.id,
+      title: session.title,
+      description: session.description ?? '',
+      start: toLocalInput(session.start),
+      end: toLocalInput(session.end),
+      track: session.track ?? '',
+      location: session.location ?? '',
+      speakerNames: (session.speakerNames ?? []).join(', '),
+      capacity: session.capacity === null || session.capacity === undefined ? '' : String(session.capacity),
+      allowedTierIds: session.allowedTierIds ?? [],
+    })),
     sponsors: (event.sponsors ?? []).map((sp) => ({
       name: sp.name,
       logoUrl: sp.logoUrl,
@@ -423,6 +471,7 @@ export function CreateEventForm({
   const hospitality = useFieldArray({ control: form.control, name: 'hospitality' });
   const speakers = useFieldArray({ control: form.control, name: 'speakers' });
   const sponsors = useFieldArray({ control: form.control, name: 'sponsors' });
+  const sessions = useFieldArray({ control: form.control, name: 'sessions' });
 
   const eventType = form.watch('eventType');
   const isRecurring = form.watch('isRecurring');
@@ -542,6 +591,30 @@ export function CreateEventForm({
         organizerId: profile.uid,
         organizerName: profile.companyName ?? profile.fullName,
         organizerLogoUrl: profile.logoUrl,
+        sessions:
+          values.sessions.length > 0
+            ? values.sessions.map((session) => ({
+                id: session.id,
+                title: session.title,
+                ...(session.description ? { description: session.description } : {}),
+                start: new Date(session.start).toISOString(),
+                end: new Date(session.end).toISOString(),
+                ...(session.track ? { track: session.track } : {}),
+                ...(session.location ? { location: session.location } : {}),
+                ...(session.speakerNames
+                  ? {
+                      speakerNames: session.speakerNames
+                        .split(',')
+                        .map((n) => n.trim())
+                        .filter(Boolean),
+                    }
+                  : {}),
+                // Empty means no limit. `registered` is owned by the booking transaction
+                // and is never written from here — sending it would reset a live count.
+                capacity: session.capacity?.trim() ? Number(session.capacity) : null,
+                allowedTierIds: session.allowedTierIds,
+              }))
+            : undefined,
         sponsors:
           values.sponsors.length > 0
             ? values.sponsors.map((sp) => ({
@@ -1769,6 +1842,204 @@ export function CreateEventForm({
                 />
               </>
             )}
+          </CardContent>
+        </Card>
+
+        {/* --------------------------------------------------------------- */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Agenda &amp; sessions</CardTitle>
+            <CardDescription>
+              Talks, workshops and breakouts inside this event. Give a session a capacity and
+              ticket holders reserve a place in it; leave it blank and it simply appears on the
+              agenda. A place is booked against a ticket, so nobody buys a second ticket to
+              attend a workshop they already paid for.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {sessions.fields.map((field, index) => (
+              <div key={field.id} className="space-y-3 rounded-lg border border-border p-4">
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <FormField
+                    control={form.control}
+                    name={`sessions.${index}.title`}
+                    render={({ field: f }) => (
+                      <FormItem className="sm:col-span-2">
+                        <FormLabel>Session</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Building agentic systems" {...f} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`sessions.${index}.start`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel>Starts</FormLabel>
+                        <FormControl>
+                          <Input type="datetime-local" {...f} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`sessions.${index}.end`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel>Ends</FormLabel>
+                        <FormControl>
+                          <Input type="datetime-local" {...f} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <FormField
+                    control={form.control}
+                    name={`sessions.${index}.track`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel>Track</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Engineering" {...f} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`sessions.${index}.location`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel>Room</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Workshop 2" {...f} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`sessions.${index}.speakerNames`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel>Speakers</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Comma separated" {...f} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`sessions.${index}.capacity`}
+                    render={({ field: f }) => (
+                      <FormItem>
+                        <FormLabel>Places</FormLabel>
+                        <FormControl>
+                          <Input type="number" min={1} placeholder="No limit" {...f} />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          Blank for a keynote nobody needs to book.
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name={`sessions.${index}.description`}
+                  render={({ field: f }) => (
+                    <FormItem>
+                      <FormLabel>Description (optional)</FormLabel>
+                      <FormControl>
+                        <Textarea rows={2} {...f} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`sessions.${index}.allowedTierIds`}
+                  render={({ field: f }) => (
+                    <FormItem>
+                      <FormLabel>Included with</FormLabel>
+                      <div className="flex flex-wrap gap-2">
+                        {watchedTiers.map((tier) => {
+                          const checked = f.value.includes(tier.id);
+                          return (
+                            <button
+                              key={tier.id}
+                              type="button"
+                              onClick={() =>
+                                f.onChange(
+                                  checked
+                                    ? f.value.filter((id: string) => id !== tier.id)
+                                    : [...f.value, tier.id]
+                                )
+                              }
+                              className={cn(
+                                'rounded-full border px-3 py-1 text-xs transition-colors',
+                                checked
+                                  ? 'border-primary bg-primary/10 text-primary'
+                                  : 'border-border text-muted-foreground hover:border-primary/40'
+                              )}
+                            >
+                              {tier.name || 'Unnamed tier'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <FormDescription className="text-xs">
+                        {f.value.length === 0
+                          ? 'None selected — every ticket type may attend.'
+                          : `Only these ${f.value.length} may reserve a place.`}
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => sessions.remove(index)}
+                >
+                  <Trash2 className="h-4 w-4" /> Remove session
+                </Button>
+              </div>
+            ))}
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                sessions.append({
+                  id: `session-${sessions.fields.length + 1}-${Date.now()}`,
+                  title: '',
+                  description: '',
+                  start: '',
+                  end: '',
+                  track: '',
+                  location: '',
+                  speakerNames: '',
+                  capacity: '',
+                  allowedTierIds: [],
+                })
+              }
+            >
+              <PlusCircle className="h-4 w-4" /> Add session
+            </Button>
           </CardContent>
         </Card>
 

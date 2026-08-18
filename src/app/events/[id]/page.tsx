@@ -15,6 +15,7 @@ import { Separator } from '@/frontend/components/ui/separator';
 import { EventCountdown } from '@/frontend/components/events/EventCountdown';
 import { EventMap } from '@/frontend/components/events/EventMap';
 import { EventSpeakers } from '@/frontend/components/events/EventSpeakers';
+import { EventAgenda } from '@/frontend/components/events/EventAgenda';
 import { HospitalityPackages } from '@/frontend/components/events/HospitalityPackages';
 import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
 import { SimilarEvents } from '@/frontend/components/events/SimilarEvents';
@@ -185,6 +186,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               <SeatMapPreview sections={event.seating} currency={event.currency} />
             </section>
           )}
+
+          <EventAgenda event={event} />
 
           {!isPast && <HospitalityPackages event={event} />}
 
