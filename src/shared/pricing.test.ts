@@ -12,7 +12,10 @@
  */
 import assert from 'node:assert/strict';
 
+import type { TicketTier } from './types';
+
 import {
+  upgradeTierFor,
   expandMix,
   resolveMix,
   applyCoupon,
@@ -348,6 +351,57 @@ test('expandMix pairs the i-th person with the i-th seat, in order', () => {
     ['Adult', 'Adult', 'Child']
   );
   assert.equal(perTicket[2].price, 5);
+});
+
+/* ------------------------- sellout upgrades (stadiums) --------------------- */
+
+const GROUND: TicketTier[] = [
+  { id: 'ga', name: 'General', price: 30, quantity: 100, sold: 100 },
+  { id: 'premium', name: 'Premium', price: 60, quantity: 50, sold: 10 },
+  { id: 'vip', name: 'VIP', price: 120, quantity: 10, sold: 0 },
+  { id: 'partner', name: 'Partner rate', price: 45, quantity: 20, sold: 0, visibility: 'hidden' },
+];
+
+test('a sold-out tier upgrades to the cheapest dearer tier with room', () => {
+  const up = upgradeTierFor(GROUND, 'ga', 2);
+  assert.equal(up?.id, 'premium');
+});
+
+test('an upgrade never lands on a hidden tier — that is somebody\u2019s allocation', () => {
+  const tiers = GROUND.map((t) => (t.id === 'premium' ? { ...t, sold: 50 } : t));
+  // Premium full; the hidden partner rate is dearer than GA and has room — still skipped.
+  assert.equal(upgradeTierFor(tiers, 'ga', 2)?.id, 'vip');
+});
+
+test('a cheaper tier is never an upgrade', () => {
+  // VIP sells out; nothing dearer exists, so there is nowhere to go.
+  assert.equal(upgradeTierFor(GROUND, 'vip', 1), null);
+});
+
+test('an upgrade must fit the whole party', () => {
+  const tiers = GROUND.map((t) => (t.id === 'premium' ? { ...t, sold: 49 } : t));
+  // One premium seat left, party of two — skip to VIP rather than split the party.
+  assert.equal(upgradeTierFor(tiers, 'ga', 2)?.id, 'vip');
+});
+
+test('held inventory counts as gone for upgrade purposes', () => {
+  const tiers = GROUND.map((t) => (t.id === 'premium' ? { ...t, sold: 10, held: 40 } : t));
+  assert.equal(upgradeTierFor(tiers, 'ga', 2)?.id, 'vip');
+});
+
+test('a closed sales window is not upgrade inventory', () => {
+  const tiers = GROUND.map((t) =>
+    t.id === 'premium' ? { ...t, salesEnd: '2020-01-01T00:00:00.000Z' } : t
+  );
+  assert.equal(upgradeTierFor(tiers, 'ga', 1)?.id, 'vip');
+});
+
+test('pay-what-you-want tiers never take part in upgrades', () => {
+  const tiers: TicketTier[] = [
+    { id: 'ga', name: 'General', price: 30, quantity: 10, sold: 10 },
+    { id: 'give', name: 'Supporter', price: 60, quantity: 50, sold: 0, pricing: 'choose' },
+  ];
+  assert.equal(upgradeTierFor(tiers, 'ga', 1), null);
 });
 
 const failed = results.filter(([, ok]) => !ok);

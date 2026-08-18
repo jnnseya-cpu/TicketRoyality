@@ -501,6 +501,13 @@ export interface Event {
    * surface built on it inherits the rule instead of re-remembering it.
    */
   listing?: 'public' | 'unlisted';
+  /**
+   * Stadiums' sellout upgrade, opt-in. When a tier sells out mid-checkout, the buyer is
+   * moved to the cheapest strictly-dearer public tier with room — at the price they
+   * chose, with the line naming the upgrade. The organiser gives away the difference to
+   * avoid refusing a sale; absent means off, which is every event that predates it.
+   */
+  autoUpgradeOnSellout?: boolean;
   featured?: boolean;
   /**
    * The organiser asked for homepage placement. `featured` itself is granted by a

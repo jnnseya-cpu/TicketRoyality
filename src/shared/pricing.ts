@@ -274,3 +274,39 @@ export function expandMix(entries: MixEntry[]): Array<{ typeName: string; price:
     Array.from({ length: entry.quantity }, () => ({ typeName: entry.typeName, price: entry.price }))
   );
 }
+
+/**
+ * The tier a sold-out buyer is moved up to — stadiums' "automatic upgrades between
+ * tiers when a section sells out", opt-in per event.
+ *
+ * The choice is the cheapest tier that is strictly dearer than the one that sold out
+ * and can actually take the party: an upgrade is a gift of the *difference*, and gifting
+ * the most expensive room in the house when the second-cheapest had space is a bigger
+ * gift than the organiser opted into. Hidden tiers are never used — they are someone's
+ * negotiated allocation, not spare capacity — and neither is anything outside its sales
+ * window.
+ *
+ * Pure, so the table of cases in pricing.test.ts is the specification. The caller holds
+ * against the returned tier and charges the *original* price; that price difference is
+ * the entire feature.
+ */
+export function upgradeTierFor(
+  tiers: TicketTier[],
+  soldOutTierId: string,
+  quantity: number,
+  now: Date = new Date()
+): TicketTier | null {
+  const from = tiers.find((tier) => tier.id === soldOutTierId);
+  if (!from) return null;
+
+  const candidates = tiers
+    .filter((tier) => tier.id !== from.id)
+    .filter((tier) => tier.visibility !== 'hidden')
+    .filter((tier) => (tier.pricing ?? 'fixed') === 'fixed' && (from.pricing ?? 'fixed') === 'fixed')
+    .filter((tier) => tier.price > from.price)
+    .filter((tier) => availableInTier(tier) >= quantity)
+    .filter((tier) => tierSaleWindow(tier, now.getTime()).onSale)
+    .sort((a, b) => a.price - b.price);
+
+  return candidates[0] ?? null;
+}

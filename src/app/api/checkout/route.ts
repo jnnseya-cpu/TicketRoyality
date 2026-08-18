@@ -6,7 +6,14 @@ import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { placeHold, releaseHold } from '@/backend/services/holds';
 import type { Coupon, TicketTier } from '@/shared/types';
-import { applyCoupon, resolveLinePrice, resolveMix, tierSaleWindow, type MixEntry } from '@/shared/pricing';
+import {
+  applyCoupon,
+  resolveLinePrice,
+  resolveMix,
+  tierSaleWindow,
+  upgradeTierFor,
+  type MixEntry,
+} from '@/shared/pricing';
 import { codeOpensTier } from '@/backend/services/access-codes';
 import { REF_COOKIE } from '@/backend/services/partners';
 import { getPass, passAvailability } from '@/backend/services/season-passes';
@@ -388,6 +395,8 @@ export async function POST(request: Request) {
    * than this one — recorded in STATUS.md rather than half-done.
    */
   let holdId = '';
+  /** Set when a sold-out tier was upgraded; issuance must consume the new tier. */
+  let upgradedToTierId = '';
   const holdEventId = String(form.get('eventId') ?? '');
   const holdTierId = String(form.get('tierId') ?? '');
 
@@ -405,8 +414,51 @@ export async function POST(request: Request) {
     }
 
     const hold = await placeHold(holdEventId, holdTierId, quantity, undefined, chosenSeats);
-    if (!hold.ok) return fail(hold.error);
-    holdId = hold.holdId;
+    if (!hold.ok) {
+      /*
+       * The sellout upgrade (stadiums card, opt-in per event).
+       *
+       * Only a clean sold-out on an unseated purchase qualifies: chosen seats belong to
+       * a section wired to the sold-out tier, and moving them would seat people in a
+       * room their section is not. The buyer pays the price they chose; the organiser
+       * opted into giving away the difference rather than refusing the sale. Hidden
+       * tiers, cheaper tiers, closed windows and part-fitting tiers are all excluded by
+       * `upgradeTierFor`, whose test table is the specification.
+       */
+      if (hold.reason === 'sold-out' && chosenSeats.length === 0 && isAdminConfigured()) {
+        try {
+          const eventSnap = await getAdminDb().collection('events').doc(holdEventId).get();
+          const eventData = eventSnap.data() as
+            | { autoUpgradeOnSellout?: boolean; ticketTiers?: TicketTier[] }
+            | undefined;
+
+          const upgradeTo = eventData?.autoUpgradeOnSellout
+            ? upgradeTierFor(eventData.ticketTiers ?? [], holdTierId, quantity)
+            : null;
+
+          if (upgradeTo) {
+            const retry = await placeHold(holdEventId, upgradeTo.id, quantity, undefined, []);
+            if (retry.ok) {
+              holdId = retry.holdId;
+              upgradedToTierId = upgradeTo.id;
+              // The receipt says what happened; the amount says what was promised.
+              for (const line of lines) {
+                if (!line.name.includes('Service Fee') && line.name !== 'Donation') {
+                  line.name = `${line.name} — upgraded to ${upgradeTo.name}`;
+                }
+              }
+              if (claimables[0]) claimables[0].tierId = upgradeTo.id;
+            }
+          }
+        } catch {
+          // The upgrade is best-effort on top of a failure; the honest sold-out stands.
+        }
+      }
+
+      if (!holdId) return fail(hold.error);
+    } else {
+      holdId = hold.holdId;
+    }
   }
 
   /*
@@ -489,7 +541,7 @@ export async function POST(request: Request) {
       metadata: {
         userId: String(form.get('userId') ?? ''),
         eventId: String(form.get('eventId') ?? ''),
-        tierId: String(form.get('tierId') ?? ''),
+        tierId: upgradedToTierId || String(form.get('tierId') ?? ''),
         quantity:
           mixEntries.length > 0
             ? String(mixEntries.reduce((sum, entry) => sum + entry.quantity, 0))

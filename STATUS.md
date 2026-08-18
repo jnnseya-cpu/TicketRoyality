@@ -196,6 +196,18 @@ The charity card's "Not yet" is closed, both halves:
   displaced. The leader can raise their ceiling without moving the price; lowering is
   refused. Emulator: 19/19, including the ticker-never-carries-a-person check.
 
+### Sellout upgrades (stadiums card)
+
+Opt-in per event: when a tier sells out mid-checkout, the buyer is moved to the
+cheapest strictly-dearer public tier with room, at the price they chose — the organiser
+opted into giving away the difference rather than refusing the sale. The selection
+(`upgradeTierFor`) never uses hidden tiers (someone's negotiated allocation), never
+splits a party, respects sales windows and held inventory, and never applies to chosen
+seats, whose sections are wired to the sold-out tier. The Stripe line names the upgrade.
+Pure-function spec: 43/43 in pricing tests. The stadiums card's "Not yet" is closed for
+the checkout path; post-purchase upgrades of already-issued tickets are the theatres
+card's paid-move item, still queued.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.
