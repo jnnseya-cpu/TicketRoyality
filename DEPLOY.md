@@ -457,6 +457,24 @@ To remove admin rights from an account, add `--revoke`. The script only ever upd
 `userType` — it never overwrites the document, so the wallet balance and profile
 survive.
 
+## One command for all of it
+
+Everything below this line is what the four remaining steps do and why. If you just want
+them done:
+
+```bash
+export CRON_SECRET='the same value the deployed app holds'
+bash scripts/go-live.sh
+```
+
+It deploys the rules and indexes, creates `API_KEY_SECRET` if it is missing, creates or
+updates the sweep job, and then calls the live site to prove both worked. Safe to run
+again; it deletes nothing. It skips the scheduler if `gcloud` is not installed and says so
+rather than pretending.
+
+Two things it cannot do for you, both noted when it finishes: restricting the Maps key to
+your domain, and running one real Stripe purchase.
+
 ## The scheduler — nothing sweeps without it
 
 `/api/cron/release-holds` does five jobs, and **nothing calls it on its own**. Until a
