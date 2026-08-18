@@ -89,3 +89,39 @@ export function reserveState(lot: Lot): 'none' | 'met' | 'not-met' {
   if (!lot.reserveMinor) return 'none';
   return reserveMet(lot) ? 'met' : 'not-met';
 }
+
+/**
+ * Proxy settlement — two maximums meet, one price comes out (docs/23-era gap list;
+ * the charity card's "no proxy bids" line).
+ *
+ * Every bid is a maximum: the bidder names the most they will pay, and the room only
+ * ever sees the least that currently wins. When a challenger arrives, the two maximums
+ * are settled the way an auctioneer would settle them — the higher one leads at one
+ * increment past the lower, capped at its own ceiling — and a tie goes to the incumbent,
+ * because the earlier commitment at the same money was first.
+ *
+ * Pure and side-effect free: the service runs it inside the bid transaction, and the
+ * tests run it on a table of cases. The maximums themselves are never disclosed —
+ * an auction is public about the price and silent about the ceiling.
+ */
+export function settleProxy(params: {
+  incumbentMaxMinor: number;
+  challengerMaxMinor: number;
+  incrementMinor: number;
+}): { winner: 'incumbent' | 'challenger'; priceMinor: number } {
+  const { incumbentMaxMinor, challengerMaxMinor, incrementMinor } = params;
+
+  if (challengerMaxMinor > incumbentMaxMinor) {
+    return {
+      winner: 'challenger',
+      // One increment past the beaten maximum — never the challenger's own ceiling,
+      // unless the two are so close that the increment would overshoot it.
+      priceMinor: Math.min(challengerMaxMinor, incumbentMaxMinor + incrementMinor),
+    };
+  }
+
+  return {
+    winner: 'incumbent',
+    priceMinor: Math.min(incumbentMaxMinor, challengerMaxMinor + incrementMinor),
+  };
+}

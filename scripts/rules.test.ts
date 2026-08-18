@@ -267,6 +267,33 @@ async function main() {
     await assertFails(updateDoc(doc(organiser, 'events', 'evt-req'), { featured: false }));
   });
 
+  console.log('\nfirestore.rules — the auction ticker\n');
+
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'auction_ticker', 'lot-1'), {
+      lotId: 'lot-1',
+      eventId: 'evt-1',
+      status: 'open',
+      highBidMinor: 6000,
+      bidCount: 2,
+      closesAt: '2026-12-01T21:00:00.000Z',
+      reserve: 'met',
+    });
+  });
+
+  await test('anyone may watch the ticker — it is what the room is looking at', async () => {
+    await assertSucceeds(getDoc(doc(anon, 'auction_ticker', 'lot-1')));
+  });
+
+  await test('nobody can write the ticker from a client', async () => {
+    await assertFails(updateDoc(doc(customer, 'auction_ticker', 'lot-1'), { highBidMinor: 1 }));
+  });
+
+  await test('the lot itself stays closed — names, emails and ceilings live there', async () => {
+    await assertFails(getDoc(doc(anon, 'auction_lots', 'lot-1')));
+    await assertFails(getDoc(doc(customer, 'auction_lots', 'lot-1')));
+  });
+
   console.log('\nfirestore.rules — privilege escalation\n');
 
   await test('a user cannot promote themselves to superuser', async () => {

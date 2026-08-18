@@ -433,6 +433,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* The live price feed, one document per lot.
+       Readable by anyone, because it is what the whole room is watching: price, bid
+       count, closing time, reserve state. It is written only by the server, inside the
+       same transaction as the bid it reflects, and it deliberately carries no bidder
+       identity and no proxy ceiling — those stay on auction_lots, which no client can
+       read. This is why bidding can stream over onSnapshot without a poll and without
+       leaking a person. */
+    match /auction_ticker/{lotId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     /* Gift registry.
        Closed to clients: the running total is moved inside a transaction the webhook
        runs, and a client write could mark a £400 gift bought without paying for it. The

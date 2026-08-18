@@ -35,7 +35,7 @@ let auctions: typeof import('../src/backend/services/auctions');
 const inMinutes = (n: number) => new Date(Date.now() + n * 60_000).toISOString();
 
 async function seed() {
-  for (const c of ['auction_lots', 'auction_bids']) {
+  for (const c of ['auction_lots', 'auction_bids', 'auction_ticker']) {
     const snap = await db.collection(c).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -107,23 +107,96 @@ async function run() {
     const id = (await lot())!;
 
     const [a, b] = await Promise.all([bid(id, 5_000, 'ada'), bid(id, 5_000, 'grace')]);
-    assert.equal([a.ok, b.ok].filter(Boolean).length, 1);
+    /*
+     * Under proxy settlement both bids are answered — the loser instantly, in the same
+     * transaction — but exactly one is LEADING. Equal maximums go to whoever committed
+     * first, and both being told "leading" is the failure this test exists to prevent.
+     */
+    const leaders = [a, b].filter((r) => r.ok && r.leading);
+    assert.equal(leaders.length, 1);
 
     const stored = (await db.collection('auction_lots').doc(id).get()).data()!;
     assert.equal(stored.highBidMinor, 5_000);
-    assert.equal(stored.bidCount, 1);
   });
 
-  await test('you cannot outbid yourself', async () => {
-    // It only raises the price you will pay, and an auction that allows it looks like
-    // it is milking the room.
+  await test('the leader can raise their maximum without moving the price', async () => {
+    /*
+     * The old rule refused any second bid from the leader, which is right for a plain
+     * re-bid and wrong for a proxy: raising your ceiling before leaving the room is the
+     * normal defensive move, and it costs nothing unless somebody actually challenges.
+     */
     await seed();
     const id = (await lot())!;
     await bid(id, 5_000, 'ada');
 
-    const again = await bid(id, 9_000, 'ada');
-    assert.equal(again.ok, false);
-    if (!again.ok) assert.equal(again.reason, 'own-bid');
+    const raise = await bid(id, 9_000, 'ada');
+    assert.equal(raise.ok, true);
+
+    const stored = (await db.collection('auction_lots').doc(id).get()).data()!;
+    assert.equal(stored.highBidMinor, 5_000); // the room saw nothing move
+    assert.equal(stored.proxyMaxMinor, 9_000); // the ceiling did
+
+    // Lowering it is refused: a ceiling that can drop would rewrite settled fights.
+    const lower = await bid(id, 6_000, 'ada');
+    assert.equal(lower.ok, false);
+    if (!lower.ok) assert.equal(lower.reason, 'own-bid');
+  });
+
+  await test('a challenger below the standing maximum is beaten instantly', async () => {
+    await seed();
+    const id = (await lot())!;
+    await bid(id, 5_000, 'ada');
+    await bid(id, 9_000, 'ada'); // ada's ceiling is now £90
+
+    const grace = await bid(id, 7_000, 'grace');
+    assert.equal(grace.ok, true);
+    if (grace.ok) {
+      assert.equal(grace.leading, false);
+      // The price rises to one increment past the beaten ceiling, capped at ada's max.
+      assert.equal(grace.amountMinor, 8_000);
+    }
+
+    const stored = (await db.collection('auction_lots').doc(id).get()).data()!;
+    assert.equal(stored.highBidderId, 'ada');
+    assert.equal(stored.highBidMinor, 8_000);
+    // Ada's ceiling stays private and intact.
+    assert.equal(stored.proxyMaxMinor, 9_000);
+  });
+
+  await test('a challenger past the standing maximum takes the lead at max + increment', async () => {
+    await seed();
+    const id = (await lot())!;
+    await bid(id, 5_000, 'ada'); // ceiling 5 000
+
+    const grace = await bid(id, 20_000, 'grace');
+    assert.equal(grace.ok, true);
+    if (grace.ok) {
+      assert.equal(grace.leading, true);
+      // Never grace's own ceiling — one increment past ada's.
+      assert.equal(grace.amountMinor, 6_000);
+    }
+
+    const stored = (await db.collection('auction_lots').doc(id).get()).data()!;
+    assert.equal(stored.highBidderId, 'grace');
+    assert.equal(stored.highBidMinor, 6_000);
+    assert.equal(stored.proxyMaxMinor, 20_000);
+  });
+
+  await test('the ticker mirrors every price move and never a person', async () => {
+    await seed();
+    const id = (await lot())!;
+    await bid(id, 5_000, 'ada');
+    await bid(id, 7_000, 'grace');
+
+    const ticker = (await db.collection('auction_ticker').doc(id).get()).data()!;
+    assert.equal(ticker.highBidMinor, 6_000); // 5 000 ceiling + 1 000 increment
+    assert.equal(ticker.bidCount, 2);
+    assert.equal(ticker.status, 'open');
+    // The projection carries no identity and no ceiling, by construction.
+    assert.equal('highBidderId' in ticker, false);
+    assert.equal('highBidderName' in ticker, false);
+    assert.equal('highBidderEmail' in ticker, false);
+    assert.equal('proxyMaxMinor' in ticker, false);
   });
 
   await test('every bid is kept, not just the winning one', async () => {

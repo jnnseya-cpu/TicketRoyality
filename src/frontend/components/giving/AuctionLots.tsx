@@ -11,6 +11,8 @@ import { Input } from '@/frontend/components/ui/input';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { formatCurrency } from '@/shared/utils';
+import { db, isFirebaseConfigured } from '@/shared/firebase/client';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 interface LotView {
   id: string;
@@ -62,15 +64,57 @@ export function AuctionLots({ eventId }: { eventId: string }) {
 
   React.useEffect(() => {
     void load();
-    /*
-     * Polled rather than pushed. A live socket would show the room the price moving in
-     * real time, and is the right answer eventually; a fifteen-second poll is what can be
-     * built without a sixth vendor, and it is honest about being a poll rather than
-     * pretending to be live.
-     */
-    const timer = window.setInterval(() => void load(), 15_000);
-    return () => window.clearInterval(timer);
   }, [load]);
+
+  /*
+   * Live, and it always could have been. The fifteen-second poll this replaces blamed
+   * the vendor constraint for not streaming — but the stream was in the stack the whole
+   * time: Firestore's own onSnapshot. What actually blocked it was that the lot document
+   * carries the high bidder's name, email and secret maximum, and rules cannot hide
+   * fields. So the server now writes a public ticker per lot — price, count, close,
+   * reserve state, nothing about anybody — in the same transaction as the bid, and the
+   * room watches that. The price on this screen moves the moment the hammer would.
+   */
+  React.useEffect(() => {
+    if (!isFirebaseConfigured) return;
+
+    const unsubscribe = onSnapshot(
+      query(collection(db, 'auction_ticker'), where('eventId', '==', eventId)),
+      (snap) => {
+        setLots((current) => {
+          if (!current) return current;
+          const byId = new Map(
+            snap.docs.map((d) => [d.id, d.data() as {
+              status: LotView['status'];
+              highBidMinor: number;
+              bidCount: number;
+              closesAt: string;
+              reserve: LotView['reserve'];
+            }])
+          );
+          return current.map((lot) => {
+            const live = byId.get(lot.id);
+            if (!live) return lot;
+            return {
+              ...lot,
+              status: live.status,
+              highBidMinor: live.highBidMinor,
+              bidCount: live.bidCount,
+              closesAt: live.closesAt,
+              reserve: live.reserve,
+              // The ticker cannot know who leads — that is the point of it — so a price
+              // above what this person committed means they are no longer leading.
+              leading: lot.leading && live.highBidMinor <= lot.highBidMinor ? lot.leading : false,
+            };
+          });
+        });
+      },
+      // A failed stream is silent: the list still loaded, and bids still re-fetch.
+      () => undefined
+    );
+
+    return unsubscribe;
+  }, [eventId]);
 
   const minimumFor = (lot: LotView) =>
     lot.highBidMinor > 0 ? lot.highBidMinor + lot.incrementMinor : lot.startMinor;
@@ -98,7 +142,21 @@ export function AuctionLots({ eventId }: { eventId: string }) {
         return;
       }
 
-      toast({ title: 'You are the leading bid', description: lot.title });
+      const result = data as { leading?: boolean; amountMinor?: number };
+      if (result.leading === false) {
+        // Settled against a standing maximum inside the same transaction — beaten
+        // instantly, and told so, rather than shown as leading and displaced later.
+        toast({
+          variant: 'destructive',
+          title: 'Outbid straight away',
+          description: `An earlier bidder's maximum beat yours. The price is now ${formatCurrency((result.amountMinor ?? 0) / 100, lot.currency)}.`,
+        });
+      } else {
+        toast({
+          title: 'You are the leading bid',
+          description: `${lot.title} — the room sees ${formatCurrency((result.amountMinor ?? 0) / 100, lot.currency)}, and your maximum stays private.`,
+        });
+      }
       setAmounts((a) => ({ ...a, [lot.id]: '' }));
       await load();
     } catch {
@@ -197,16 +255,20 @@ export function AuctionLots({ eventId }: { eventId: string }) {
                       placeholder={String(minimum / 100)}
                       value={amounts[lot.id] ?? ''}
                       onChange={(e) => setAmounts((a) => ({ ...a, [lot.id]: e.target.value }))}
+                      aria-label="Your maximum bid"
+                      title="Your maximum. The room only ever sees the least that currently wins — we bid the minimum needed on your behalf, up to this."
                     />
                     <Button
                       type="button"
                       size="sm"
                       variant="royal"
-                      disabled={busy === lot.id || lot.leading}
+                      disabled={busy === lot.id}
                       onClick={() => void submit(lot)}
                     >
                       {busy === lot.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                      {lot.leading ? 'Leading' : `Bid ${formatCurrency(minimum / 100, lot.currency)}+`}
+                      {lot.leading
+                        ? 'Raise your max'
+                        : `Bid ${formatCurrency(minimum / 100, lot.currency)}+`}
                     </Button>
                     <span className="text-xs text-muted-foreground">
                       closes {new Date(lot.closesAt).toLocaleString()}

@@ -178,6 +178,24 @@ named beside it.
 | Company name | Organisers are identified by company name across header and profile (`accountDisplayName()`), and can finally edit it in settings. | `shared/utils.ts` |
 | Seat shapes (docs/23 phase 1) | Sections render straight, curved, arc, angled or vertical from derived coordinates — same labels whatever the shape, so nothing money-side moves. SVG picker with zoom; organiser preview from the same geometry. 28/28. | `shared/seating.ts` |
 
+### Auction: live and by proxy (18 Aug, evening)
+
+The charity card's "Not yet" is closed, both halves:
+
+- **Live.** The 15-second poll blamed the vendor constraint for not streaming; the
+  stream was in the stack the whole time (Firestore `onSnapshot`). The actual blocker
+  was that the lot document carries the high bidder's name, email and secret maximum,
+  and rules cannot hide fields. The server now writes a public **ticker** per lot —
+  price, count, close, reserve state, and nobody's identity — in the same transaction as the bid, and
+  the room watches that. Rules-tested: ticker readable by anyone, writable by no client,
+  lot still closed.
+- **Proxy.** Every bid is a maximum. Settlement is a pure function
+  (`settleProxy`): higher ceiling leads at one increment past the lower, capped at its
+  own; ties to the incumbent. A challenger beaten by a standing maximum is beaten
+  *instantly, in the same transaction*, and told so — never shown as leading and then
+  displaced. The leader can raise their ceiling without moving the price; lowering is
+  refused. Emulator: 19/19, including the ticker-never-carries-a-person check.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

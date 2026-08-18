@@ -2,7 +2,15 @@ import 'server-only';
 
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
-import { closeAfterBid, minimumBidMinor, refuseBid, reserveMet, type Lot } from '@/shared/auctions';
+import {
+  closeAfterBid,
+  minimumBidMinor,
+  refuseBid,
+  reserveMet,
+  reserveState,
+  settleProxy,
+  type Lot,
+} from '@/shared/auctions';
 
 /**
  * Auction lots.
@@ -24,6 +32,18 @@ import { closeAfterBid, minimumBidMinor, refuseBid, reserveMet, type Lot } from 
 
 const LOTS = 'auction_lots';
 const BIDS = 'auction_bids';
+/**
+ * The public face of a lot, one document per lot, written in the same transaction as
+ * every change to the real one.
+ *
+ * It exists because of a rules problem with no rules solution: the room should watch the
+ * price move live — Firestore's own onSnapshot, no new vendor, no polling — but the lot
+ * document carries the high bidder's name, email and secret maximum, and security rules
+ * cannot hide fields, only documents. So the lot stays admin-only and this projection
+ * carries money and time and nothing else. If a field is ever added here, ask first
+ * whether the whole room may see it.
+ */
+const TICKER = 'auction_ticker';
 
 export interface AuctionLot extends Lot {
   id: string;
@@ -37,11 +57,17 @@ export interface AuctionLot extends Lot {
   highBidderId?: string;
   highBidderName?: string;
   highBidderEmail?: string;
+  /**
+   * The current leader's maximum, never disclosed. Only the leader's ceiling matters:
+   * a proxy below the public price is spent, and a new bid either beats this or raises
+   * the price to its own ceiling and dies.
+   */
+  proxyMaxMinor?: number;
   currency: string;
 }
 
 export type BidResult =
-  | { ok: true; amountMinor: number; closesAt: string; leading: true }
+  | { ok: true; amountMinor: number; closesAt: string; leading: boolean }
   | {
       ok: false;
       reason: 'closed' | 'too-low' | 'not-a-number' | 'no-lot' | 'unavailable' | 'own-bid';
@@ -49,6 +75,21 @@ export type BidResult =
       /** What it would now take to lead, so the bidder can act rather than guess. */
       minimumMinor?: number;
     };
+
+/** The whole-room projection of a lot. Money and time; never a person, never a ceiling. */
+function tickerOf(lotId: string, lot: AuctionLot) {
+  return {
+    lotId,
+    eventId: lot.eventId,
+    status: lot.status,
+    highBidMinor: lot.highBidMinor ?? 0,
+    minimumMinor: minimumBidMinor(lot),
+    bidCount: lot.bidCount ?? 0,
+    closesAt: lot.closesAt,
+    reserve: reserveState(lot),
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 export async function createLot(input: {
   eventId: string;
@@ -86,6 +127,19 @@ export async function createLot(input: {
         bidCount: 0,
         createdAt: new Date().toISOString(),
       });
+
+    await getAdminDb()
+      .collection(TICKER)
+      .doc(ref.id)
+      .set(tickerOf(ref.id, {
+        eventId: input.eventId,
+        startMinor: Math.max(0, Math.round(input.startMinor)),
+        incrementMinor: Math.max(1, Math.round(input.incrementMinor)),
+        ...(input.reserveMinor ? { reserveMinor: Math.round(input.reserveMinor) } : {}),
+        closesAt: input.closesAt,
+        status: 'open',
+        bidCount: 0,
+      } as Partial<AuctionLot> as AuctionLot));
 
     return ref.id;
   } catch (error) {
@@ -142,20 +196,34 @@ export async function placeBid(input: {
         return { ok: false, reason: 'closed', error: 'Bidding on this lot has closed.' };
       }
 
+      const tickerRef = db.collection(TICKER).doc(input.lotId);
+      const amountMinor = Math.round(input.amountMinor);
+
       /*
-       * Outbidding yourself only raises the price you will pay. Nobody means to do it,
-       * and an auction that allows it looks like it is milking the room.
+       * The leader raising their own ceiling.
+       *
+       * This used to be refused as "you are already the highest bidder", which is right
+       * for a plain re-bid and wrong for a proxy: raising your maximum while you lead is
+       * the normal defensive move before leaving the room, it moves the public price not
+       * one penny, and it costs nothing unless somebody actually challenges. Lowering it
+       * is refused — a ceiling that can drop after a challenger was settled against it
+       * would rewrite a fight that already happened.
        */
       if (lot.highBidderId && lot.highBidderId === input.userId) {
-        return {
-          ok: false,
-          reason: 'own-bid',
-          error: 'You are already the highest bidder.',
-          minimumMinor: minimumBidMinor(lot),
-        };
+        const currentMax = lot.proxyMaxMinor ?? lot.highBidMinor ?? 0;
+        if (amountMinor <= currentMax) {
+          return {
+            ok: false,
+            reason: 'own-bid',
+            error: 'You are already leading — enter more than your current maximum to raise it.',
+            minimumMinor: minimumBidMinor(lot),
+          };
+        }
+        tx.update(lotRef, { proxyMaxMinor: amountMinor });
+        return { ok: true, amountMinor: lot.highBidMinor ?? 0, closesAt: lot.closesAt, leading: true };
       }
 
-      const refusal = refuseBid(lot, input.amountMinor, now);
+      const refusal = refuseBid(lot, amountMinor, now);
       if (refusal) {
         return {
           ok: false,
@@ -174,20 +242,53 @@ export async function placeBid(input: {
       // than when the clock happens to run out.
       const closesAt = closeAfterBid(lot, now);
 
-      tx.update(lotRef, {
-        highBidMinor: Math.round(input.amountMinor),
-        highBidderId: input.userId,
-        highBidderName: input.name,
-        highBidderEmail: input.email,
+      /*
+       * Every bid is a maximum (docs/23-era gap list — "no proxy bids" is closed).
+       *
+       * First bid: leads at the opening ask, ceiling stored, room told the start price.
+       * Against an incumbent: the two maximums settle the way an auctioneer settles
+       * them — higher ceiling leads at one increment past the lower, tie to the
+       * incumbent — all inside this one transaction, so a challenger beaten by a
+       * standing maximum is beaten *instantly* and told so, rather than being shown as
+       * leading for fifteen seconds and then silently displaced.
+       */
+      const incumbentMax = lot.proxyMaxMinor ?? lot.highBidMinor ?? 0;
+      const hasIncumbent = Boolean(lot.highBidderId) && incumbentMax > 0;
+
+      const settled = hasIncumbent
+        ? settleProxy({
+            incumbentMaxMinor: incumbentMax,
+            challengerMaxMinor: amountMinor,
+            incrementMinor: lot.incrementMinor,
+          })
+        : { winner: 'challenger' as const, priceMinor: lot.startMinor };
+
+      const leading = settled.winner === 'challenger';
+
+      const updatedLot: Partial<AuctionLot> = {
+        highBidMinor: settled.priceMinor,
         bidCount: (lot.bidCount ?? 0) + 1,
         closesAt,
-        lastBidAt: now.toISOString(),
-      });
+      };
+      if (leading) {
+        updatedLot.highBidderId = input.userId;
+        updatedLot.highBidderName = input.name;
+        updatedLot.highBidderEmail = input.email;
+        updatedLot.proxyMaxMinor = amountMinor;
+      }
+      tx.update(lotRef, { ...updatedLot, lastBidAt: now.toISOString() });
+
+      tx.set(
+        tickerRef,
+        tickerOf(input.lotId, { ...lot, ...updatedLot } as AuctionLot)
+      );
 
       /*
        * Every bid is kept, not just the winning one. An auction's audit trail is the
        * answer to "who bid what and when", which somebody always asks afterwards, and a
-       * lot that only remembers its high bid cannot answer it.
+       * lot that only remembers its high bid cannot answer it. The stored amount is the
+       * bidder's maximum: the trail exists for disputes, and a dispute is about what was
+       * committed, not what was displayed.
        */
       tx.create(db.collection(BIDS).doc(), {
         lotId: input.lotId,
@@ -196,11 +297,12 @@ export async function placeBid(input: {
         userId: input.userId,
         name: input.name,
         email: input.email,
-        amountMinor: Math.round(input.amountMinor),
+        amountMinor,
+        leading,
         at: now.toISOString(),
       });
 
-      return { ok: true, amountMinor: Math.round(input.amountMinor), closesAt, leading: true };
+      return { ok: true, amountMinor: settled.priceMinor, closesAt, leading };
     });
   } catch (error) {
     reportError(error, { scope: 'auction.bid', lotId: input.lotId });
@@ -251,6 +353,13 @@ export async function closeDueLots(): Promise<LotOutcome[]> {
         sold,
       });
 
+      // The room watches the ticker, so the hammer must fall there too.
+      await db
+        .collection(TICKER)
+        .doc(doc.id)
+        .set(tickerOf(doc.id, { ...lot, status: 'closed' }))
+        .catch(() => undefined);
+
       outcomes.push({
         lotId: doc.id,
         title: lot.title,
@@ -285,6 +394,11 @@ export async function markLotPaid(lotId: string, providerRef?: string): Promise<
         paidAt: new Date().toISOString(),
         ...(providerRef ? { providerRef } : {}),
       });
+    await getAdminDb()
+      .collection(TICKER)
+      .doc(lotId)
+      .set({ status: 'paid', updatedAt: new Date().toISOString() }, { merge: true })
+      .catch(() => undefined);
     return true;
   } catch (error) {
     reportError(error, { scope: 'auction.paid', lotId });

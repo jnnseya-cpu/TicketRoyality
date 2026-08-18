@@ -118,7 +118,7 @@ const SEGMENTS = [
     need: 'Priced giving tiers, fees you can point at',
     detail:
       'Name your tiers after what they fund and price them accordingly, or let the donor name the amount above a minimum you set. Add a donation ask to any event — we charge no fee at all on a gift — and claim Gift Aid on it with the declaration captured at checkout and HMRC’s schedule exported as a spreadsheet. Gift Aid is applied to the donation only and never to a ticket, which is the rule that costs charities their whole claim when software gets it wrong. We take no commission, so every penny of face value reaches the cause and you can tell a donor exactly that. Corporate tables sell whole, with a deposit up front, the balance due on a date you set, and named guests with their dietary and access needs. Free places cost nobody anything.',
-    next: 'Auction bidding refreshes every fifteen seconds rather than streaming live, and there are no proxy bids — a bidder names their amount each time.',
+    next: 'Auction settlement is by proxy: every bid is a private maximum, the room sees only the least that currently wins, and the price streams live as the hammer moves.',
   },
   {
     icon: Building2,
