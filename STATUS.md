@@ -250,6 +250,18 @@ not the platform's to move. Sender card on the customer dashboard; claim page mi
 the single-ticket one (deliberate accept, never a prefetch side effect). Emulator:
 16/16. docs/24 part 2 (§30–46) is filed with the same honest four-way sort as part 1.
 
+### Rooms from a sentence (docs/24 §48–49)
+
+"20 curved rows, 30 seats growing by 2, centre aisle" → the AI gateway drafts the
+section's row plan and shape into the same editor and live preview hand-typed rows use,
+clamped server-side to the exact bounds the form enforces (≤40 rows, ≤80 seats,
+sweep 10–180°) whatever the model says. Nothing saves until the event form is
+submitted. Same contract as event drafting: the model proposes, the preview shows, the
+organiser decides. docs/24 part 3 (§47–56) is filed, including the finding that the
+document's own "Phase 1 — Foundation" list was already substantially built here, and
+the §51 microservices recommendation is accepted as modules and declined as deployment
+topology (docs/22 architecture stands).
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

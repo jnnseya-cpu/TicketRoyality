@@ -1,9 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { ChevronDown, ChevronUp, GripVertical, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, GripVertical, Loader2, Plus, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
+import { useToast } from '@/frontend/hooks/use-toast';
 import { Input } from '@/frontend/components/ui/input';
 import { Label } from '@/frontend/components/ui/label';
 import { sectionSeats, suggestedRowNames, type SeatRowSpec } from '@/shared/seating';
@@ -36,12 +38,59 @@ export function SeatMapBuilder({
   section,
   value,
   onChange,
+  onShapeChange,
 }: {
   /** The rectangle fields, used to seed a shape and to preview when there is none. */
   section: Pick<SeatingSection, 'name' | 'color' | 'startRow' | 'rows' | 'seatsPerRow'>;
   value?: SeatRowSpec[];
   onChange: (rows: SeatRowSpec[] | undefined) => void;
+  /** Lets an AI draft set the section's curve too — the field lives outside this editor. */
+  onShapeChange?: (shape: SeatingSection['shape'], curveDegrees?: number) => void;
 }) {
+  const { toast } = useToast();
+  const [draftBrief, setDraftBrief] = React.useState('');
+  const [drafting, setDrafting] = React.useState(false);
+
+  /*
+   * docs/24 §48–49 — the room from a sentence. The draft lands in this same editor and
+   * the same live preview as hand-typed rows, so reviewing it is editing it; nothing is
+   * saved until the event form is submitted, and the server clamps every number to the
+   * bounds this editor itself enforces.
+   */
+  const draftRoom = async () => {
+    if (draftBrief.trim().length < 5) return;
+    setDrafting(true);
+    try {
+      const response = await authedFetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task: 'room-draft', input: { brief: draftBrief } }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? 'The room could not be drafted.');
+      const draft = (body.result ?? body) as {
+        shape?: SeatingSection['shape'];
+        curveDegrees?: number;
+        rows?: SeatRowSpec[];
+      };
+      if (!draft.rows?.length) throw new Error('The draft came back empty.');
+      onChange(draft.rows);
+      if (draft.shape && onShapeChange) onShapeChange(draft.shape, draft.curveDegrees);
+      toast({
+        title: 'Room drafted',
+        description: `${draft.rows.length} rows — check the preview and adjust anything.`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not draft the room',
+        description: error instanceof Error ? error.message : 'Try rephrasing.',
+      });
+    } finally {
+      setDrafting(false);
+    }
+  };
+
   const [dragging, setDragging] = React.useState<number | null>(null);
   // A fresh `[]` every render would rebuild the preview on every keystroke anywhere in
   // the form, which on a 400-seat room is visible.
@@ -94,9 +143,27 @@ export function SeatMapBuilder({
           This section is a plain rectangle: {section.rows} rows of {section.seatsPerRow}. That is
           the right shape for most rooms.
         </p>
-        <Button type="button" variant="outline" size="sm" className="mt-2" onClick={shape}>
-          <Plus className="h-3.5 w-3.5" /> Shape this room
-        </Button>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={shape}>
+            <Plus className="h-3.5 w-3.5" /> Shape this room
+          </Button>
+          <Input
+            className="h-8 flex-1 min-w-[14rem] text-xs"
+            placeholder='…or describe it: "20 curved rows, 30 seats growing by 2, centre aisle"'
+            value={draftBrief}
+            onChange={(event) => setDraftBrief(event.target.value)}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={drafting || draftBrief.trim().length < 5}
+            onClick={() => void draftRoom()}
+          >
+            {drafting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            Draft it
+          </Button>
+        </div>
         <p className="mt-2 text-xs text-muted-foreground">
           Use it when rows are different lengths, a gangway splits a row, a pillar removes a seat,
           or the numbering does not start at 1.

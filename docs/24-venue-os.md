@@ -87,3 +87,37 @@ sell-out engine, §46 predictive maps — models before data is the 16-articles 
 design first — resale money movement is a compliance surface), §40 seat-linked
 commerce (merchant-side operations), §43 sponsor-branded surfaces (sales inventory,
 buildable any time), §30 group options with split pay (after §31's money design).
+
+## Part 3 — §47–56 (filed 18 Aug, night)
+
+**The scorecard that matters.** The document's own "Phase 1 — Foundation" list, checked
+against the repo the day it arrived: Adult/Child types ✓, reserved+GA ✓, tables ✓,
+accessible seating ✓, atomic holds ✓, family/best-together ✓, orphan prevention ✓,
+promoter allocations ✓, curved rows ✓, mobile-capable SVG selector ✓. Still open from
+that list: freeform per-seat placement, per-seat category overrides, event-vs-venue
+layout separation, map version history, a dedicated canvas. Its "Phase 2" is roughly
+half built: seat swap ✓, paid upgrade ✓, rotating QR ✓, offline-first ✓, access
+entitlements (zones) ✓; open: AI venue import, production kill, hold-release
+intelligence, revenue heatmap.
+
+**§48–49 natural-language room building — built the day it was filed.** "20 curved
+rows starting at 30 seats, growing by 2" → the AI gateway drafts the section's
+`rowSpec` + shape, clamped server-side to the same bounds the form enforces, and the
+organiser reviews it in the live preview before anything is saved. The model proposes,
+the preview shows, the organiser decides — same contract as event drafting.
+
+**§51 services architecture — accepted as modules, declined as microservices.** The
+domain engines it names already exist as separate server modules (holds, seats,
+seat-swap, zones, redeem, pricing, partners, passes…) behind one deployable, which is
+the deliberate App Hosting architecture (docs/22). Splitting them into independently
+deployed services multiplies operational surface without adding a capability, and is
+declined at this scale on scope grounds (CLAUDE.md §11–12).
+
+**§52 database model / §53 nine layers** — recorded as the target vocabulary; the
+Firestore collections map onto it incrementally, never by destructive migration
+(CLAUDE.md §7).
+
+**§54 "do not reinvent commodities"** — agreed and already practised.
+
+**§47 simulation, §50 SDK business** — Phase-3/4 horizon items; the public API that
+exists today is the seed of §50.

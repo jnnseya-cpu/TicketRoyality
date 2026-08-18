@@ -2484,6 +2484,14 @@ export function CreateEventForm({
                         }}
                         value={f.value}
                         onChange={f.onChange}
+                        onShapeChange={(shape, curveDegrees) => {
+                          form.setValue(`seating.${index}.shape`, shape, { shouldDirty: true });
+                          if (curveDegrees) {
+                            form.setValue(`seating.${index}.curveDegrees`, curveDegrees, {
+                              shouldDirty: true,
+                            });
+                          }
+                        }}
                       />
                     </FormItem>
                   )}

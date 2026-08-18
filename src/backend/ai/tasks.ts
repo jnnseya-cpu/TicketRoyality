@@ -6,8 +6,12 @@ import {
   DynamicPricingOutputSchema,
   EventDraftInputSchema,
   EventDraftOutputSchema,
+  RoomDraftInputSchema,
+  RoomDraftOutputSchema,
   type EventDraftInput,
   type EventDraftOutput,
+  type RoomDraftInput,
+  type RoomDraftOutput,
   type DynamicPricingInput,
   type DynamicPricingOutput,
   RecommendationInputSchema,
@@ -218,6 +222,7 @@ ${JSON_RULE}`,
 export const TASK_INPUT_SCHEMAS = {
   'ad-copy': AdCopyInputSchema,
   'event-draft': EventDraftInputSchema,
+  'room-draft': RoomDraftInputSchema,
   recommend: RecommendationInputSchema,
   similar: SimilarEventsInputSchema,
 } as const;
@@ -306,9 +311,59 @@ export const eventDraftTask: AiTask<EventDraftInput, EventDraftOutput> = {
   },
 };
 
+/**
+ * A room from a sentence — docs/24 §48–49.
+ *
+ * The output is the exact `rowSpec` shape the builder edits by hand, so the draft lands
+ * in the same live preview, gets the same geometry, and is corrected the same way. The
+ * clamp is the guarantee the prompt cannot be: row counts, seat counts and sweeps come
+ * back inside the form's own bounds whatever the model says, and confusable row letters
+ * are the organiser's choice to reintroduce, not the model's.
+ */
+export const roomDraftTask: AiTask<RoomDraftInput, RoomDraftOutput> = {
+  name: 'room-draft',
+  system:
+    'You lay out seating for live venues. You output row plans exactly as asked: row ' +
+    'names as theatres use them (A, B, C… skipping I and O), seat counts, gangways and ' +
+    'missing seats. You never invent constraints the brief does not state.',
+  outputSchema: RoomDraftOutputSchema,
+  outputShape: `{
+  "shape": "straight" | "curve" | "arc" | "angled" | "vertical",
+  "curveDegrees": number,      // only for curve/arc, 10-180
+  "rows": [                    // front row first, max 40 rows
+    { "name": "A", "seats": 30, "from": 1, "missing": [], "aisleAfter": [15], "offset": 0 }
+  ]
+}`,
+  render: (input) => [
+    JSON_RULE,
+    '',
+    'Lay out a seating section from this description:',
+    input.brief,
+    '',
+    'Rules: front row first; skip row letters I and O; "aisleAfter" lists the seat ' +
+      'numbers a gangway follows; a growing arc means later rows have more seats; if ' +
+      'the description names no shape, use "straight".',
+  ].join('\n'),
+  clamp: (output) => ({
+    shape: output.shape,
+    ...(output.shape === 'curve' || output.shape === 'arc'
+      ? { curveDegrees: Math.min(180, Math.max(10, output.curveDegrees ?? (output.shape === 'arc' ? 90 : 40))) }
+      : {}),
+    rows: output.rows.slice(0, 40).map((row) => ({
+      name: row.name.trim().slice(0, 8) || 'A',
+      seats: Math.min(80, Math.max(1, Math.round(row.seats))),
+      ...(row.from && row.from > 1 ? { from: Math.round(row.from) } : {}),
+      ...(row.missing?.length ? { missing: row.missing.slice(0, 20) } : {}),
+      ...(row.aisleAfter?.length ? { aisleAfter: row.aisleAfter.slice(0, 8) } : {}),
+      ...(row.offset ? { offset: Math.min(8, Math.max(-8, row.offset)) } : {}),
+    })),
+  }),
+};
+
 export const TASKS = {
   'ad-copy': adCopyTask,
   'event-draft': eventDraftTask,
+  'room-draft': roomDraftTask,
   recommend: recommendTask,
   similar: similarTask,
 } as const;

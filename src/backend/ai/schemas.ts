@@ -136,3 +136,36 @@ export const EventDraftOutputSchema = z.object({
     .describe('One to four ticket tiers, cheapest first.'),
 });
 export type EventDraftOutput = z.infer<typeof EventDraftOutputSchema>;
+
+/**
+ * Natural-language room drafting — docs/24 §48–49.
+ *
+ * "20 curved rows around the stage, starting at 30 seats and growing by 2" becomes a
+ * section the organiser reviews in the live preview. Same contract as event drafting:
+ * the model proposes, nothing is saved until the organiser submits, and every number is
+ * clamped server-side to the bounds the form itself enforces — a model cannot mint a
+ * 5,000-seat row any more than a keyboard can.
+ */
+export const RoomDraftInputSchema = z.object({
+  brief: z.string().min(5).max(600),
+});
+export type RoomDraftInput = z.infer<typeof RoomDraftInputSchema>;
+
+export const RoomDraftOutputSchema = z.object({
+  shape: z.enum(['straight', 'curve', 'arc', 'angled', 'vertical']),
+  curveDegrees: z.number().int().min(10).max(180).optional(),
+  rows: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(8),
+        seats: z.number().int().min(1).max(80),
+        from: z.number().int().min(1).optional(),
+        missing: z.array(z.number().int().min(1)).optional(),
+        aisleAfter: z.array(z.number().int().min(1)).optional(),
+        offset: z.number().min(-8).max(8).optional(),
+      })
+    )
+    .min(1)
+    .max(40),
+});
+export type RoomDraftOutput = z.infer<typeof RoomDraftOutputSchema>;
