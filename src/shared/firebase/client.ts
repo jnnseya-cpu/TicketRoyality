@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp, type FirebaseOptions } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 /**
@@ -47,7 +47,35 @@ let storage: FirebaseStorage;
 if (isFirebaseConfigured) {
   const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   auth = getAuth(app);
-  db = getFirestore(app);
+  /*
+   * `ignoreUndefinedProperties` — the difference between a blank optional field being
+   * left out and the entire write being rejected.
+   *
+   * Forms across this app express "the person left this empty" as `undefined`:
+   *
+   *     website: values.website || undefined,
+   *     socials: { instagram: values.instagram || undefined, ... }
+   *
+   * which reads as though the key will simply be omitted. It is not. By default the
+   * Firestore SDK refuses any document containing `undefined` anywhere in it — nested
+   * objects included — and fails the whole write with `invalid-argument`. So an
+   * organiser who filled in every required field but skipped their Twitter handle could
+   * not create an account, and the same latent fault sat in CreateEventForm and
+   * AuctionLotManager waiting for the first optional field anybody left blank.
+   *
+   * Setting it here rather than stripping `undefined` at each call site keeps one rule
+   * for the whole app, and makes the forms mean what they already appear to mean.
+   *
+   * Must run before anything calls `getFirestore(app)`, which is why it lives at the
+   * single point where the SDK is initialised.
+   */
+  try {
+    db = initializeFirestore(app, { ignoreUndefinedProperties: true });
+  } catch {
+    // Already started — a second import under fast refresh. The existing instance
+    // carries the setting from the first call.
+    db = getFirestore(app);
+  }
   storage = getStorage(app);
 } else {
   auth = inert<Auth>('Auth');
