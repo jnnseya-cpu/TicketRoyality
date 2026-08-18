@@ -7,8 +7,10 @@ import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
 import { CreateEventForm } from '@/frontend/components/events/CreateEventForm';
 import { DynamicSellingPanel } from '@/frontend/components/events/DynamicSellingPanel';
+import { CancelEvent } from '@/frontend/components/dashboard/CancelEvent';
 import { ProductionKillPanel } from '@/frontend/components/dashboard/ProductionKillPanel';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { ShareLink } from '@/frontend/components/common/ShareLink';
 import { getEventById } from '@/shared/data/repositories';
 import type { Event } from '@/shared/types';
 
@@ -65,15 +67,32 @@ export default function EditEventPage() {
 
         return (
           <div className="space-y-6">
-            <div>
-              <h1 className="font-headline text-2xl font-bold">Edit event</h1>
-              <p className="text-sm text-muted-foreground">{event.title}</p>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h1 className="font-headline text-2xl font-bold">Edit event</h1>
+                <p className="text-sm text-muted-foreground">{event.title}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {/* A private event is only reachable by its link, so the link needs a
+                    handle; the check-in link is what gate staff's phones scan with. */}
+                <ShareLink
+                  path={`/events/${event.id}`}
+                  label={event.listing === 'unlisted' ? 'Share private link' : 'Share event'}
+                  title={event.title}
+                />
+                <ShareLink
+                  path={`/events/${event.id}/check-in`}
+                  label="Share check-in link"
+                  title={`Check-in portal — ${event.title}`}
+                />
+              </div>
             </div>
             {/* Above the form: it reads the tiers the form edits, so a stale suggestion
                 sitting under an unsaved change would be the confusing order. */}
             <DynamicSellingPanel event={event} />
             {(event.seating ?? []).length > 0 && <ProductionKillPanel eventId={event.id} />}
             <CreateEventForm profile={profile} existingEvent={event} />
+            <CancelEvent event={event} />
           </div>
         );
       }}

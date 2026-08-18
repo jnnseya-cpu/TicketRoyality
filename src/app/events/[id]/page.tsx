@@ -59,13 +59,26 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     event.capacity ?? event.ticketTiers.reduce((sum, tier) => sum + tier.quantity, 0);
   const totalSold = event.ticketTiers.reduce((sum, tier) => sum + (tier.sold ?? 0), 0);
 
+  /*
+   * Sellout states, computed from the same counters the checkout enforces. From 90%
+   * the page says how few are left — scarcity that is true is information; above that
+   * it would be theatre. At 100% (and on cancellation) the whole page is stamped and
+   * purchases lock, so nobody spends time on a thing they cannot have.
+   */
+  const remaining = Math.max(0, totalCapacity - totalSold);
+  const nearlySoldOut =
+    totalCapacity > 0 && remaining > 0 && totalSold / totalCapacity >= 0.9;
+  const soldOut = totalCapacity > 0 && remaining === 0;
+  const cancelled = event.status === 'cancelled';
+  const stamp = cancelled ? 'CANCELLED' : soldOut ? 'SOLD OUT' : null;
+
   return (
     <article>
       <EventStructuredData event={event} />
       {/* Hero */}
       <div className="relative h-[38vh] min-h-[280px] w-full overflow-hidden">
         <Image
-          src={event.imageUrl}
+          src={event.coverImageUrl || event.imageUrl}
           alt={event.title}
           fill
           priority
@@ -83,6 +96,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               </Badge>
             )}
             {isPast && <Badge variant="secondary">This event has ended</Badge>}
+            {cancelled && <Badge variant="destructive">Cancelled</Badge>}
+            {!cancelled && soldOut && <Badge variant="destructive">Sold out</Badge>}
+            {!cancelled && nearlySoldOut && !isPast && (
+              <Badge variant="gold">Only {remaining} left</Badge>
+            )}
           </div>
           <h1 className="mt-3 max-w-4xl font-headline text-3xl font-bold sm:text-4xl lg:text-5xl">
             {event.title}
@@ -96,7 +114,20 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
-      <div className="container grid gap-10 pb-16 lg:grid-cols-[1fr_380px]">
+      <div className="container relative grid gap-10 pb-16 lg:grid-cols-[1fr_380px]">
+        {stamp && (
+          /* The stamp crosses the information, deliberately: a page that still reads
+             like a live sale with one small badge is how people book travel to a
+             cancelled show. pointer-events-none — the page stays readable under it. */
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-10 flex items-start justify-center overflow-hidden"
+          >
+            <p className="mt-40 -rotate-12 select-none whitespace-nowrap rounded-xl border-8 border-destructive/50 px-10 py-4 font-headline text-6xl font-black uppercase tracking-widest text-destructive/50 sm:text-8xl">
+              {stamp}
+            </p>
+          </div>
+        )}
         {/* Main column */}
         <div className="space-y-8">
           <div className="grid gap-4 sm:grid-cols-3">
@@ -256,7 +287,46 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
         {/* Sidebar */}
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          {isPast ? (
+          {cancelled ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-destructive" /> Event cancelled
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  This event has been cancelled and tickets are no longer on sale. Paid
+                  ticket holders are refunded — check the email on your ticket for the
+                  confirmation.
+                </p>
+                <Button variant="outline" className="w-full" asChild>
+                  <Link href={`/organisers/${event.organizerId}`}>
+                    See more from {event.organizerName}
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : soldOut && !isPast ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" /> Sold out
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  Every ticket for this event has been sold. Nothing here is on sale any
+                  more — if returns open, they appear on this page.
+                </p>
+                <Button variant="outline" className="w-full" asChild>
+                  <Link href={`/organisers/${event.organizerId}`}>
+                    See more from {event.organizerName}
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          ) : isPast ? (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -273,7 +343,14 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               </CardContent>
             </Card>
           ) : (
-            <TicketBox event={event} />
+            <>
+              {nearlySoldOut && (
+                <div className="rounded-lg border border-primary/40 bg-primary/10 p-3 text-center text-sm font-medium">
+                  Nearly sold out — only {remaining} ticket{remaining === 1 ? '' : 's'} left
+                </div>
+              )}
+              <TicketBox event={event} />
+            </>
           )}
 
           <Card className="bg-card/50">

@@ -268,6 +268,7 @@ const schema = z
     description: z.string().min(20, 'Describe the event in at least 20 characters.'),
     category: z.string().min(1, 'Choose a category.'),
     imageUrl: z.string().url('Enter a valid image URL.').optional().or(z.literal('')),
+    coverImageUrl: z.string().url('Enter a valid image URL.').optional().or(z.literal('')),
     date: z.date({ required_error: 'Choose a date.' }),
     time: z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:MM.'),
     eventType: z.enum(['physical', 'online', 'livestream']),
@@ -401,6 +402,7 @@ function defaultsFor(event?: Event): FormValues {
       description: '',
       category: '',
       imageUrl: '',
+      coverImageUrl: '',
       date: new Date(Date.now() + 30 * 86_400_000),
       time: '19:00',
       eventType: 'physical',
@@ -456,6 +458,7 @@ function defaultsFor(event?: Event): FormValues {
     description: event.description,
     category: categoryValue(event.categoryGroup, event.category),
     imageUrl: event.imageUrl,
+    coverImageUrl: event.coverImageUrl ?? '',
     date: when,
     time: `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`,
     eventType: event.eventType,
@@ -723,6 +726,9 @@ export function CreateEventForm({
         category,
         categoryGroup: group,
         imageUrl: values.imageUrl || eventImageSeed(values.title),
+        // Empty string, not undefined: Firestore refuses undefined values, and '' falls
+        // back to imageUrl everywhere the cover is read.
+        coverImageUrl: values.coverImageUrl || '',
         date: when.toISOString(),
         eventType: values.eventType,
         location: values.eventType === 'physical' ? (values.location ?? '') : 'Online',
@@ -1071,7 +1077,7 @@ export function CreateEventForm({
               name="imageUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Cover image</FormLabel>
+                  <FormLabel>Event picture</FormLabel>
                   <div className="flex flex-wrap items-center gap-3">
                     {field.value ? (
                       // A pasted URL can be any host, and the optimiser only accepts hosts
@@ -1098,8 +1104,46 @@ export function CreateEventForm({
                     <Input placeholder="…or paste an image URL" {...field} />
                   </FormControl>
                   <FormDescription>
-                    Upload once and reuse it on every event. Leave blank to auto-generate a
-                    placeholder.
+                    Shown on cards, search results and the ticket itself. Leave blank to
+                    auto-generate a placeholder.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="coverImageUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cover picture (optional)</FormLabel>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {field.value ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={field.value}
+                        alt=""
+                        className="h-12 w-40 rounded-md border border-border object-cover"
+                      />
+                    ) : null}
+                    <MediaPicker
+                      organiserId={profile.uid}
+                      value={field.value}
+                      onChange={(url) => field.onChange(url)}
+                    />
+                    {field.value ? (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => field.onChange('')}>
+                        Remove
+                      </Button>
+                    ) : null}
+                  </div>
+                  <FormControl>
+                    <Input placeholder="…or paste an image URL" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    The wide banner across the top of your event page. A landscape image
+                    works best; leave blank to use the event picture there too.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

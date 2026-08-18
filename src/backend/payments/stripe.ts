@@ -126,6 +126,22 @@ export async function createRecurringDonation(request: {
 }
 
 /** Stop a standing gift. The donor's own decision, so it takes effect immediately. */
+/**
+ * Refund one payment in full — the event-cancellation path.
+ *
+ * Idempotent by key: cancelling an event twice (a retry, a double tap, a second
+ * admin) must never refund the same buyer twice. The refund itself is only half the
+ * story — Stripe answers with `charge.refunded`, and THAT webhook is what invalidates
+ * the tickets, exactly as a refund made from the Stripe dashboard always has. This
+ * function moves money; the existing loop keeps the records honest.
+ */
+export async function refundPaymentIntent(
+  paymentIntentId: string,
+  idempotencyKey: string
+): Promise<void> {
+  await client().refunds.create({ payment_intent: paymentIntentId }, { idempotencyKey });
+}
+
 export async function cancelRecurringDonation(subscriptionId: string): Promise<void> {
   await client().subscriptions.cancel(subscriptionId);
 }

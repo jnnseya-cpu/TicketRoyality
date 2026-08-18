@@ -150,6 +150,16 @@ export async function placeHold(
       const snap = await tx.get(eventRef);
       if (!snap.exists) return { ok: false, reason: 'no-event', error: 'That event no longer exists.' };
 
+      /*
+       * A cancelled event sells nothing, on any rail, ever — every checkout path
+       * (Stripe, KODA, free claims, hospitality) reserves through this transaction, so
+       * one refusal here locks them all. The page's watermark is display; this is the
+       * rule.
+       */
+      if (snap.data()?.status === 'cancelled') {
+        return { ok: false, reason: 'no-event', error: 'This event has been cancelled.' };
+      }
+
       const tiers = (snap.data()?.ticketTiers ?? []) as TicketTier[];
       const index = tiers.findIndex((t) => t.id === tierId);
       if (index < 0) {

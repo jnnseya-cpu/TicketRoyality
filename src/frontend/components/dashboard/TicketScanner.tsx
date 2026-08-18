@@ -26,6 +26,7 @@ import { decideOffline, type OfflineManifest, type QueuedRedemption } from '@/sh
 
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
 import { Button } from '@/frontend/components/ui/button';
+import { ShareLink } from '@/frontend/components/common/ShareLink';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
 import type { EventSession, VenueZone } from '@/shared/types';
@@ -471,9 +472,19 @@ export function TicketScanner({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ScanLine className="h-5 w-5 text-primary" /> Ticket check-in
-        </CardTitle>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <CardTitle className="flex items-center gap-2">
+            <ScanLine className="h-5 w-5 text-primary" /> Ticket check-in
+          </CardTitle>
+          {/* Hands this door to another phone in one tap — the portal link is scoped
+              to scanning this event and nothing else. */}
+          <ShareLink
+            path={`/events/${eventId}/check-in`}
+            label="Share scanner"
+            title={`Check-in portal — ${eventTitle}`}
+            variant="ghost"
+          />
+        </div>
         <CardDescription>
           Scanning for <span className="font-medium text-foreground">{eventTitle}</span>. Tickets
           for any other event are rejected.

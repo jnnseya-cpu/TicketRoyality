@@ -129,8 +129,13 @@ export async function POST(request: Request) {
         try {
           const doc = await getAdminDb().collection('events').doc(item.eventId).get();
           const data = doc.data() as
-            | { title?: string; currency?: string; ticketTiers?: TicketTier[] }
+            | { title?: string; currency?: string; status?: string; ticketTiers?: TicketTier[] }
             | undefined;
+          // The cart is the one path that does not reserve through placeHold, so the
+          // cancelled-event refusal has to live here as well as there.
+          if (data?.status === 'cancelled') {
+            return fail(`${item.eventTitle} has been cancelled`);
+          }
           const tier = data?.ticketTiers?.find((t) => t.id === item.tierId);
           if (!tier) return fail(`${item.eventTitle} is no longer on sale`);
           // A hidden tier is bought only by someone holding the code. Checked here and

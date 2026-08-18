@@ -466,6 +466,12 @@ export interface Event {
   category: string;
   categoryGroup: string;
   imageUrl: string;
+  /**
+   * The event page's banner, distinct from `imageUrl` (cards, tickets, previews).
+   * A square-ish card image stretched across a hero always crops badly; absent means
+   * the hero falls back to `imageUrl`, which is every event created before this.
+   */
+  coverImageUrl?: string;
   date: string; // ISO 8601
   endDate?: string;
 

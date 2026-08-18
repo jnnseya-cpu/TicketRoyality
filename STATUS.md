@@ -448,6 +448,38 @@ refuses to sell it until then). The basket note is behaviour, not a bug: seated 
 mixed-type tiers buy directly so seats can be held while paying — the note under the
 button says so.
 
+### Six requests from live testing (18 Aug, evening batch)
+
+1. **Event picture + cover picture.** `coverImageUrl` on Event; the form now has two
+   image fields with honest labels (picture → cards/search/ticket; cover → the event
+   page banner, falls back to the picture). Existing events unchanged.
+2. **Sellout countdown from 90%.** The event page computes remaining tickets from the
+   same counters checkout enforces; at ≥90% sold a gold "Only N left" badge sits in
+   the hero and a banner sits above the buy box. True scarcity only — no timers, no
+   theatre.
+3. **SOLD OUT at 100%, everything locked.** A rotated stamp crosses the event
+   information (same treatment for CANCELLED), the buy box is replaced by a locked
+   card, and the *rule* is server-side: `placeHold` refuses cancelled events (every
+   rail reserves through it) and the cart path refuses cancelled line items. Sold-out
+   was already unsellable by the counters; now it looks it.
+4. **Cancellation with refunds.** `cancelEvent` (service + API + type-the-title UI on
+   the edit page): stops the sale transactionally, refunds every settled Stripe order
+   through the payments API (idempotency-keyed per payment event; the existing
+   `charge.refunded` loop invalidates those tickets and emails holders), cancels free
+   and mobile-money tickets directly, returns mobile-money orders as the organiser's
+   manual refund work list (reference + amount — those transfers went to a phone
+   number and only a phone can send them back), and queues the mandatory
+   `event.cancelled` notice per holder. Emulator suite `test:cancel` 5/5: owner-only,
+   once-only, pending payments excluded, Stripe tickets left for the webhook, holds
+   refused after. The Stripe refund call itself is not exercisable in the emulator —
+   first live cancellation should be watched.
+5. **Private event share link.** `ShareLink` (native share sheet on phones, clipboard
+   on desktop) on the edit page — "Share private link" for unlisted events, "Share
+   event" otherwise.
+6. **Scanner share link.** The same control on the edit page and in the scanner
+   header ("Share scanner") — hands the scoped check-in portal to a steward's phone
+   in one tap.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.
