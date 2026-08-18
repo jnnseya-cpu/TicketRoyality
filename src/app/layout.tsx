@@ -90,14 +90,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     // suppressHydrationWarning: next-themes writes the class before React hydrates,
     // and browser extensions (password managers) inject attributes into form controls.
     <html lang="en" suppressHydrationWarning className={`${inter.variable} ${spaceGrotesk.variable}`}>
-      <body suppressHydrationWarning className="min-h-screen bg-background">
+      <body suppressHydrationWarning className="min-h-viewport bg-background">
         <SiteStructuredData />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <AuthProvider>
             <CartProvider>
               <AppleSplashLinks />
               <SplashScreen />
-              <div className="flex min-h-screen flex-col">
+              <div className="flex min-h-viewport flex-col">
                 <Header />
                 <main className="flex-1">{children}</main>
                 <Footer />

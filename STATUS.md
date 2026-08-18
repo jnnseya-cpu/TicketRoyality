@@ -429,6 +429,25 @@ the fallback when they are not. **Not yet tested against the live KODA API from 
 environment** — the first real intent needs the owner's test purchase, same as the
 standing Stripe one.
 
+### PWA fit + pay-button clarity (live testing)
+
+"Stripe and KODA checkout not active" had a physical cause as well as a data one:
+dialogs were capped at `92vh`, and `vh` on a phone is the *largest theoretical*
+viewport — it ignores the browser chrome and home indicator — so in the installed PWA
+the bottom of every dialog ran off the visible screen, and what fell off was the
+action row. New `max-h-viewport` / `min-h-viewport` utilities use `dvh` (real visible
+height) behind an `@supports` guard, applied to the dialog primitive and the app
+shell, so overlays and pages now end where the screen actually ends. Tables, seat
+maps and the scanner strip already scroll in their own containers. Also: the KODA
+button now carries the same explanatory labels as the card button when disabled
+("Choose 2 more seats", "Choose your tickets above") — a silently disabled button
+reads as broken, and that reading was half of the report. The remaining half is data:
+a payment button can only exist on the wedding event once its attendee-type prices
+are re-saved above zero (the misconfiguration guard from earlier today deliberately
+refuses to sell it until then). The basket note is behaviour, not a bug: seated and
+mixed-type tiers buy directly so seats can be held while paying — the note under the
+button says so.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

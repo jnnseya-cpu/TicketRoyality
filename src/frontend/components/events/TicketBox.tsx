@@ -865,9 +865,12 @@ export function TicketBox({ event }: { event: Event }) {
                 disabled={(isSeated && !seatsChosen) || (hasTypes && effectiveQuantity === 0) || Boolean(companionIssue)}
               >
                 <CreditCard className="h-4 w-4" />
-                {isSeated && !seatsChosen
-                  ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
-                  : 'Pay with Stripe'}
+                {/* A disabled button must say why, or it reads as broken. */}
+                {hasTypes && effectiveQuantity === 0
+                  ? 'Choose your tickets above'
+                  : isSeated && !seatsChosen
+                    ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
+                    : 'Pay with Stripe'}
               </Button>
             </form>
 
@@ -927,7 +930,12 @@ export function TicketBox({ event }: { event: Event }) {
                 ) : (
                   <Smartphone className="h-4 w-4" />
                 )}
-                Pay with Mobile Money
+                {/* Same explanations as the card button: silent disabled = "broken". */}
+                {hasTypes && effectiveQuantity === 0
+                  ? 'Choose your tickets above'
+                  : isSeated && !seatsChosen
+                    ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
+                    : 'Pay with Mobile Money'}
               </Button>
             ) : userProfile && donationMinor === 0 ? (
               // The same lines the card quote prices — one engine, so the mobile-money

@@ -170,6 +170,33 @@
   scrollbar-width: none;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Dynamic-viewport sizing                                                     */
+/*                                                                             */
+/* `vh` is the LARGEST possible viewport on phones — it ignores the browser    */
+/* chrome and the home indicator. A dialog capped at 92vh therefore runs past  */
+/* the visible screen in an installed PWA, and what falls off the bottom is    */
+/* exactly the action row: pay buttons that exist but cannot be seen, reported */
+/* in live testing as "Stripe and KODA checkout not active". `dvh` tracks the  */
+/* real visible height; the @supports guard keeps old browsers on the vh       */
+/* behaviour they always had instead of losing the rule entirely.              */
+/* -------------------------------------------------------------------------- */
+
+.max-h-viewport {
+  max-height: 92vh;
+}
+.min-h-viewport {
+  min-height: 100vh;
+}
+@supports (height: 100dvh) {
+  .max-h-viewport {
+    max-height: 92dvh;
+  }
+  .min-h-viewport {
+    min-height: 100dvh;
+  }
+}
+
 /* Content that exists only on paper — the printed ticket's cross-promotion block. */
 .print-only {
   display: none;
