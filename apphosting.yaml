@@ -149,10 +149,20 @@ env:
   # if neither is set `createKey` refuses outright rather than hashing with an empty
   # string — a key hashed with a constant is not hashed, and storing it that way is the
   # same as storing it in plaintext.
-  - variable: API_KEY_SECRET
-    secret: API_KEY_SECRET
-    availability:
-      - RUNTIME
+  # Commented out until the secret exists, following the same convention as BitriPay
+  # below. App Hosting validates every secret reference when it builds a rollout, so a
+  # reference to a secret nobody has created yet fails the whole deploy — and the failure
+  # looks like "nothing is deploying" rather than "one line in this file is early".
+  #
+  # Create it, then uncomment:
+  #   npx firebase apphosting:secrets:set API_KEY_SECRET --project ticketroyality
+  #
+  # Until then the key store falls back to QR_SIGNING_KEY, which is set, so the public
+  # API keeps working — it is the fallback the module was written to have.
+#  - variable: API_KEY_SECRET
+#    secret: API_KEY_SECRET
+#    availability:
+#      - RUNTIME
 
   - variable: SMTP_HOST
     value: smtp.hostinger.com

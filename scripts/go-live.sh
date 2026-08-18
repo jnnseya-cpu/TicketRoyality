@@ -68,6 +68,8 @@ else
   openssl rand -base64 48 | tr -d '\n' | npx firebase apphosting:secrets:set API_KEY_SECRET \
     --project "$PROJECT" --data-file -
   ok "API_KEY_SECRET created"
+  warn "Now uncomment the API_KEY_SECRET block in apphosting.yaml and push —"
+  warn "it is commented out so a missing secret cannot fail your rollouts."
 fi
 
 npx firebase apphosting:secrets:grantaccess API_KEY_SECRET \
