@@ -379,6 +379,13 @@ events the holder is most likely to attend — ranked by the existing `recommend
 task, category-and-date fallback when the model is unavailable, never this event,
 never past events. Print-only by CSS: on screen the whole site is one tap away.
 
+Refined on request: the printed page is now split in half — the ticket above the
+fold, the three picks below it as three columns with the events' own artwork — and
+"likely to attend" is learned from behaviour: the holder's own ticket history feeds
+the recommender (their past event titles as interests; the deterministic fallback
+scores by categories they have actually bought, then this event's category, then
+soonest). Events they already hold tickets for are excluded.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

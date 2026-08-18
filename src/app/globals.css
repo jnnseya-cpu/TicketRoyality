@@ -182,6 +182,36 @@
   .print-only {
     display: block !important;
   }
+
+  /*
+   * The printed ticket page, split in half. Top half: the ticket itself. Bottom half:
+   * three events the holder is most likely to attend, side by side — the paper in
+   * someone's pocket doubling as the platform's advert.
+   */
+  .print-ticket-sheet {
+    display: flex;
+    flex-direction: column;
+    min-height: 96vh;
+  }
+  .print-ticket-half {
+    min-height: 48vh;
+  }
+  .print-promo-half {
+    display: grid !important;
+    min-height: 44vh;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+    align-content: start;
+    margin-top: auto;
+    border-top: 2px dashed hsl(var(--border));
+    padding-top: 1rem;
+  }
+  .print-promo-half img {
+    width: 100%;
+    height: 8rem;
+    object-fit: cover;
+    border-radius: 0.5rem;
+  }
 }
 
 /* -------------------------------------------------------------------------- */

@@ -16,7 +16,7 @@ import {
 } from '@/frontend/components/ui/dialog';
 import { Logo } from '@/frontend/components/common/Logo';
 import { formatCurrency, formatEventDate } from '@/shared/utils';
-import { getEventById, getEvents } from '@/shared/data/repositories';
+import { getEventById, getEvents, getUserTickets } from '@/shared/data/repositories';
 import type { Event, Ticket } from '@/shared/types';
 import { QR_VERSION, encodeTicketQr } from '@/shared/tickets/qr';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
@@ -129,10 +129,16 @@ export function TicketModal({
   }, [open, ticket.eventId]);
 
   /*
-   * Three upcoming events for the printed ticket's footer — the paper in someone's
-   * pocket is the cheapest advert the platform owns. Ranked by the AI recommender when
-   * it answers, by shared category otherwise; never this event, never the past. Screen
-   * users already have the whole site, so the block is print-only.
+   * Three upcoming events for the printed ticket's bottom half — the paper in
+   * someone's pocket is the cheapest advert the platform owns.
+   *
+   * "Likely to attend" is learned from what this holder actually did: their own ticket
+   * history (readable because rules restrict tickets to their owner — this is the
+   * owner) feeds the recommender as behaviour, not as a canned phrase. The AI ranks
+   * when it answers; otherwise the fallback scores by the categories the holder has
+   * bought before, then by this event's category, then by soonest. Never this event,
+   * never the past. Screen users already have the whole site, so the block is
+   * print-only.
    */
   const [suggested, setSuggested] = React.useState<Event[]>([]);
   React.useEffect(() => {
@@ -140,16 +146,32 @@ export function TicketModal({
     let cancelled = false;
 
     const load = async () => {
-      const all = await getEvents();
+      const [all, history] = await Promise.all([
+        getEvents(),
+        getUserTickets(ticket.userId).catch(() => []),
+      ]);
       const upcoming = all.filter(
         (e) => e.id !== ticket.eventId && new Date(e.date).getTime() > Date.now()
       );
       if (upcoming.length === 0) return;
 
-      const fallback = [...upcoming].sort((a, b) => {
-        const aScore = a.category === event?.category ? 0 : 1;
-        const bScore = b.category === event?.category ? 0 : 1;
-        return aScore - bScore || a.date.localeCompare(b.date);
+      // What the holder has been to, most recent first — titles for the model,
+      // categories for the deterministic fallback.
+      const pastTitles = [
+        ...new Set(history.map((t) => t.eventTitle).filter((t) => t !== ticket.eventTitle)),
+      ].slice(0, 5);
+      const pastEventIds = new Set(history.map((t) => t.eventId));
+      const pastCategories = new Set(
+        all.filter((e) => pastEventIds.has(e.id)).map((e) => e.category)
+      );
+
+      const candidates = upcoming.filter((e) => !pastEventIds.has(e.id));
+      const pool = candidates.length > 0 ? candidates : upcoming;
+
+      const fallback = [...pool].sort((a, b) => {
+        const score = (e: Event) =>
+          (pastCategories.has(e.category) ? 0 : 2) + (e.category === event?.category ? 0 : 1);
+        return score(a) - score(b) || a.date.localeCompare(b.date);
       });
 
       try {
@@ -159,9 +181,12 @@ export function TicketModal({
           body: JSON.stringify({
             task: 'recommend',
             input: {
-              interests: `events like ${ticket.eventTitle}`,
+              interests:
+                pastTitles.length > 0
+                  ? `has attended: ${pastTitles.join('; ')} — and is going to ${ticket.eventTitle}`
+                  : `events like ${ticket.eventTitle}`,
               max: 3,
-              events: upcoming.slice(0, 40).map((e) => ({
+              events: pool.slice(0, 40).map((e) => ({
                 id: e.id,
                 title: e.title,
                 category: e.category,
@@ -173,7 +198,7 @@ export function TicketModal({
         });
         const data = (await response.json()) as { eventIds?: string[] };
         const picks = (data.eventIds ?? [])
-          .map((id) => upcoming.find((e) => e.id === id))
+          .map((id) => pool.find((e) => e.id === id))
           .filter((e): e is Event => Boolean(e));
         if (!cancelled) setSuggested((picks.length > 0 ? picks : fallback).slice(0, 3));
       } catch {
@@ -185,7 +210,7 @@ export function TicketModal({
     return () => {
       cancelled = true;
     };
-  }, [open, ticket.eventId, ticket.eventTitle, event?.category]);
+  }, [open, ticket.eventId, ticket.eventTitle, ticket.userId, event?.category]);
 
   const handleDownload = () => {
     const canvas = printRef.current?.querySelector('canvas');
@@ -215,7 +240,10 @@ export function TicketModal({
           <DialogDescription>Present this QR code at the gate.</DialogDescription>
         </DialogHeader>
 
-        <div ref={printRef} className="space-y-4">
+        {/* On paper this sheet is one page split in half: the ticket above the fold,
+            the three recommendations below it. On screen the classes do nothing. */}
+        <div ref={printRef} className="print-ticket-sheet space-y-4">
+          <div className="print-ticket-half space-y-4">
           {/* The event's own artwork, on screen and on paper — a ticket is the event's
               face, not a database printout. Plain <img>: next/image would proxy the
               organiser's Storage URL through the app for no gain on a one-off render. */}
@@ -317,28 +345,36 @@ export function TicketModal({
           <p className="border-t border-dashed border-border pt-3 text-center text-[11px] text-muted-foreground">
             Valid for one entry to this event only. Do not share this code.
           </p>
+          </div>
 
           {/*
-            Paper only. The printed ticket travels — a fridge door, a jacket pocket, a
-            colleague's desk — and three well-chosen events on it are the cheapest
+            Paper only — the page's bottom half, three columns. The printed ticket
+            travels — a fridge door, a jacket pocket, a colleague's desk — and three
+            events picked from what this holder has actually attended are the cheapest
             advertising the platform will ever buy. On screen the whole site is one tap
-            away, so there it would just be noise under someone's QR code.
+            away, so there this would just be noise under someone's QR code.
           */}
           {suggested.length > 0 && (
-            <div className="print-only border-t border-dashed border-border pt-3">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                You might also like — ticketroyality.com
+            <div className="print-only print-promo-half">
+              <p className="col-span-3 text-[10px] uppercase tracking-wide text-muted-foreground">
+                Picked for you — ticketroyality.com
               </p>
               {suggested.map((pick) => (
-                <p key={pick.id} className="mt-1 text-[11px]">
-                  <span className="font-medium">{pick.title}</span>
-                  {' — '}
-                  {formatEventDate(pick.date)} · {pick.location}
-                  <br />
-                  <span className="text-muted-foreground">
+                <div key={pick.id} className="space-y-1">
+                  {pick.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={pick.imageUrl} alt={pick.title} />
+                  ) : null}
+                  <p className="text-[11px] font-semibold leading-tight">{pick.title}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {formatEventDate(pick.date)}
+                    <br />
+                    {pick.location}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
                     ticketroyality.com/events/{pick.id}
-                  </span>
-                </p>
+                  </p>
+                </div>
               ))}
             </div>
           )}
