@@ -118,9 +118,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return profile;
   }, []);
 
+  /**
+   * Create an account, or finish one that was left half-made.
+   *
+   * ## Why the second half exists
+   *
+   * Registration is two writes to two systems: a Firebase Auth user, then a profile
+   * document. Anything failing between them — a dropped connection, a rules error, a
+   * closed tab — leaves an Auth user with no profile, and that account is **stuck in a
+   * way the person cannot escape**. Signing in works, so the header greets them by name;
+   * every dashboard refuses them, because there is no profile to read a role from; and
+   * registering again is refused because the email is taken. Three dead ends, no message
+   * that explains any of them.
+   *
+   * So when the email is already in use, this signs in with the credentials just typed
+   * and looks for the profile. If it is missing, the registration finishes where it left
+   * off. If it is there, the account is genuinely complete and the caller is told to log
+   * in instead — which is the only case where "that email is taken" is the true answer.
+   *
+   * The password check is what makes this safe: completing the profile requires proving
+   * you hold the credentials for that account, which is the same bar as signing in.
+   */
   const register = React.useCallback<AuthContextValue['register']>(
     async ({ email, password, fullName, userType, profile }) => {
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      let credential;
+
+      try {
+        credential = await createUserWithEmailAndPassword(auth, email, password);
+      } catch (error) {
+        if ((error as { code?: string })?.code !== 'auth/email-already-in-use') throw error;
+
+        // Prove they hold this account before touching anything on it. A wrong password
+        // throws here and surfaces as the ordinary sign-in failure it is.
+        credential = await signInWithEmailAndPassword(auth, email, password);
+
+        const existing = await getUserProfile(credential.user.uid);
+        if (existing) {
+          setUserProfile(existing);
+          throw Object.assign(new Error('Account already complete'), {
+            code: 'auth/email-already-in-use',
+          });
+        }
+        // Falls through: the Auth user exists, the profile does not, and the code below
+        // writes the one that was missing.
+      }
+
       await updateProfile(credential.user, { displayName: fullName });
 
       const newProfile: UserProfile = {

@@ -34,7 +34,14 @@ export function authErrorMessage(code: string): string {
     case 'auth/user-not-found':
       return 'Incorrect email or password. If you have not registered this account yet, sign up first.';
     case 'auth/email-already-in-use':
-      return 'An account with this email already exists. Try logging in instead.';
+      /*
+       * Only reached when the account is genuinely complete. A half-made one — an Auth
+       * user whose profile write never landed — is finished by re-submitting the form
+       * with the same credentials rather than refused, so this no longer sends anybody
+       * into the loop where logging in shows an empty dashboard and registering again
+       * says the email is taken.
+       */
+      return 'An account with this email already exists. Log in instead.';
     case 'auth/weak-password':
       return 'Password is too weak. Use at least 8 characters.';
     case 'auth/too-many-requests':

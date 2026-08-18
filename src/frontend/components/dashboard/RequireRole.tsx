@@ -36,6 +36,46 @@ export function RequireRole({
     );
   }
 
+  /*
+   * Signed in, but no profile document.
+   *
+   * Registration is two writes to two systems, and anything failing between them leaves
+   * exactly this: an account that can sign in, is greeted by name in the header, and is
+   * refused by every dashboard because there is no role to read. "Sign in required" is
+   * the one message that cannot be true here — they are signed in — and it sends somebody
+   * round a loop where logging in again changes nothing and registering again is refused
+   * because the email is taken.
+   *
+   * Naming what happened and pointing at the form that finishes it is the difference
+   * between a dead end and a step. Submitting that form with the same email and password
+   * completes the half-made account rather than being refused.
+   */
+  if (user && !userProfile) {
+    return (
+      <div className="container max-w-lg py-16">
+        <Alert variant="warning">
+          <LockKeyhole />
+          <AlertTitle>Your account needs finishing</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>
+              You are signed in as {user.email}, but your profile was never saved — the sign-up
+              was interrupted partway through. Fill the form in once more with the same email
+              and password and it will pick up where it stopped.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" asChild>
+                <Link href="/register/organiser">Finish organiser sign-up</Link>
+              </Button>
+              <Button size="sm" variant="outline" asChild>
+                <Link href="/register">Finish as a customer</Link>
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   if (!user || !userProfile) {
     return (
       <div className="container max-w-lg py-16">
