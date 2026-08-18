@@ -90,9 +90,34 @@
   * {
     @apply border-border;
   }
+  /*
+   * The page never scrolls sideways, on any screen — a PWA rule, not a preference.
+   *
+   * Anything genuinely wider than the viewport (a revenue table, a curved seat map, an
+   * API secret) lives inside its own `overflow-x-auto` region and scrolls there; this
+   * clip is the backstop that stops one over-wide element anywhere on a page turning
+   * the whole app into a horizontally wobbling sheet on a phone. `clip` rather than
+   * `hidden` on the root, because `hidden` creates a scroll container that breaks
+   * `position: sticky` descendants.
+   */
+  html {
+    overflow-x: clip;
+  }
   body {
     @apply bg-background text-foreground font-body antialiased;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+    overflow-x: clip;
+    max-width: 100%;
+  }
+  /*
+   * An image or video can never push the page wider than the screen. SVG is left out
+   * deliberately: the seat map zooms by growing wider than its scroll container, and a
+   * max-width here would silently cap the zoom at 1×.
+   */
+  img,
+  video,
+  canvas {
+    max-width: 100%;
   }
   h1,
   h2,

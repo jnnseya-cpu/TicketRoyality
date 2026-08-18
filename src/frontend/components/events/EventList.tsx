@@ -5,6 +5,7 @@ import { CalendarX2 } from 'lucide-react';
 
 import { Calendar } from '@/frontend/components/ui/calendar';
 import { Card, CardContent } from '@/frontend/components/ui/card';
+import { Button } from '@/frontend/components/ui/button';
 import { EventCard, EventCardSkeleton } from '@/frontend/components/events/EventCard';
 import { EventsMapView } from '@/frontend/components/events/EventsMapView';
 import {
@@ -18,7 +19,15 @@ import { parseCategoryValue } from '@/shared/constants/categories';
 import type { Event } from '@/shared/types';
 
 /** Search radii, tried in order until something is found nearby. */
-const RADII_MILES = [10, 20, 30];
+/**
+ * The browse default: what is within reach of where the person is standing.
+ *
+ * 30 miles, fixed — not a widening ladder, because "events near you" that quietly
+ * becomes "events 200 miles from you" is a definition that moved rather than a result.
+ * Three ways out of the radius, all explicit: type a search (worldwide), press "Show
+ * everywhere", or follow an event's direct link, which never comes through this list.
+ */
+const NEARBY_RADIUS_MILES = 30;
 
 const INITIAL_FILTERS: EventFilterState = {
   search: '',
@@ -56,8 +65,10 @@ export function EventList({ initialView = 'grid' }: { initialView?: EventView })
   }, []);
 
   /**
-   * Location is only requested on an explicit click. Asking automatically on load
-   * produces a permission prompt nobody asked for, and a denial logged as an error.
+   * Requested on load, by explicit product decision (18 Aug): the browse page defaults
+   * to what is within 30 miles of the visitor. A denial is a valid choice and simply
+   * shows everything — no error, no nagging, and the button remains for a later change
+   * of mind. Search and direct event links never pass through this filter at all.
    */
   const requestLocation = React.useCallback(() => {
     if (!('geolocation' in navigator)) {
@@ -78,6 +89,13 @@ export function EventList({ initialView = 'grid' }: { initialView?: EventView })
       { timeout: 8000 }
     );
   }, []);
+
+  React.useEffect(() => {
+    requestLocation();
+  }, [requestLocation]);
+
+  /** "Show everywhere" — the explicit way out of the radius without typing a search. */
+  const [everywhere, setEverywhere] = React.useState(false);
 
   const { visible, radiusUsed } = React.useMemo(() => {
     const term = filters.search.trim().toLowerCase();
@@ -101,21 +119,21 @@ export function EventList({ initialView = 'grid' }: { initialView?: EventView })
       return true;
     });
 
-    // Proximity filter applies only when the user has shared a location and is not
-    // running a keyword search — a search should always be able to reach worldwide.
-    if (coords && !term) {
-      for (const radius of RADII_MILES) {
-        const nearby = events.filter((event) => {
-          if (!event.coordinates) return false;
-          return getDistanceInMiles(coords, event.coordinates) <= radius;
-        });
-        if (nearby.length > 0) return { visible: nearby, radiusUsed: radius };
-      }
-      return { visible: [] as Event[], radiusUsed: RADII_MILES[RADII_MILES.length - 1] };
+    // The proximity default. A keyword search reaches worldwide, and "Show everywhere"
+    // is the explicit opt-out; otherwise a shared location narrows the list to 30 miles.
+    if (coords && !term && !everywhere) {
+      const nearby = events.filter((event) => {
+        // An online or livestreamed event is attendable from anywhere — distance is not
+        // a property it has, so the radius cannot exclude it.
+        if (event.eventType === 'online' || event.eventType === 'livestream') return true;
+        if (!event.coordinates) return false;
+        return getDistanceInMiles(coords, event.coordinates) <= NEARBY_RADIUS_MILES;
+      });
+      return { visible: nearby, radiusUsed: NEARBY_RADIUS_MILES };
     }
 
     return { visible: events, radiusUsed: null as number | null };
-  }, [allEvents, filters, coords]);
+  }, [allEvents, filters, coords, everywhere]);
 
   const daysWithEvents = React.useMemo(
     () => visible.map((event) => new Date(event.date)),
@@ -138,7 +156,7 @@ export function EventList({ initialView = 'grid' }: { initialView?: EventView })
     if (locationNotice) return locationNotice;
     if (coords && radiusUsed) return `Showing events within ${radiusUsed} miles of you.`;
     if (coords && !radiusUsed && filters.search) return 'Searching worldwide.';
-    if (coords) return `No events within ${RADII_MILES.at(-1)} miles of you.`;
+    if (coords && !radiusUsed) return 'Showing events from all locations.';
     return 'Showing events from all locations.';
   }, [locationNotice, coords, radiusUsed, filters.search]);
 
@@ -203,16 +221,37 @@ export function EventList({ initialView = 'grid' }: { initialView?: EventView })
         </div>
       ) : visible.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-12 text-center">
-          <p className="font-headline text-lg font-semibold">No events match those filters</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Try clearing a filter, or search by name to look worldwide.
+          <p className="font-headline text-lg font-semibold">
+            {radiusUsed ? `Nothing within ${radiusUsed} miles of you` : 'No events match those filters'}
           </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {radiusUsed
+              ? 'The list is limited to events near you by default.'
+              : 'Try clearing a filter, or search by name to look worldwide.'}
+          </p>
+          {radiusUsed ? (
+            <Button variant="outline" className="mt-4" onClick={() => setEverywhere(true)}>
+              Show events everywhere
+            </Button>
+          ) : null}
         </div>
       ) : (
         <>
-          <p className="text-sm text-muted-foreground">
-            {visible.length} event{visible.length === 1 ? '' : 's'} found
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">
+              {visible.length} event{visible.length === 1 ? '' : 's'}
+              {radiusUsed ? ` within ${radiusUsed} miles of you` : ' found'}
+            </p>
+            {coords ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEverywhere((current) => !current)}
+              >
+                {everywhere || !radiusUsed ? 'Show events near me' : 'Show events everywhere'}
+              </Button>
+            ) : null}
+          </div>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {visible.map((event) => (
               <EventCard key={event.id} event={event} />
