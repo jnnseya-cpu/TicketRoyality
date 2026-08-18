@@ -24,6 +24,20 @@ import { storage } from '@/shared/firebase/client';
  */
 
 export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+
+/**
+ * The ceiling each folder's rule enforces, mirrored here so a refusal is a sentence
+ * rather than an opaque failed upload.
+ *
+ * These must stay equal to `storage.rules`. A client limit that is more generous than the
+ * service's is worse than none: the file uploads, the service refuses it, and the person
+ * is told nothing useful.
+ */
+export const FOLDER_LIMITS = {
+  events: 8 * 1024 * 1024,
+  users: 5 * 1024 * 1024,
+  organisers: 4 * 1024 * 1024,
+} as const;
 export const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 
 /** Wide enough for a hero at 2× on a laptop; small enough to load on a phone. */
@@ -91,21 +105,38 @@ export interface UploadedImage {
 }
 
 /**
+ * Where an image belongs.
+ *
+ * Each of these is a separate rule in `storage.rules` with its own size ceiling, so the
+ * folder is not decoration — writing branding into the events folder would be accepted by
+ * a rule written for something else, and the ceilings would stop matching what the UI
+ * promised.
+ */
+export type MediaFolder = 'events' | 'organisers' | 'users';
+
+/**
  * Upload, and return what the library needs to record.
  *
- * The path is scoped to the organiser because that is what `storage.rules` checks. A file
+ * The path is scoped to the owner because that is what `storage.rules` checks. A file
  * written anywhere else is refused by the service, not by this function.
  */
-export async function uploadImage(organiserId: string, file: File): Promise<UploadedImage> {
+export async function uploadImage(
+  organiserId: string,
+  file: File,
+  folder: MediaFolder = 'events'
+): Promise<UploadedImage> {
   const prepared = await prepareImage(file);
 
-  if (prepared.blob.size > MAX_UPLOAD_BYTES) {
-    throw new Error('That image is too large even after resizing. Try a smaller one.');
+  const ceiling = FOLDER_LIMITS[folder];
+  if (prepared.blob.size > ceiling) {
+    throw new Error(
+      `That image is still ${Math.round(prepared.blob.size / 1024 / 1024)}MB after resizing. The limit here is ${Math.round(ceiling / 1024 / 1024)}MB.`
+    );
   }
 
   const extension = prepared.contentType.split('/')[1] ?? 'webp';
   const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
-  const path = `events/${organiserId}/${name}`;
+  const path = `${folder}/${organiserId}/${name}`;
 
   const location = ref(storage, path);
   await uploadBytes(location, prepared.blob, { contentType: prepared.contentType });

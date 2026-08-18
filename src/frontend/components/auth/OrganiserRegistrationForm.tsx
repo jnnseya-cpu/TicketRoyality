@@ -21,6 +21,9 @@ import {
 import { Input } from '@/frontend/components/ui/input';
 import { PasswordInput } from '@/frontend/components/ui/password-input';
 import { Honeypot, checkHumanity, useHumanityGate } from '@/frontend/components/auth/HumanityGate';
+import { ImageDrop } from '@/frontend/components/common/ImageDrop';
+import { uploadImage } from '@/frontend/lib/media';
+import { updateUserProfile } from '@/shared/data/repositories';
 import { Progress } from '@/frontend/components/ui/progress';
 import {
   Select,
@@ -53,8 +56,6 @@ const schema = z
     // Step 3 — branding
     website: z.string().url('Enter a valid URL.').optional().or(z.literal('')),
     bio: z.string().max(500, 'Keep it under 500 characters.').optional(),
-    logoUrl: z.string().url('Enter a valid image URL.').optional().or(z.literal('')),
-    coverUrl: z.string().url('Enter a valid image URL.').optional().or(z.literal('')),
     facebook: z.string().optional(),
     instagram: z.string().optional(),
     twitter: z.string().optional(),
@@ -70,7 +71,7 @@ type FormValues = z.infer<typeof schema>;
 const STEP_FIELDS: Array<Array<keyof FormValues>> = [
   ['fullName', 'email', 'password', 'confirmPassword', 'phone'],
   ['companyName', 'line1', 'city', 'postcode', 'country'],
-  ['website', 'bio', 'logoUrl', 'coverUrl'],
+  ['website', 'bio'],
 ];
 
 const STEP_LABELS = ['Account', 'Company', 'Branding'];
@@ -98,8 +99,6 @@ export function OrganiserRegistrationForm() {
       country: 'United Kingdom',
       website: '',
       bio: '',
-      logoUrl: '',
-      coverUrl: '',
       facebook: '',
       instagram: '',
       twitter: '',
@@ -114,6 +113,10 @@ export function OrganiserRegistrationForm() {
   };
 
   const humanity = useHumanityGate();
+
+  /* Branding images, held until the account exists — see the ImageDrop comment. */
+  const [logoFile, setLogoFile] = React.useState<File | null>(null);
+  const [coverFile, setCoverFile] = React.useState<File | null>(null);
 
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
@@ -131,7 +134,7 @@ export function OrganiserRegistrationForm() {
         return;
       }
 
-      await register({
+      const created = await register({
         email: values.email,
         password: values.password,
         fullName: values.fullName,
@@ -141,8 +144,6 @@ export function OrganiserRegistrationForm() {
           companyName: values.companyName,
           website: values.website || undefined,
           bio: values.bio || undefined,
-          logoUrl: values.logoUrl || undefined,
-          coverUrl: values.coverUrl || undefined,
           socials: {
             facebook: values.facebook || undefined,
             instagram: values.instagram || undefined,
@@ -156,6 +157,34 @@ export function OrganiserRegistrationForm() {
           },
         },
       });
+      /*
+       * The branding, now that the account exists and owns its folder.
+       *
+       * Deliberately after the account rather than blocking it: an upload that fails —
+       * a dropped connection, a rules change — must not cost somebody the application
+       * they just filled in. The account is created either way and the images can be
+       * added again from settings.
+       */
+      if (logoFile || coverFile) {
+        try {
+          const [logo, cover] = await Promise.all([
+            logoFile ? uploadImage(created.uid, logoFile, 'organisers') : null,
+            coverFile ? uploadImage(created.uid, coverFile, 'organisers') : null,
+          ]);
+
+          await updateUserProfile(created.uid, {
+            ...(logo ? { logoUrl: logo.url } : {}),
+            ...(cover ? { coverUrl: cover.url } : {}),
+          });
+        } catch {
+          toast({
+            variant: 'destructive',
+            title: 'Your account was created, but the images did not upload',
+            description: 'Add them from Settings — nothing else was lost.',
+          });
+        }
+      }
+
       toast({
         title: 'Application submitted',
         description:
@@ -389,31 +418,26 @@ export function OrganiserRegistrationForm() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="logoUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Logo URL</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                {/*
+                  Files, not URLs. Asking somebody to paste a URL for their own logo is
+                  asking them to go and host it somewhere else first, and most people
+                  simply skip it — so every organiser page ends up unbranded.
+
+                  Held here and uploaded the moment the account exists: there is no uid
+                  until then, and `storage.rules` requires the uploader to own the folder
+                  they are writing to.
+                */}
+                <ImageDrop
+                  label="Logo"
+                  value={logoFile}
+                  onChange={setLogoFile}
+                  hint="Square works best. Shown beside your events."
                 />
-                <FormField
-                  control={form.control}
-                  name="coverUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cover image URL</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                <ImageDrop
+                  label="Cover image"
+                  value={coverFile}
+                  onChange={setCoverFile}
+                  hint="Wide. Sits across the top of your organiser page."
                 />
                 {(['facebook', 'instagram', 'twitter'] as const).map((social) => (
                   <FormField
