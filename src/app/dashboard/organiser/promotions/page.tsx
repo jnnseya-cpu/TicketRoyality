@@ -19,14 +19,20 @@ import { getEventsByOrganizer } from '@/shared/data/repositories';
 import { formatCurrency } from '@/shared/utils';
 import type { Event, UserProfile } from '@/shared/types';
 
-/** Paid placements sold to organisers. Prices are per campaign, charged on approval. */
+/**
+ * Placements, priced but **not yet self-serve**.
+ *
+ * The prices are what these cost; the buying is an enquiry because fulfilment does not
+ * exist yet. Selling a placement the platform cannot deliver is worse than not selling
+ * one — see the comment on the enquiry button for what it used to do.
+ */
 const PLACEMENTS = [
   {
     id: 'video-ad',
     icon: PlayCircle,
-    title: 'Homepage video ad',
+    title: 'Homepage spotlight',
     description:
-      'A 20-second auto-playing spot in the Events Ads carousel on the homepage. Three slots, rotating.',
+      'Your event in the rotating spotlight strip on the homepage. Video slots are not built — this is your cover image, and it links to your event.',
     price: 249,
     period: '7 days',
   },
@@ -35,7 +41,7 @@ const PLACEMENTS = [
     icon: Crown,
     title: 'Featured event placement',
     description:
-      'Your event appears in the Featured Events grid on the homepage and at the top of category search.',
+      'Your event appears in the Featured Events grid on the homepage and in the spotlight strip.',
     price: 149,
     period: '7 days',
   },
@@ -161,26 +167,29 @@ function Promotions({ profile }: { profile: UserProfile }) {
                 </span>
                 <Badge variant="secondary">{placement.period}</Badge>
               </div>
-              <form action="/api/checkout" method="POST">
-                <input
-                  type="hidden"
-                  name="name"
-                  value={`TicketRoyality — ${placement.title}`}
-                />
-                <input type="hidden" name="amount" value={placement.price} />
-                <input type="hidden" name="quantity" value={1} />
-                <input type="hidden" name="currency" value="GBP" />
-                <input type="hidden" name="eventId" value={selected} />
-                <input type="hidden" name="userId" value={profile.uid} />
-                <Button
-                  type="submit"
-                  variant="royal"
-                  className="w-full"
-                  disabled={events.length === 0}
+              {/*
+                Deliberately an enquiry rather than a payment.
+
+                This was a Stripe checkout that charged the price above and delivered
+                nothing: it posted an eventId with no tierId, so the route skipped its
+                re-pricing guard and trusted the posted amount, and the webhook then found
+                no tierId, logged missing metadata and recorded nothing at all. An
+                organiser was charged £249 for a slot in a carousel that was three
+                hardcoded demo events, with no record that they had paid.
+
+                Nothing is charged again until there is something to fulfil.
+              */}
+              <Button asChild variant="outline" className="w-full">
+                <a
+                  href={`mailto:info@ticketroyality.com?subject=${encodeURIComponent(
+                    `Placement enquiry — ${placement.title}`
+                  )}&body=${encodeURIComponent(
+                    `Event: ${events.find((e) => e.id === selected)?.title ?? '(choose one above)'}\nPlacement: ${placement.title}`
+                  )}`}
                 >
-                  Buy placement
-                </Button>
-              </form>
+                  Enquire
+                </a>
+              </Button>
             </CardContent>
           </Card>
         ))}

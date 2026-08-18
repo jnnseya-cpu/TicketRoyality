@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import Autoplay from 'embla-carousel-autoplay';
-import { PlayCircle } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 import { Badge } from '@/frontend/components/ui/badge';
 import { Card } from '@/frontend/components/ui/card';
@@ -14,37 +14,40 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/frontend/components/ui/carousel';
-import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
+import { formatCurrency } from '@/shared/utils';
+import { leadPrice } from '@/shared/pricing';
+import type { Event } from '@/shared/types';
 
 /**
- * Paid 20-second video ad slots. Organisers purchase these from their dashboard
- * (Promotions → Video ad). Each slide links straight to the promoted event.
+ * The promoted strip on the homepage.
+ *
+ * ## Why this is driven by real events and shows nothing when there are none
+ *
+ * It used to be three hardcoded entries pointing at demo event ids, with a poster image
+ * standing in for a video that did not exist — while the promotions page charged £249 for
+ * a slot in it. A carousel of invented ads is the homepage telling every visitor that
+ * events are running when none are, and it is exactly the class of claim this project has
+ * already paid for.
+ *
+ * So it renders the organiser's **featured** events, which is a real flag on a real
+ * document, and renders nothing at all when nothing is featured. An empty homepage
+ * section is honest; a fake one is not.
+ *
+ * ## It is not video
+ *
+ * The event's own cover image, said plainly rather than dressed up with a play button
+ * that leads to nothing. Video ad slots are not built — see the promotions page, which no
+ * longer sells them.
  */
-const VIDEO_ADS = [
-  {
-    eventId: 'wembley-royal-night',
-    title: 'Royal Night Live — Wembley Stadium',
-    tagline: 'VIP hospitality now on sale',
-    poster: PLACEHOLDER_IMAGES.heroCrowd,
-  },
-  {
-    eventId: 'anfield-derby',
-    title: 'Merseyside Derby — Matchday Hospitality',
-    tagline: 'Lounge access + pre-match dining',
-    poster: PLACEHOLDER_IMAGES.stadium,
-  },
-  {
-    eventId: 'bristol-electronic-warehouse',
-    title: 'Bristol Warehouse Electronic',
-    tagline: 'Three rooms. One night. Capped capacity.',
-    poster: PLACEHOLDER_IMAGES.vipLounge,
-  },
-];
-
-export default function VideoAds() {
+export default function VideoAds({ events }: { events: Event[] }) {
   const autoplay = React.useRef(
-    Autoplay({ delay: 20_000, stopOnInteraction: false, stopOnMouseEnter: true })
+    Autoplay({ delay: 8_000, stopOnInteraction: false, stopOnMouseEnter: true })
   );
+
+  const promoted = events.filter((event) => event.featured).slice(0, 6);
+
+  // Nothing featured: the section does not exist rather than inventing something to fill it.
+  if (promoted.length === 0) return null;
 
   return (
     <section className="border-y border-border/60 bg-card/30 py-12">
@@ -52,46 +55,64 @@ export default function VideoAds() {
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
             <Badge variant="gold" className="mb-2">
-              Promoted
+              Featured
             </Badge>
-            <h2 className="font-headline text-2xl font-bold sm:text-3xl">Events Ads</h2>
+            <h2 className="font-headline text-2xl font-bold sm:text-3xl">In the spotlight</h2>
             <p className="text-sm text-muted-foreground">
-              Twenty-second spotlight slots, purchased by organisers from their dashboard.
+              Events the team has picked out this week.
             </p>
           </div>
-          <p className="text-xs text-muted-foreground">Auto-rotating · 3 slots</p>
+          <p className="text-xs text-muted-foreground">
+            Auto-rotating · {promoted.length} {promoted.length === 1 ? 'event' : 'events'}
+          </p>
         </div>
 
-        <Carousel opts={{ loop: true }} plugins={[autoplay.current]} className="w-full">
+        <Carousel opts={{ loop: promoted.length > 1 }} plugins={[autoplay.current]} className="w-full">
           <CarouselContent>
-            {VIDEO_ADS.map((ad) => (
-              <CarouselItem key={ad.eventId} className="md:basis-2/3 lg:basis-1/2">
-                <Link href={`/events/${ad.eventId}`}>
-                  <Card className="group relative aspect-video overflow-hidden border-primary/20">
-                    {/* Poster image stands in for the organiser's uploaded 20s video. */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={ad.poster}
-                      alt={ad.title}
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <PlayCircle className="h-14 w-14 text-white/80 transition-transform group-hover:scale-110" />
-                    </div>
-                    <div className="absolute inset-x-0 bottom-0 p-5">
-                      <p className="text-xs uppercase tracking-widest text-primary">{ad.tagline}</p>
-                      <h3 className="font-headline text-lg font-semibold text-white sm:text-xl">
-                        {ad.title}
-                      </h3>
-                    </div>
-                  </Card>
-                </Link>
-              </CarouselItem>
-            ))}
+            {promoted.map((event) => {
+              const from = leadPrice(event);
+
+              return (
+                <CarouselItem key={event.id} className="md:basis-2/3 lg:basis-1/2">
+                  <Link href={`/events/${event.id}`}>
+                    <Card className="group relative aspect-video overflow-hidden border-primary/20">
+                      {/* An organiser's cover image can be on any host, and the optimiser
+                          only accepts hosts on its allowlist. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={event.imageUrl}
+                        alt={event.title}
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+                      <div className="absolute inset-x-0 bottom-0 p-5">
+                        <p className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-primary">
+                          <Sparkles className="h-3 w-3" />
+                          {event.location}
+                        </p>
+                        <h3 className="font-headline text-lg font-semibold text-white sm:text-xl">
+                          {event.title}
+                        </h3>
+                        <p className="text-xs text-white/80">
+                          {new Date(event.date).toLocaleDateString('en-GB', {
+                            day: 'numeric',
+                            month: 'long',
+                          })}
+                          {from > 0 ? ` · from ${formatCurrency(from, event.currency)}` : ' · Free'}
+                        </p>
+                      </div>
+                    </Card>
+                  </Link>
+                </CarouselItem>
+              );
+            })}
           </CarouselContent>
-          <CarouselPrevious />
-          <CarouselNext />
+          {promoted.length > 1 && (
+            <>
+              <CarouselPrevious />
+              <CarouselNext />
+            </>
+          )}
         </Carousel>
       </div>
     </section>

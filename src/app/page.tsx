@@ -316,7 +316,7 @@ export default async function HomePage() {
       </section>
 
       {/* Promoted video ad slots */}
-      <VideoAds />
+      <VideoAds events={events} />
 
       {/* Featured placements */}
       <QuickDiscovery events={events} />
