@@ -36,6 +36,7 @@ import {
 import { Separator } from '@/frontend/components/ui/separator';
 import { Textarea } from '@/frontend/components/ui/textarea';
 import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
+import { MediaPicker } from '@/frontend/components/media/MediaPicker';
 import { TierEconomics } from '@/frontend/components/pricing/TierEconomics';
 import { Switch } from '@/frontend/components/ui/switch';
 import { cn } from '@/shared/utils';
@@ -790,11 +791,36 @@ export function CreateEventForm({
               name="imageUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Cover image URL</FormLabel>
+                  <FormLabel>Cover image</FormLabel>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {field.value ? (
+                      // A pasted URL can be any host, and the optimiser only accepts hosts
+                      // on its allowlist — a plain <img> is what shows a thumbnail either way.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={field.value}
+                        alt=""
+                        className="h-16 w-28 rounded-md border border-border object-cover"
+                      />
+                    ) : null}
+                    <MediaPicker
+                      organiserId={profile.uid}
+                      value={field.value}
+                      onChange={(url) => field.onChange(url)}
+                    />
+                    {field.value ? (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => field.onChange('')}>
+                        Remove
+                      </Button>
+                    ) : null}
+                  </div>
                   <FormControl>
-                    <Input placeholder="https://" {...field} />
+                    <Input placeholder="…or paste an image URL" {...field} />
                   </FormControl>
-                  <FormDescription>Leave blank to auto-generate a placeholder.</FormDescription>
+                  <FormDescription>
+                    Upload once and reuse it on every event. Leave blank to auto-generate a
+                    placeholder.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

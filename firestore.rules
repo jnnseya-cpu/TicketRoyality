@@ -391,6 +391,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    /* The media index. Written through the API, which takes the owner from a verified
+       token and refuses a path that does not belong to them — Storage refuses it too. Read
+       through the API so one organiser cannot enumerate another's library. */
+    match /media/{id} {
+      allow read, write: if false;
+    }
+
     match /login_attempts/{id} {
       allow read, write: if false;
     }
