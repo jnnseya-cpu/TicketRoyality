@@ -37,7 +37,7 @@ let swap: typeof import('../src/backend/services/seat-swap');
 let holds: typeof import('../src/backend/services/holds');
 
 async function seed() {
-  for (const c of ['events', 'tickets', 'seat_locks', 'checkout_holds']) {
+  for (const c of ['events', 'tickets', 'seat_locks', 'checkout_holds', 'upgrade_events']) {
     const snap = await db.collection(c).get();
     await Promise.all(snap.docs.map((d) => d.ref.delete()));
   }
@@ -85,6 +85,7 @@ async function seed() {
     tierId: 'stalls',
     tierName: 'Stalls',
     seat: 'A1',
+    price: 20,
     status: 'valid',
   });
 
@@ -266,6 +267,121 @@ async function run() {
     await seed();
     await db.collection('tickets').doc('t-b').update({ eventId: 'somewhere-else' });
     assert.equal((await swap.exchangeSeats('t-a', 't-b', ORG)).ok, false);
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Paid moves across tiers — docs/24 §14                               */
+  /* ------------------------------------------------------------------ */
+
+  await test('a dearer seat quotes the difference over what was actually paid', async () => {
+    await seed();
+    const quote = await swap.quoteMove('t-a', 'P1', HOLDER_A);
+    assert.ok(quote.ok);
+    if (quote.ok) {
+      assert.equal(quote.upgrade, true);
+      if (quote.upgrade) assert.equal(quote.differenceMajor, 40); // £60 circle − £20 paid
+    }
+  });
+
+  await test('a seat on your own tier quotes as a free move', async () => {
+    await seed();
+    const quote = await swap.quoteMove('t-a', 'A3', HOLDER_A);
+    assert.ok(quote.ok);
+    if (quote.ok) assert.equal(quote.upgrade, false);
+  });
+
+  await test('a cheaper seat is refused as a downgrade, not priced negative', async () => {
+    await seed();
+    await db.collection('tickets').doc('t-a').update({ tierId: 'circle', tierName: 'Circle', seat: 'P2', price: 60 });
+    const quote = await swap.quoteMove('t-a', 'A3', HOLDER_A);
+    assert.equal(quote.ok, false);
+    if (!quote.ok) assert.equal(quote.reason, 'downgrade');
+  });
+
+  await test('a paid move lands once: seat, tier, price and both counters', async () => {
+    await seed();
+    await db.collection('events').doc(EVENT).update({
+      ticketTiers: [
+        { id: 'stalls', name: 'Stalls', price: 20, quantity: 100, sold: 1 },
+        { id: 'circle', name: 'Circle', price: 60, quantity: 20, sold: 0, held: 1 },
+      ],
+    });
+
+    const applied = await swap.applyPaidMove({
+      providerEventId: 'evt_stripe_1',
+      ticketId: 't-a',
+      toSeat: 'P1',
+      toTierId: 'circle',
+      differenceMajor: 40,
+      holdId: 'hold-1',
+    });
+    assert.equal(applied.ok, true);
+
+    const ticket = (await db.collection('tickets').doc('t-a').get()).data()!;
+    assert.equal(ticket.seat, 'P1');
+    assert.equal(ticket.tierId, 'circle');
+    assert.equal(ticket.tierName, 'Circle');
+    assert.equal(ticket.price, 60); // £20 paid + £40 difference
+
+    const tiers = (await db.collection('events').doc(EVENT).get()).data()!.ticketTiers as Array<{
+      id: string; sold?: number; held?: number;
+    }>;
+    assert.equal(tiers.find((t) => t.id === 'stalls')!.sold, 0);
+    assert.equal(tiers.find((t) => t.id === 'circle')!.sold, 1);
+    assert.equal(tiers.find((t) => t.id === 'circle')!.held, 0);
+  });
+
+  await test('a replayed upgrade webhook applies nothing twice', async () => {
+    await seed();
+    await swap.applyPaidMove({
+      providerEventId: 'evt_stripe_2',
+      ticketId: 't-a',
+      toSeat: 'P1',
+      toTierId: 'circle',
+      differenceMajor: 40,
+    });
+    const again = await swap.applyPaidMove({
+      providerEventId: 'evt_stripe_2',
+      ticketId: 't-a',
+      toSeat: 'P1',
+      toTierId: 'circle',
+      differenceMajor: 40,
+    });
+    assert.equal(again.ok, true);
+    assert.equal(again.duplicate, true);
+
+    const tiers = (await db.collection('events').doc(EVENT).get()).data()!.ticketTiers as Array<{
+      id: string; sold?: number;
+    }>;
+    assert.equal(tiers.find((t) => t.id === 'circle')!.sold, 1); // once, not twice
+  });
+
+  await test('a paid move into a seat that was lost fails loudly, never silently', async () => {
+    await seed();
+    await db.collection('tickets').doc('t-lost').set({
+      reference: 'TR-L',
+      eventId: EVENT,
+      organizerId: ORG,
+      userId: 'somebody-else',
+      tierId: 'circle',
+      tierName: 'Circle',
+      seat: 'P1',
+      status: 'valid',
+    });
+
+    const applied = await swap.applyPaidMove({
+      providerEventId: 'evt_stripe_3',
+      ticketId: 't-a',
+      toSeat: 'P1',
+      toTierId: 'circle',
+      differenceMajor: 40,
+    });
+    assert.equal(applied.ok, false);
+
+    // Nothing half-moved: the ticket is untouched and the money mismatch is reported.
+    const ticket = (await db.collection('tickets').doc('t-a').get()).data()!;
+    assert.equal(ticket.seat, 'A1');
+    assert.equal(ticket.tierId, 'stalls');
   });
 
   console.log(`\n${passed}/${passed + failures.length} passed\n`);

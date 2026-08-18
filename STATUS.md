@@ -226,6 +226,18 @@ only that.
   invalid or unredeemed link is a plain 404: a verifier probing ids learns nothing, and
   a certificate for someone who never arrived cannot exist.
 
+### Paid seat upgrades (docs/24 §14, theatres card)
+
+A seat on a dearer tier is now a purchase inside the change-seat dialog: the server
+quotes the difference over what the ticket was *actually bought for* (plus the buyer
+service fee on that difference, same engine as every price), the seat is held while
+they pay, and the move lands from the Stripe webhook — idempotent by event id, one
+transaction across the ticket, both tiers' counters, the hold and the seat lock.
+Downgrades stay refund-and-rebook, deliberately: paying money out through a seat dialog
+is where two support queues become one confusing one. A paid seat lost between charge
+and webhook fails loudly into the operations queue — never silently. Emulator: 24/24.
+docs/24 records the wider Venue OS vision this came from, with its own honest gap map.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

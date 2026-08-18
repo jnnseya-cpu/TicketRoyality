@@ -102,7 +102,7 @@ const SEGMENTS = [
     need: 'Sections, rows and repeat performances',
     detail:
       'Define colour-coded sections and point them at a ticket type, and buyers choose their own seats — held while they pay, so two people cannot take F12. Rooms that are not rectangles are shaped row by row: rows of different lengths, a gangway partway along, a missing seat where a pillar is, numbering that does not start at 1. Or press best available and be seated together — a party is never split without being told, and never seated either side of a gangway. People can move seats after buying, within the ticket type they paid for. Tag restricted-view seats out of sale and hold accessible seats back for booking with you directly.',
-    next: 'The room is shaped as rows with a live preview, not a canvas where individual seats are dragged around a floor plan. Selling a seat into a different ticket type after purchase is a refund and a rebooking, not a move.',
+    next: 'The room is shaped as rows with a live preview, not a canvas where individual seats are dragged around a floor plan. Moving to a dearer seat after purchase is a priced upgrade — you pay the difference and the seat moves; moving to a cheaper one is still a refund and a rebooking.',
   },
   {
     icon: Church,

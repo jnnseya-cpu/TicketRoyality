@@ -235,3 +235,187 @@ export async function exchangeSeats(
     return refuse('unavailable', 'That swap could not be made.');
   }
 }
+
+/* -------------------------------------------------------------------------- */
+/* Paid moves across ticket types — theatres' "Not yet", docs/24 §14          */
+/* -------------------------------------------------------------------------- */
+
+export type MoveQuote =
+  | { ok: true; upgrade: false }
+  | {
+      ok: true;
+      upgrade: true;
+      toTierId: string;
+      toTierName: string;
+      /** What the seat costs over what was paid, major units. Always > 0 here. */
+      differenceMajor: number;
+    }
+  | { ok: false; reason: 'no-ticket' | 'not-yours' | 'not-live' | 'wrong-tier' | 'downgrade' | 'unavailable'; error: string };
+
+/**
+ * What moving this ticket to that seat would mean, priced from the stored event.
+ *
+ * Three answers. Same tier: a free move, exactly as before. A dearer tier: an upgrade,
+ * costing the difference between the target tier's price and what this ticket was
+ * actually bought for — not the tier's list price twice over, because the buyer already
+ * paid once. A cheaper tier stays a refund and a rebooking: paying money back through a
+ * seat-change dialog is where "I moved seats" and "where is my refund" become the same
+ * support ticket, and the two flows are kept apart on purpose.
+ */
+export async function quoteMove(ticketId: string, toSeat: string, actorId: string): Promise<MoveQuote> {
+  if (!isAdminConfigured()) return { ok: false, reason: 'unavailable', error: 'Seat changes are unavailable.' };
+
+  const seat = toSeat.trim().toUpperCase();
+  const db = getAdminDb();
+
+  try {
+    const snap = await db.collection('tickets').doc(ticketId).get();
+    if (!snap.exists) return { ok: false, reason: 'no-ticket', error: 'That ticket no longer exists.' };
+    const ticket = snap.data() as TicketShape & { price?: number };
+
+    if (ticket.userId !== actorId) {
+      return { ok: false, reason: 'not-yours', error: 'That ticket is not yours to move.' };
+    }
+    if (ticket.status !== 'valid') {
+      return { ok: false, reason: 'not-live', error: 'That ticket can no longer move.' };
+    }
+
+    const eventSnap = await db.collection('events').doc(ticket.eventId).get();
+    const event = eventSnap.data() ?? {};
+    const sections = (event.seating ?? []) as SeatingSection[];
+    const target = sections.find(
+      (section) => section.tierId && seatBelongsToTier([section], section.tierId, seat)
+    );
+    if (!target?.tierId) {
+      return { ok: false, reason: 'wrong-tier', error: `${seat} is not a sellable seat.` };
+    }
+
+    if (target.tierId === ticket.tierId) return { ok: true, upgrade: false };
+
+    const tiers = (event.ticketTiers ?? []) as Array<{ id: string; name: string; price: number }>;
+    const toTier = tiers.find((tier) => tier.id === target.tierId);
+    if (!toTier) return { ok: false, reason: 'wrong-tier', error: 'That seat is not on sale.' };
+
+    const difference = Math.round((toTier.price - (ticket.price ?? 0)) * 100) / 100;
+    if (difference <= 0) {
+      return {
+        ok: false,
+        reason: 'downgrade',
+        error:
+          'That seat is on a cheaper ticket type. Moving down is a refund and a new booking — contact the organiser.',
+      };
+    }
+
+    return { ok: true, upgrade: true, toTierId: toTier.id, toTierName: toTier.name, differenceMajor: difference };
+  } catch (error) {
+    reportError(error, { scope: 'seats.quote', ticketId, seat });
+    return { ok: false, reason: 'unavailable', error: 'Could not price that move.' };
+  }
+}
+
+/**
+ * Land a paid upgrade, exactly once.
+ *
+ * Runs from the Stripe webhook after the difference was paid. Idempotent by the Stripe
+ * event id — `create` on `upgrade_events` refuses a replay before anything else is
+ * read — and everything moves in one transaction: the ticket's seat, tier and price;
+ * the old tier's `sold` down and the new tier's up, so both inventories stay the
+ * numbers the dashboard trusts; the checkout hold consumed and its seat lock released,
+ * because the ticket itself is what makes the seat taken from here on.
+ *
+ * If the seat was somehow lost between payment and here — the hold expired and someone
+ * bought it — the money has been taken for a seat that cannot be granted, and that is
+ * recorded loudly for the operations queue rather than swallowed: the one outcome this
+ * function must never produce is a silent nothing after a successful charge.
+ */
+export async function applyPaidMove(input: {
+  providerEventId: string;
+  ticketId: string;
+  toSeat: string;
+  toTierId: string;
+  differenceMajor: number;
+  holdId?: string;
+}): Promise<{ ok: boolean; duplicate?: boolean; error?: string }> {
+  if (!isAdminConfigured()) return { ok: false, error: 'unavailable' };
+
+  const db = getAdminDb();
+  const seat = input.toSeat.trim().toUpperCase();
+
+  try {
+    return await db.runTransaction(async (tx) => {
+      const dedupeRef = db.collection('upgrade_events').doc(input.providerEventId);
+      const dedupe = await tx.get(dedupeRef);
+      if (dedupe.exists) return { ok: true, duplicate: true };
+
+      const ticketRef = db.collection('tickets').doc(input.ticketId);
+      const ticketSnap = await tx.get(ticketRef);
+      if (!ticketSnap.exists) throw new Error('ticket-missing');
+      const ticket = ticketSnap.data() as TicketShape & { price?: number; tierName?: string };
+
+      const eventRef = db.collection('events').doc(ticket.eventId);
+      const eventSnap = await tx.get(eventRef);
+      const event = eventSnap.data() ?? {};
+      const tiers = [...((event.ticketTiers ?? []) as Array<{ id: string; name: string; price: number; sold?: number; held?: number; quantity: number }>)];
+
+      const fromIndex = tiers.findIndex((tier) => tier.id === ticket.tierId);
+      const toIndex = tiers.findIndex((tier) => tier.id === input.toTierId);
+      if (toIndex < 0) throw new Error('tier-missing');
+
+      /* The seat, still free? The hold's lock should have protected it. */
+      const occupied = await tx.get(
+        db
+          .collection('tickets')
+          .where('eventId', '==', ticket.eventId)
+          .where('seat', '==', seat)
+          .where('status', 'in', ['valid', 'redeemed'])
+          .limit(1)
+      );
+      if (!occupied.empty && occupied.docs[0].id !== input.ticketId) throw new Error('seat-lost');
+
+      if (fromIndex >= 0) {
+        tiers[fromIndex] = { ...tiers[fromIndex], sold: Math.max(0, (tiers[fromIndex].sold ?? 0) - 1) };
+      }
+      tiers[toIndex] = {
+        ...tiers[toIndex],
+        sold: (tiers[toIndex].sold ?? 0) + 1,
+        ...(input.holdId ? { held: Math.max(0, (tiers[toIndex].held ?? 0) - 1) } : {}),
+      };
+      tx.update(eventRef, { ticketTiers: tiers });
+
+      if (input.holdId) {
+        tx.delete(db.collection('checkout_holds').doc(input.holdId));
+      }
+      // The hold's lock goes; the updated ticket is the seat's owner now.
+      tx.delete(db.collection(SEAT_LOCKS).doc(seatLockId(ticket.eventId, seat)));
+
+      tx.update(ticketRef, {
+        seat,
+        tierId: input.toTierId,
+        tierName: tiers[toIndex].name,
+        price: Math.round(((ticket.price ?? 0) + input.differenceMajor) * 100) / 100,
+        upgradedAt: new Date().toISOString(),
+      });
+
+      tx.create(dedupeRef, {
+        ticketId: input.ticketId,
+        toSeat: seat,
+        toTierId: input.toTierId,
+        differenceMajor: input.differenceMajor,
+        at: new Date().toISOString(),
+      });
+
+      return { ok: true };
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'failed';
+    // Paid money with no seat to grant is a P1 the operations queue must see.
+    reportError(error, {
+      scope: 'seats.upgrade',
+      ticketId: input.ticketId,
+      seat,
+      providerEventId: input.providerEventId,
+      paid: input.differenceMajor,
+    });
+    return { ok: false, error: message };
+  }
+}

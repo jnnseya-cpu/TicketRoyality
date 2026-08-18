@@ -17,6 +17,7 @@ import {
 import { useToast } from '@/frontend/hooks/use-toast';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { getEventById } from '@/shared/data/repositories';
+import { formatCurrency } from '@/shared/utils';
 import type { SeatingSection, Ticket } from '@/shared/types';
 
 /**
@@ -40,6 +41,39 @@ export function ChangeSeat({ ticket }: { ticket: Ticket }) {
   const [sections, setSections] = React.useState<SeatingSection[] | null>(null);
   const [chosen, setChosen] = React.useState<string[]>([]);
   const [saving, setSaving] = React.useState(false);
+  /*
+   * docs/24 §14 — a move into a dearer tier is a purchase. The buyer picks the tier
+   * they want to sit in; a seat outside their own tier gets a server quote (difference
+   * plus the service fee on it), and the button says the price before anything happens.
+   */
+  const [targetTierId, setTargetTierId] = React.useState(ticket.tierId ?? '');
+  const [quote, setQuote] = React.useState<{
+    totalMinor: number;
+    toTierName: string;
+  } | null>(null);
+
+  React.useEffect(() => {
+    setQuote(null);
+    const seat = chosen[0];
+    if (!seat || targetTierId === ticket.tierId) return;
+    let cancelled = false;
+    void authedFetch('/api/tickets/seat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'quote', ticketId: ticket.id, seat }),
+    })
+      .then((r) => r.json())
+      .then((data: { upgrade?: boolean; totalMinor?: number; toTierName?: string; error?: string }) => {
+        if (cancelled) return;
+        if (data.upgrade && data.totalMinor) {
+          setQuote({ totalMinor: data.totalMinor, toTierName: data.toTierName ?? '' });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [chosen, targetTierId, ticket.id, ticket.tierId]);
 
   React.useEffect(() => {
     if (!open || sections) return;
@@ -58,15 +92,26 @@ export function ChangeSeat({ ticket }: { ticket: Ticket }) {
 
     setSaving(true);
     try {
+      const upgrading = targetTierId !== ticket.tierId;
       const response = await authedFetch('/api/tickets/seat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'move', ticketId: ticket.id, seat }),
+        body: JSON.stringify({
+          action: upgrading ? 'upgrade' : 'move',
+          ticketId: ticket.id,
+          seat,
+        }),
       });
-      const data = (await response.json()) as { error?: string; seat?: string };
+      const data = (await response.json()) as { error?: string; seat?: string; url?: string };
 
       if (!response.ok) {
         toast({ variant: 'destructive', title: 'Seat not changed', description: data.error });
+        return;
+      }
+
+      if (upgrading && data.url) {
+        // The seat is held; the move lands after the payment, from the webhook.
+        window.location.assign(data.url);
         return;
       }
 
@@ -104,8 +149,9 @@ export function ChangeSeat({ ticket }: { ticket: Ticket }) {
         <DialogHeader>
           <DialogTitle>Change your seat</DialogTitle>
           <DialogDescription>
-            You are in {ticket.seat}. Pick anything free on your ticket type — {ticket.tierName}.
-            Moving to a different ticket type is a refund and a new booking, not a seat change.
+            You are in {ticket.seat}. A seat on your own ticket type — {ticket.tierName} — is a
+            free move. A seat on a better type shows the price difference before you decide;
+            moving to a cheaper type is a refund and a new booking.
           </DialogDescription>
         </DialogHeader>
 
@@ -118,20 +164,57 @@ export function ChangeSeat({ ticket }: { ticket: Ticket }) {
             This event does not have a seat map.
           </p>
         ) : (
-          <SeatPicker
-            eventId={ticket.eventId}
-            sections={sections}
-            tierId={ticket.tierId}
-            quantity={1}
-            selected={chosen}
-            onChange={setChosen}
-          />
+          <>
+            {(() => {
+              const tierIds = [...new Set(sections.map((s) => s.tierId).filter(Boolean))] as string[];
+              if (tierIds.length <= 1) return null;
+              return (
+                <div className="flex flex-wrap gap-2">
+                  {tierIds.map((id) => {
+                    const name = sections.find((s) => s.tierId === id)?.name ?? id;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => {
+                          setTargetTierId(id);
+                          setChosen([]);
+                        }}
+                        className={
+                          id === targetTierId
+                            ? 'rounded-full border border-primary bg-primary/10 px-3 py-1 text-xs text-primary'
+                            : 'rounded-full border border-border px-3 py-1 text-xs text-muted-foreground'
+                        }
+                      >
+                        {name}
+                        {id === ticket.tierId ? ' (yours)' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            <SeatPicker
+              eventId={ticket.eventId}
+              sections={sections}
+              tierId={targetTierId || ticket.tierId!}
+              quantity={1}
+              selected={chosen}
+              onChange={setChosen}
+            />
+          </>
         )}
 
         <DialogFooter>
           <Button variant="royal" disabled={!chosen[0] || saving} onClick={() => void save()}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {chosen[0] ? `Move to ${chosen[0]}` : 'Choose a seat'}
+            {!chosen[0]
+              ? 'Choose a seat'
+              : targetTierId !== ticket.tierId
+                ? quote
+                  ? `Upgrade to ${chosen[0]} — pay ${formatCurrency(quote.totalMinor / 100, ticket.currency)}`
+                  : `Checking price for ${chosen[0]}…`
+                : `Move to ${chosen[0]}`}
           </Button>
         </DialogFooter>
       </DialogContent>

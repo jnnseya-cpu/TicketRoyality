@@ -7,6 +7,7 @@ import {
   readSubscription,
   verifyWebhook,
 } from '@/backend/payments/stripe';
+import { applyPaidMove } from '@/backend/services/seat-swap';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { recordBookingPayment } from '@/backend/services/hospitality';
 import { recordAttribution } from '@/backend/services/partners';
@@ -222,6 +223,31 @@ export async function POST(request: Request) {
          * whole thing is idempotent per fixture and a redelivery creates nothing. The
          * tickets come out of the issuance that already exists — there is still only one.
          */
+        /*
+         * A paid seat upgrade — docs/24 §14. The difference was charged; the move lands
+         * here, idempotent by the Stripe event id, in one transaction covering the
+         * ticket, both tiers' counters, the hold and the seat lock. A failure after a
+         * successful charge is reported loudly, never swallowed: money with no seat is
+         * the operations queue's most urgent kind of row.
+         */
+        if (checkout.upgradeTicketId && checkout.upgradeToSeat && checkout.upgradeToTierId) {
+          const moved = await applyPaidMove({
+            providerEventId: event.id,
+            ticketId: checkout.upgradeTicketId,
+            toSeat: checkout.upgradeToSeat,
+            toTierId: checkout.upgradeToTierId,
+            differenceMajor: checkout.upgradeDiff,
+            holdId: checkout.holdId,
+          });
+
+          if (!moved.ok) {
+            // 500 → Stripe redelivers; a transient race gets another chance before a
+            // human has to look.
+            return NextResponse.json({ error: moved.error ?? 'upgrade_failed' }, { status: 500 });
+          }
+          return NextResponse.json({ received: true, upgraded: !moved.duplicate });
+        }
+
         if (checkout.passId) {
           const settled = await settlePassPurchase({
             providerEventId: event.id,

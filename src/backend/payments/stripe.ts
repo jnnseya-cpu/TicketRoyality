@@ -169,6 +169,11 @@ export function readCheckoutSession(session: Stripe.Checkout.Session) {
     tierId: session.metadata?.tierId || undefined,
     quantity: Number(session.metadata?.quantity ?? 1),
     holdId: session.metadata?.holdId || undefined,
+    /** Set when this payment buys a seat upgrade rather than tickets — docs/24 §14. */
+    upgradeTicketId: session.metadata?.upgradeTicketId || undefined,
+    upgradeToSeat: session.metadata?.upgradeToSeat || undefined,
+    upgradeToTierId: session.metadata?.upgradeToTierId || undefined,
+    upgradeDiff: Number(session.metadata?.upgradeDiff ?? 0),
     /**
      * The attendee-type breakdown, JSON in metadata because Stripe metadata is strings.
      * Parsed defensively: malformed metadata degrades to a single-price order rather
