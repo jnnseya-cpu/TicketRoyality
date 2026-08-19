@@ -53,32 +53,32 @@ const SEGMENTS = [
     name: 'Stadiums & arenas',
     need: 'Tiered inventory, fast entry, one revenue picture',
     detail:
-      'Price the ground in tiers — general, premium, VIP — each with its own capacity, and let issuance enforce it: a tier cannot be oversold even under a simultaneous rush. Define doors within the ground that admit only the tiers you assign to them, each with its own limit and its own re-entry rule, and sell hospitality tables as inventory alongside the tickets.',
-    next: 'Sellout upgrades are opt-in per event: a buyer whose tier sells out mid-checkout is moved to the next tier up at the price they chose. An already-issued ticket upgrades too — general admission straight from the ticket, paying only the difference; seated tickets by choosing a seat in the dearer section. Moving down remains a refund, deliberately.',
+      'Price the ground in tiers — general, premium, VIP — each with its own capacity, and let issuance enforce it: a tier cannot be oversold even under a simultaneous rush. Define doors within the ground that admit only the tiers you assign to them, each with its own limit and its own re-entry rule, and sell hospitality tables as inventory alongside the tickets. Sellout upgrades are opt-in per event: a buyer whose tier sells out mid-checkout moves to the next tier up at the price they chose, and an already-issued ticket upgrades too — general admission straight from the ticket, seated by choosing a dearer seat, paying only the difference. Moving down stays a refund, deliberately.',
+    next: null,
   },
   {
     icon: Tent,
     name: 'Festivals',
     need: 'Multi-day passes, capacity you cannot exceed',
     detail:
-      'Sell a day pass and a full-weekend pass as separate tiers of one event, each capped independently. Capacity holds under load because tickets are issued in a Firestore transaction, not checked and then written. Arenas, camping and backstage can each be their own zone, capped separately and counted live as people come and go. Bind wristbands to tickets and admit on the band with any reader that types a tag \u2014 no app, no driver.',
-    next: 'Arrival curves are measured from your own past door scans; there is no cross-event prediction. Wristbands work with any reader that types a tag \u2014 we do not integrate a specific manufacturer\u2019s API.',
+      'Sell a day pass and a full-weekend pass as separate tiers of one event, each capped independently. Capacity holds under load because tickets are issued in a Firestore transaction, not checked and then written. Arenas, camping and backstage can each be their own zone, capped separately and counted live as people come and go. Bind wristbands to tickets and admit on the band with any reader that types a tag \u2014 or with the steward\u2019s own phone over NFC, no reader at all. Your next event\u2019s arrival curve is predicted from the door scans of your past ones, each weighted equally, and real scans replace the prediction the moment doors open.',
+    next: 'Wristbands read with any keyboard-wedge reader or the steward\u2019s own phone over NFC; a specific manufacturer\u2019s cloud API is still not integrated \u2014 that would be a new vendor, and it is a decision, not a default.',
   },
   {
     icon: Music,
     name: 'Concert promoters',
     need: 'Tiered pricing, coupons, commission you can see',
     detail:
-      'Run early-bird, general and VIP from one event, each with its own sales window so the early-bird closes exactly when you said it would, discount with coupon codes, and keep 100% of every ticket value — we charge organisers no commission at all. Buyers pay one service fee, shown inside the advertised price.',
-    next: 'Multi-party settlement is not built — a promoter\u2019s commission is recorded as owed and you pay them directly. Give a promoter a tracked link with an allocation and their sales, clicks and commission are counted for you.',
+      'Run early-bird, general and VIP from one event, each with its own sales window so the early-bird closes exactly when you said it would, discount with coupon codes, and keep 100% of every ticket value — we charge organisers no commission at all. Buyers pay one service fee, shown inside the advertised price. Give a promoter a tracked link with an allocation and their sales, clicks and commission are counted for you.',
+    next: 'Multi-party settlement is not built — a promoter\u2019s commission is recorded as owed and you pay them directly.',
   },
   {
     icon: Trophy,
     name: 'Sports clubs',
     need: 'Recurring fixtures without rebuilding them',
     detail:
-      'Set a fixture to repeat weekly or monthly to an end date rather than creating each one by hand, with tiers and pricing carried across. Scan entry at the turnstile from any phone. Sell a season pass covering the whole run \u2014 it issues a real ticket for every fixture, so each one still counts its own capacity \u2014 and open a presale to people who have actually been before, checked against their attendance with you when the card is charged.',
-    next: 'Automatic seat renewal between seasons is not built. A whole pass transfers in one link — every remaining fixture moves together, and fixtures already attended stay in the sender\u2019s history.',
+      'Set a fixture to repeat weekly or monthly to an end date rather than creating each one by hand, with tiers and pricing carried across. Scan entry at the turnstile from any phone. Sell a season pass covering the whole run \u2014 it issues a real ticket for every fixture, so each one still counts its own capacity \u2014 and open a presale to people who have actually been before, checked against their attendance with you when the card is charged. A whole pass transfers in one link — every remaining fixture moves together, and fixtures already attended stay in the sender\u2019s history.',
+    next: 'Automatic seat renewal between seasons is not built.',
   },
   {
     icon: Presentation,
@@ -101,8 +101,8 @@ const SEGMENTS = [
     name: 'Theatres',
     need: 'Sections, rows and repeat performances',
     detail:
-      'Define colour-coded sections and point them at a ticket type, and buyers choose their own seats — held while they pay, so two people cannot take F12. Rooms that are not rectangles are shaped row by row: rows of different lengths, a gangway partway along, a missing seat where a pillar is, numbering that does not start at 1. Or press best available and be seated together — a party is never split without being told, and never seated either side of a gangway. People can move seats after buying, within the ticket type they paid for. Tag restricted-view seats out of sale and hold accessible seats back for booking with you directly.',
-    next: 'The room is shaped as rows with a live preview, not a canvas where individual seats are dragged around a floor plan. Moving to a dearer seat after purchase is a priced upgrade — you pay the difference and the seat moves; moving to a cheaper one is still a refund and a rebooking.',
+      'Define colour-coded sections and point them at a ticket type, and buyers choose their own seats — held while they pay, so two people cannot take F12. Rooms that are not rectangles are shaped row by row: rows of different lengths, a gangway partway along, a missing seat where a pillar is, numbering that does not start at 1. Or press best available and be seated together — a party is never split without being told, and never seated either side of a gangway. People can move seats after buying, within the ticket type they paid for. Tag restricted-view seats out of sale and hold accessible seats back for booking with you directly. Moving to a dearer seat after purchase is a priced upgrade — you pay the difference and the seat moves; moving down stays a refund, deliberately.',
+    next: 'The room is shaped as rows with a live preview, not a canvas where individual seats are dragged around a floor plan.',
   },
   {
     icon: Church,
@@ -117,8 +117,8 @@ const SEGMENTS = [
     name: 'Charity & fundraising',
     need: 'Priced giving tiers, fees you can point at',
     detail:
-      'Name your tiers after what they fund and price them accordingly, or let the donor name the amount above a minimum you set. Add a donation ask to any event — we charge no fee at all on a gift — and claim Gift Aid on it with the declaration captured at checkout and HMRC’s schedule exported as a spreadsheet. Gift Aid is applied to the donation only and never to a ticket, which is the rule that costs charities their whole claim when software gets it wrong. We take no commission, so every penny of face value reaches the cause and you can tell a donor exactly that. Corporate tables sell whole, with a deposit up front, the balance due on a date you set, and named guests with their dietary and access needs. Free places cost nobody anything.',
-    next: 'Auction settlement is by proxy: every bid is a private maximum, the room sees only the least that currently wins, and the price streams live as the hammer moves.',
+      'Name your tiers after what they fund and price them accordingly, or let the donor name the amount above a minimum you set. Add a donation ask to any event — we charge no fee at all on a gift — and claim Gift Aid on it with the declaration captured at checkout and HMRC’s schedule exported as a spreadsheet. Gift Aid is applied to the donation only and never to a ticket, which is the rule that costs charities their whole claim when software gets it wrong. We take no commission, so every penny of face value reaches the cause and you can tell a donor exactly that. Corporate tables sell whole, with a deposit up front, the balance due on a date you set, and named guests with their dietary and access needs. Free places cost nobody anything. Auction lots settle by proxy: every bid is a private maximum, the room sees only the least that currently wins, and the price streams live as the hammer moves.',
+    next: null,
   },
   {
     icon: Building2,

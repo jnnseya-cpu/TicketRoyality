@@ -532,6 +532,27 @@ seated tickets keep upgrading by choosing a seat (ChangeSeat, unchanged). Emulat
 28/28 incl. quote-over-paid-price, stranger/downgrade/seated refusals, sold-out
 refusal before money, land-once + replay no-op. Industries copy updated to match.
 
+### Emptying the "Not yet" column — truth pass + slice 1 (arrivals, NFC)
+
+The industries page's "Not yet" column carried several sentences describing things
+that are BUILT (auction proxy settlement, sellout + issued-ticket upgrades, whole-pass
+transfer, promoter tracked links, offline both-times reporting) — moved into each
+card's `detail`, where built capability belongs; only genuine gaps remain under "Not
+yet". Cancelled events also stopped wearing a "Live" badge on the organiser dashboard
+(status now outranks the date).
+
+Built in the same pass, both vendor-free:
+- **Cross-event arrival prediction** — `predictedArrival()` in shared/analytics:
+  each past event normalised to shares before averaging (a 2,000-scan festival and a
+  60-scan club night teach the curve equally), events under 5 scans excluded, absent
+  buckets pull the average down. Shown on the analytics page for an upcoming event
+  with no scans yet, labelled with exactly how many past events it stands on; real
+  scans replace it the moment doors open. Tests 21/21.
+- **Web NFC wristbands** — the steward's Android phone reads the band directly
+  (`NDEFReader`), feeding the same server call the keyboard-wedge path uses; one
+  integration, two kinds of reader, no manufacturer API, no new vendor. Browsers
+  without Web NFC never see the button.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

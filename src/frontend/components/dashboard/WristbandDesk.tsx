@@ -4,6 +4,7 @@ import * as React from 'react';
 import { CheckCircle2, Link2, Loader2, Radio, XCircle } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
+import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import { Input } from '@/frontend/components/ui/input';
 import { Label } from '@/frontend/components/ui/label';
@@ -47,8 +48,51 @@ export function WristbandDesk({ eventId }: { eventId: string }) {
     return () => window.clearInterval(timer);
   }, [mode, reference, outcome]);
 
-  const submit = async () => {
-    if (!tag.trim()) return;
+  /*
+   * Web NFC — the steward's own Android phone as the reader (Chrome exposes
+   * `NDEFReader`). No manufacturer API, no driver, no new vendor: the tag's serial
+   * number feeds the exact same server call the keyboard-wedge path uses, so both
+   * kinds of reader are one integration. Unsupported browsers (iOS, desktops) simply
+   * never see the button; the text input remains the universal path.
+   */
+  type NdefReaderLike = {
+    scan: (options: { signal: AbortSignal }) => Promise<void>;
+    onreading: ((event: { serialNumber?: string }) => void) | null;
+  };
+  const nfcSupported =
+    typeof window !== 'undefined' &&
+    'NDEFReader' in (window as unknown as Record<string, unknown>);
+  const [nfcOn, setNfcOn] = React.useState(false);
+  const nfcAbort = React.useRef<AbortController | null>(null);
+
+  const toggleNfc = async () => {
+    if (nfcOn) {
+      nfcAbort.current?.abort();
+      nfcAbort.current = null;
+      setNfcOn(false);
+      return;
+    }
+    try {
+      const Reader = (window as unknown as { NDEFReader: new () => NdefReaderLike }).NDEFReader;
+      const reader = new Reader();
+      const abort = new AbortController();
+      await reader.scan({ signal: abort.signal });
+      reader.onreading = (event) => {
+        if (event.serialNumber) void submit(event.serialNumber);
+      };
+      nfcAbort.current = abort;
+      setNfcOn(true);
+    } catch {
+      // Permission refused or NFC off — the text input still works.
+      setNfcOn(false);
+    }
+  };
+
+  React.useEffect(() => () => nfcAbort.current?.abort(), []);
+
+  const submit = async (tagValue?: string) => {
+    const uid = (tagValue ?? tag).trim();
+    if (!uid) return;
     setBusy(true);
     try {
       const response = await authedFetch('/api/wristbands', {
@@ -57,7 +101,7 @@ export function WristbandDesk({ eventId }: { eventId: string }) {
         body: JSON.stringify({
           action: mode,
           eventId,
-          tagUid: tag,
+          tagUid: uid,
           ...(mode === 'bind' ? { reference } : {}),
         }),
       });
@@ -92,7 +136,7 @@ export function WristbandDesk({ eventId }: { eventId: string }) {
           <Radio className="h-4 w-4 text-primary" /> Wristbands &amp; tags
         </CardTitle>
         <CardDescription>
-          Works with any reader that types a tag and presses Enter — which is nearly all of them.
+          Works with any reader that types a tag and presses Enter — or with this phone itself, over NFC, no reader at all.
           Click the box, present a band, done. No driver and no app to install.
         </CardDescription>
       </CardHeader>
@@ -138,6 +182,18 @@ export function WristbandDesk({ eventId }: { eventId: string }) {
               }
             }}
           />
+          {nfcSupported && (
+            <Button
+              type="button"
+              variant={nfcOn ? 'secondary' : 'outline'}
+              size="sm"
+              className="w-full"
+              onClick={() => void toggleNfc()}
+            >
+              <Radio className="h-4 w-4" />
+              {nfcOn ? 'NFC listening — tap a band to this phone' : 'Scan with this phone (NFC)'}
+            </Button>
+          )}
         </div>
 
         {busy && (

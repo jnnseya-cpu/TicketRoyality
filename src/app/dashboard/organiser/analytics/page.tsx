@@ -37,6 +37,7 @@ import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { getEventsByOrganizer, getTicketsForOrganizer } from '@/shared/data/repositories';
 import {
   arrivalCurve,
+  predictedArrival,
   attendance,
   fanSummary,
   forecastSellOut,
@@ -127,6 +128,21 @@ function Analytics({ profile }: { profile: UserProfile }) {
   const door = attendance(scoped);
   const fans = fanSummary(tickets); // Always across everything — a fan is not per event.
   const curve = selected ? arrivalCurve(scoped, selected.date) : [];
+  /*
+   * Cross-event prediction, only where measurement has nothing to say: an upcoming
+   * event with no scans borrows the arrival behaviour of this organiser's past ones.
+   * The moment real scans exist they replace it — a measurement always beats an
+   * average of other rooms.
+   */
+  const upcoming = selected ? new Date(selected.date).getTime() > Date.now() : false;
+  const prediction =
+    selected && upcoming && curve.length === 0
+      ? predictedArrival(
+          events
+            .filter((e) => e.id !== selected.id && new Date(e.date).getTime() < Date.now())
+            .map((e) => ({ eventDate: e.date, tickets: tickets.filter((t) => t.eventId === e.id) }))
+        )
+      : { curve: [], eventsUsed: 0 };
   const bands = selected ? leadTimes(scoped, selected.date) : [];
   const capacity = selected
     ? (selected.capacity ?? selected.ticketTiers.reduce((sum, t) => sum + t.quantity, 0))
@@ -274,24 +290,40 @@ function Analytics({ profile }: { profile: UserProfile }) {
         </Panel>
 
         <Panel
-          title="When people arrived"
-          description="Measured from real door scans, in fifteen-minute buckets around the advertised start. This is the number that decides how many staff stand on a door."
+          title={prediction.eventsUsed > 0 ? 'When people will arrive' : 'When people arrived'}
+          description={
+            prediction.eventsUsed > 0
+              ? `Predicted from the door scans of ${prediction.eventsUsed} of your past event${prediction.eventsUsed === 1 ? '' : 's'} — each weighted equally, whatever its size. Real scans replace this the moment doors open.`
+              : 'Measured from real door scans, in fifteen-minute buckets around the advertised start. This is the number that decides how many staff stand on a door.'
+          }
           empty={
             !selected
               ? 'Choose an event to see its door.'
-              : curve.length === 0
-                ? 'Nobody has been scanned in yet.'
+              : curve.length === 0 && prediction.eventsUsed === 0
+                ? upcoming
+                  ? 'No scans yet, and no scanned past events to predict from.'
+                  : 'Nobody has been scanned in yet.'
                 : undefined
           }
         >
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={curve}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-30} height={60} textAnchor="end" />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Arrived']} />
-              <Bar dataKey="count" fill="#3B82F6" radius={[3, 3, 0, 0]} />
-            </BarChart>
+            {prediction.eventsUsed > 0 ? (
+              <BarChart data={prediction.curve}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-30} height={60} textAnchor="end" />
+                <YAxis tick={{ fontSize: 11 }} unit="%" />
+                <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [`${v}%`, 'Of your crowd']} />
+                <Bar dataKey="sharePct" fill="#E0A82E" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            ) : (
+              <BarChart data={curve}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-30} height={60} textAnchor="end" />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip contentStyle={{ fontSize: 12 }} formatter={(v: number) => [v, 'Arrived']} />
+                <Bar dataKey="count" fill="#3B82F6" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            )}
           </ResponsiveContainer>
         </Panel>
 

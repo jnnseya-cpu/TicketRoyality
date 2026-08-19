@@ -144,8 +144,18 @@ function OrganiserOverview({ profile }: { profile: UserProfile }) {
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="text-base">{event.title}</CardTitle>
-                      <Badge variant={isPast ? 'secondary' : 'success'}>
-                        {isPast ? 'Past' : 'Live'}
+                      {/* A cancelled event wearing a "Live" badge told an organiser
+                          their cancellation had not worked — status outranks the date. */}
+                      <Badge
+                        variant={
+                          event.status === 'cancelled'
+                            ? 'destructive'
+                            : isPast
+                              ? 'secondary'
+                              : 'success'
+                        }
+                      >
+                        {event.status === 'cancelled' ? 'Cancelled' : isPast ? 'Past' : 'Live'}
                       </Badge>
                     </div>
                     <CardDescription>{formatEventDate(event.date)}</CardDescription>

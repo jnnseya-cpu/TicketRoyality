@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 
 import {
   arrivalCurve,
+  predictedArrival,
   attendance,
   fanSummary,
   forecastSellOut,
@@ -256,6 +257,46 @@ test('tier mix ranks by money, which is not the same order as by count', () => {
   assert.equal(mix[0].tierName, 'VIP');
   assert.equal(mix[0].gross, 200);
   assert.equal(mix[1].count, 2);
+});
+
+test('prediction weighs events equally, whatever their size', () => {
+  const at = (minutes: number) => new Date(new Date(EVENT_DATE).getTime() + minutes * 60_000).toISOString();
+  // A huge event arriving early and a small one arriving late must average to
+  // half-and-half — the small crowd's behaviour counts as much as the big one's.
+  const big = Array.from({ length: 100 }, () => ticket({ status: 'redeemed', redeemedAt: at(-30) }));
+  const small = Array.from({ length: 10 }, () => ticket({ status: 'redeemed', redeemedAt: at(30) }));
+  const { curve, eventsUsed } = predictedArrival([
+    { eventDate: EVENT_DATE, tickets: big },
+    { eventDate: EVENT_DATE, tickets: small },
+  ]);
+  assert.equal(eventsUsed, 2);
+  const early = curve.find((b) => b.offsetMinutes === -30);
+  const late = curve.find((b) => b.offsetMinutes === 30);
+  assert.equal(early?.sharePct, 50);
+  assert.equal(late?.sharePct, 50);
+});
+
+test('an event with too few scans teaches the prediction nothing', () => {
+  const at = (minutes: number) => new Date(new Date(EVENT_DATE).getTime() + minutes * 60_000).toISOString();
+  const tiny = [ticket({ status: 'redeemed', redeemedAt: at(-120) })];
+  const { curve, eventsUsed } = predictedArrival([{ eventDate: EVENT_DATE, tickets: tiny }]);
+  assert.equal(eventsUsed, 0);
+  assert.equal(curve.length, 0);
+});
+
+test('an absent bucket pulls the average down instead of being skipped', () => {
+  const at = (minutes: number) => new Date(new Date(EVENT_DATE).getTime() + minutes * 60_000).toISOString();
+  const punctual = Array.from({ length: 10 }, () => ticket({ status: 'redeemed', redeemedAt: at(0) }));
+  const straggling = Array.from({ length: 10 }, (_, i) =>
+    ticket({ status: 'redeemed', redeemedAt: at(i < 5 ? 0 : 60) })
+  );
+  const { curve } = predictedArrival([
+    { eventDate: EVENT_DATE, tickets: punctual },
+    { eventDate: EVENT_DATE, tickets: straggling },
+  ]);
+  // 60m-after: one event contributed 50%, the other 0% — the prediction says 25%,
+  // not 50%, because half the history had nobody arriving then at all.
+  assert.equal(curve.find((b) => b.offsetMinutes === 60)?.sharePct, 25);
 });
 
 const failed = results.filter(([, ok]) => !ok);

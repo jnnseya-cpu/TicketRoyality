@@ -182,6 +182,75 @@ export function arrivalCurve(tickets: Ticket[], eventDate: string, bucketMinutes
     }));
 }
 
+export interface PredictedBucket {
+  offsetMinutes: number;
+  label: string;
+  /** Share of the crowd expected in this bucket, 0–100. */
+  sharePct: number;
+}
+
+/**
+ * The arrival curve an organiser should staff their NEXT event for, learned from the
+ * door scans of their past ones.
+ *
+ * Cross-event, which is what `arrivalCurve` above deliberately is not: each past event
+ * is normalised to *shares* before averaging, so a 2,000-scan festival and a 60-scan
+ * club night teach the curve equally — the question is "when does this organiser's
+ * crowd arrive", not "which of their events was biggest". Events with fewer than
+ * `minScans` redemptions are excluded: three people cannot describe a curve, and
+ * including them would let one early-arriving family bend the staffing plan.
+ *
+ * Still not a model — it is an average of measured behaviour, and `eventsUsed` is
+ * returned so the page can say exactly how much history the prediction stands on.
+ */
+export function predictedArrival(
+  pastEvents: Array<{ eventDate: string; tickets: Ticket[] }>,
+  bucketMinutes = 15,
+  minScans = 5
+): { curve: PredictedBucket[]; eventsUsed: number } {
+  const shares = new Map<number, number[]>();
+  let eventsUsed = 0;
+
+  for (const past of pastEvents) {
+    const start = new Date(past.eventDate).getTime();
+    const redeemed = past.tickets.filter((t) => t.status === 'redeemed' && t.redeemedAt);
+    if (redeemed.length < minScans || Number.isNaN(start)) continue;
+    eventsUsed += 1;
+
+    const counts = new Map<number, number>();
+    for (const ticket of redeemed) {
+      const offset = (new Date(ticket.redeemedAt!).getTime() - start) / 60_000;
+      const bucket = Math.floor(offset / bucketMinutes) * bucketMinutes;
+      counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
+    }
+    for (const [bucket, count] of counts) {
+      const list = shares.get(bucket) ?? [];
+      list.push((count / redeemed.length) * 100);
+      shares.set(bucket, list);
+    }
+  }
+
+  if (eventsUsed === 0) return { curve: [], eventsUsed: 0 };
+
+  const curve = [...shares.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([offsetMinutes, list]) => ({
+      offsetMinutes,
+      label:
+        offsetMinutes === 0
+          ? 'Doors'
+          : offsetMinutes < 0
+            ? `${Math.abs(offsetMinutes)}m before`
+            : `${offsetMinutes}m after`,
+      // Averaged over the events that USED the bucket contributing their share and the
+      // rest contributing zero — an event nobody scanned at 90m-after must pull that
+      // bucket down, or one late-running event dominates the tail.
+      sharePct: Math.round((list.reduce((sum, v) => sum + v, 0) / eventsUsed) * 10) / 10,
+    }));
+
+  return { curve, eventsUsed };
+}
+
 export interface Attendance {
   sold: number;
   admitted: number;
