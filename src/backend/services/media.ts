@@ -97,19 +97,60 @@ export async function deleteMedia(id: string, organizerId: string): Promise<Dele
     const item = doc.data() as MediaItem;
     if (item.organizerId !== organizerId) return { ok: false, reason: 'not-yours' };
 
-    const events = await db
-      .collection('events')
-      .where('organizerId', '==', organizerId)
-      .where('imageUrl', '==', item.url)
-      .limit(10)
-      .get();
+    /*
+     * Who is using this image — as the event picture or as the cover.
+     *
+     * Only a LIVE event blocks deletion: published and not yet over, because that is
+     * the page actively selling tickets that must never lose its hero. A cancelled or
+     * past event holding a picture hostage was the live-testing complaint ("picture of
+     * deleted or previous events cannot be deleted? why") — those pages still exist,
+     * so instead of breaking them the reference is rewritten to the generated
+     * placeholder and the deletion proceeds.
+     */
+    const [byImage, byCover] = await Promise.all([
+      db
+        .collection('events')
+        .where('organizerId', '==', organizerId)
+        .where('imageUrl', '==', item.url)
+        .limit(10)
+        .get(),
+      db
+        .collection('events')
+        .where('organizerId', '==', organizerId)
+        .where('coverImageUrl', '==', item.url)
+        .limit(10)
+        .get(),
+    ]);
 
-    if (!events.empty) {
+    const users = new Map(
+      [...byImage.docs, ...byCover.docs].map((d) => [d.id, d] as const)
+    );
+    const now = Date.now();
+    const live = [...users.values()].filter((d) => {
+      const data = d.data();
+      const over = new Date(String(data.endDate ?? data.date ?? '')).getTime() < now;
+      return data.status === 'published' && !over;
+    });
+
+    if (live.length > 0) {
       return {
         ok: false,
         reason: 'in-use',
-        usedBy: events.docs.map((d) => String(d.data().title ?? 'Untitled event')),
+        usedBy: live.map((d) => String(d.data().title ?? 'Untitled event')),
       };
+    }
+
+    // Dead events release their claim: picture falls back to the generated
+    // placeholder, cover falls back to the picture. Their pages keep rendering.
+    const { eventImageSeed } = await import('@/shared/constants/placeholder-images');
+    for (const doc2 of users.values()) {
+      const data = doc2.data();
+      const patch: Record<string, string> = {};
+      if (data.imageUrl === item.url) {
+        patch.imageUrl = eventImageSeed(String(data.title ?? doc2.id));
+      }
+      if (data.coverImageUrl === item.url) patch.coverImageUrl = '';
+      await doc2.ref.update(patch);
     }
 
     /*

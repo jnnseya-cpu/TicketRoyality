@@ -553,6 +553,17 @@ Built in the same pass, both vendor-free:
   integration, two kinds of reader, no manufacturer API, no new vendor. Browsers
   without Web NFC never see the button.
 
+### Media library: dead events no longer hold pictures hostage (live testing)
+
+"Picture of deleted or previous events cannot be deleted? why" — the in-use guard
+counted every event equally, so a cancelled event blocked its image's deletion
+forever. Now only a LIVE event (published and not yet over) blocks — that is the page
+actively selling tickets that must never lose its hero. Cancelled and past events
+release their claim: their picture reference is rewritten to the generated
+placeholder (cover falls back to the picture) before the file goes, so their pages
+keep rendering. The guard also now covers `coverImageUrl`, which it never checked.
+Media tests 12/12.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

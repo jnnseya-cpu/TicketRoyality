@@ -138,7 +138,7 @@ async function run() {
     // out when a customer mentions it.
     await seed();
     const id = await upload(ORG);
-    await db.collection('events').add({ organizerId: ORG, imageUrl: URL, title: 'Warehouse' });
+    await db.collection('events').add({ organizerId: ORG, imageUrl: URL, status: 'published', date: '2030-01-01T19:00:00.000Z', title: 'Warehouse' });
 
     const result = await media.deleteMedia(id!, ORG);
     assert.equal(result.ok, false);
@@ -148,14 +148,44 @@ async function run() {
   await test('the refusal names the events, because that is what the organiser must change', async () => {
     await seed();
     const id = await upload(ORG);
-    await db.collection('events').add({ organizerId: ORG, imageUrl: URL, title: 'Warehouse' });
-    await db.collection('events').add({ organizerId: ORG, imageUrl: URL, title: 'Rooftop' });
+    await db.collection('events').add({ organizerId: ORG, imageUrl: URL, title: 'Warehouse', status: 'published', date: '2030-01-01T19:00:00.000Z' });
+    await db.collection('events').add({ organizerId: ORG, imageUrl: URL, title: 'Rooftop', status: 'published', date: '2030-01-01T19:00:00.000Z' });
 
     const result = await media.deleteMedia(id!, ORG);
     assert.equal(result.ok, false);
     if (!result.ok) {
       assert.deepEqual([...(result.usedBy ?? [])].sort(), ['Rooftop', 'Warehouse']);
     }
+  });
+
+  await test('a cancelled event does not hold a picture hostage — its reference is rewritten', async () => {
+    await seed();
+    const id = await upload(ORG);
+    const dead = await db.collection('events').add({
+      organizerId: ORG, imageUrl: URL, coverImageUrl: URL, title: 'Cancelled Gala',
+      status: 'cancelled', date: '2030-01-01T19:00:00.000Z',
+    });
+
+    const result = await media.deleteMedia(id!, ORG);
+    // The emulator has no Storage bucket, so the file step reports unavailable — the
+    // assertion that matters is that a dead event never blocks as in-use, and that
+    // its references were rewritten before the file was touched.
+    if (!result.ok) assert.notEqual(result.reason, 'in-use');
+
+    const after = (await dead.get()).data()!;
+    assert.notEqual(after.imageUrl, URL, 'the dead event must fall back to a placeholder');
+    assert.equal(after.coverImageUrl, '', 'the cover falls back to the picture');
+  });
+
+  await test('a past event does not block either — its page keeps a placeholder', async () => {
+    await seed();
+    const id = await upload(ORG);
+    await db.collection('events').add({
+      organizerId: ORG, imageUrl: URL, title: 'Last Year',
+      status: 'published', date: '2020-01-01T19:00:00.000Z',
+    });
+    const result = await media.deleteMedia(id!, ORG);
+    if (!result.ok) assert.notEqual(result.reason, 'in-use');
   });
 
   await test("another organiser's event holding the same URL does not block the delete", async () => {
