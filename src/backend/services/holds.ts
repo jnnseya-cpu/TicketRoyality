@@ -373,3 +373,39 @@ export async function expireHolds(now = new Date(), limit = 200): Promise<number
     return 0;
   }
 }
+
+/**
+ * Marks basket order documents abandoned once their checkout is clearly dead.
+ *
+ * A `cart_orders` document is written before the buyer reaches the payment page and
+ * consumed by the webhook when they pay. One whose status is still `pending` a day
+ * later is a checkout that never finished: its holds expired within minutes (above),
+ * so no inventory is stuck — this sweep is bookkeeping, keeping the operations view
+ * honest about which orders actually happened. Marked rather than deleted, because a
+ * late-arriving webhook must still find its lines.
+ */
+export async function expireStaleCartOrders(now = new Date(), limit = 100): Promise<number> {
+  if (!isAdminConfigured()) return 0;
+
+  const cutoff = new Date(now.getTime() - 24 * 3_600_000).toISOString();
+  try {
+    const snap = await getAdminDb()
+      .collection('cart_orders')
+      .where('status', '==', 'pending')
+      .limit(limit)
+      .get();
+
+    let marked = 0;
+    for (const doc of snap.docs) {
+      const createdAt = doc.data().createdAt as string | undefined;
+      if (createdAt && createdAt < cutoff) {
+        await doc.ref.update({ status: 'abandoned', abandonedAt: now.toISOString() });
+        marked += 1;
+      }
+    }
+    return marked;
+  } catch (error) {
+    reportError(error, { scope: 'holds.cartOrders' });
+    return 0;
+  }
+}

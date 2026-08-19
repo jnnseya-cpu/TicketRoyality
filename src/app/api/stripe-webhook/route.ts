@@ -504,6 +504,20 @@ export async function POST(request: Request) {
           // One seat per ticket, in order. Issuance already writes these; without them a
           // seated event issues tickets with no seat on them.
           ...(checkout.seats.length > 0 ? { seats: checkout.seats } : {}),
+          // §16: the quote this order was made under, persisted so accounting never
+          // recomputes history from a later config. Absent on pre-snapshot sessions.
+          ...(checkout.pricingVersion > 0
+            ? {
+                feeSnapshot: {
+                  pricingVersion: checkout.pricingVersion,
+                  feeConfigVersion: checkout.feeConfigVersion,
+                  faceMinor: checkout.faceMinor,
+                  serviceFeeMinor: checkout.serviceFeeMinor,
+                  buyerTotalMinor: checkout.buyerTotalMinor,
+                  organiserPayoutMinor: checkout.organiserPayoutMinor,
+                },
+              }
+            : {}),
         });
 
         if (outcome === 'unavailable') {

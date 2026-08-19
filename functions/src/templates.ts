@@ -56,12 +56,23 @@ export interface TicketEmail {
   html: string;
 }
 
-export function ticketIssuedEmail(tickets: TicketDoc[], siteUrl: string): TicketEmail {
+export function ticketIssuedEmail(
+  tickets: TicketDoc[],
+  siteUrl: string,
+  /**
+   * The all-in figures from the payment's fee snapshot, major units. When present the
+   * email itemises face value + service fee + total paid, so the receipt in the inbox
+   * agrees with the total the checkout showed and the card was charged. Absent for
+   * payments recorded before the snapshot existed, which show face value only.
+   */
+  fee?: { serviceFee: number; totalPaid: number }
+): TicketEmail {
   const first = tickets[0];
   const plural = tickets.length > 1;
   const subject = `Your ticket${plural ? 's' : ''} for ${first.eventTitle}`;
   const walletUrl = `${siteUrl.replace(/\/$/, '')}/dashboard/customer/wallet`;
   const total = tickets.reduce((sum, t) => sum + t.price, 0);
+  const totalPaid = fee ? fee.totalPaid : total;
 
   const lines = tickets.map(
     (t) => `  ${t.reference}  ${t.tierName}${t.seat ? `  Seat ${t.seat}` : ''}`
@@ -76,7 +87,13 @@ export function ticketIssuedEmail(tickets: TicketDoc[], siteUrl: string): Ticket
     `Ticket reference${plural ? 's' : ''}:`,
     ...lines,
     '',
-    `Total paid: ${formatMoney(total, first.currency)}`,
+    ...(fee
+      ? [
+          `Ticket value: ${formatMoney(total, first.currency)}`,
+          `Service fee: ${formatMoney(fee.serviceFee, first.currency)}`,
+        ]
+      : []),
+    `Total paid: ${formatMoney(totalPaid, first.currency)}`,
     '',
     `Show the QR code from your account at the door:`,
     walletUrl,
@@ -119,9 +136,17 @@ export function ticketIssuedEmail(tickets: TicketDoc[], siteUrl: string): Ticket
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 ${rows}
+                ${
+                  fee
+                    ? `<tr>
+                  <td style="padding:10px 0 0;font-size:14px;color:#666;">Service fee</td>
+                  <td align="right" style="padding:10px 0 0;font-size:14px;color:#666;">${escapeHtml(formatMoney(fee.serviceFee, first.currency))}</td>
+                </tr>`
+                    : ''
+                }
                 <tr>
                   <td style="padding:12px 0;font-size:15px;font-weight:bold;">Total paid</td>
-                  <td align="right" style="padding:12px 0;font-size:15px;font-weight:bold;">${escapeHtml(formatMoney(total, first.currency))}</td>
+                  <td align="right" style="padding:12px 0;font-size:15px;font-weight:bold;">${escapeHtml(formatMoney(totalPaid, first.currency))}</td>
                 </tr>
               </table>
 

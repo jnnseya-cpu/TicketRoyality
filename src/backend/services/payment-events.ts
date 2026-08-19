@@ -50,6 +50,23 @@ export interface RecordPaymentEvent {
   refundsRef?: string;
   /** The checkout hold this payment consumes, so issuance can release it atomically. */
   holdId?: string;
+
+  /**
+   * §16: the order keeps the pricing it was quoted under, FOREVER. The quote already
+   * travelled in the provider's metadata; persisting it here is what stops the
+   * unit-economics console recomputing historical orders from whatever the fee config
+   * says later — the exact thing the brief forbids for accounting. Absent on refunds
+   * and on events recorded before this field existed; consumers must treat absence as
+   * "not quoted", never as zero.
+   */
+  feeSnapshot?: {
+    pricingVersion: number;
+    feeConfigVersion: string;
+    faceMinor: number;
+    serviceFeeMinor: number;
+    buyerTotalMinor: number;
+    organiserPayoutMinor?: number;
+  };
 }
 
 export type RecordOutcome = 'recorded' | 'duplicate' | 'unavailable';

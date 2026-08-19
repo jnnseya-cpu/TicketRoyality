@@ -20,6 +20,7 @@ import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
 import { RichText } from '@/frontend/components/common/RichText';
 import { SimilarEvents } from '@/frontend/components/events/SimilarEvents';
 import { TicketBox } from '@/frontend/components/events/TicketBox';
+import { SeasonPassOffer } from '@/frontend/components/events/SeasonPassOffer';
 import { AuctionLots } from '@/frontend/components/giving/AuctionLots';
 import { GiftRegistry } from '@/frontend/components/giving/GiftRegistry';
 import { getEvents, getEventById } from '@/shared/data/repositories';
@@ -361,6 +362,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               )}
               <TicketBox event={event} />
             </>
+          )}
+
+          {/* Renders nothing unless a season pass covers this fixture. */}
+          {!cancelled && (
+            <SeasonPassOffer
+              eventId={event.id}
+              organizerId={event.organizerId}
+              currency={event.currency}
+            />
           )}
 
           <Card className="bg-card/50">

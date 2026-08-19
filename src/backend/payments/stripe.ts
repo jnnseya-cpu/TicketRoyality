@@ -254,6 +254,15 @@ export function readCheckoutSession(session: Stripe.Checkout.Session) {
      * our fee is not what anybody agreed to.
      */
     faceMinor: Number(session.metadata?.faceMinor ?? 0),
+    /**
+     * The full quote as it stood at checkout (§16) — parsed so issuance can persist
+     * it. `pricingVersion: 0` marks a session from before the metadata carried one.
+     */
+    pricingVersion: Number(session.metadata?.pricingVersion ?? 0),
+    feeConfigVersion: session.metadata?.feeConfigVersion || '',
+    serviceFeeMinor: Number(session.metadata?.serviceFeeMinor ?? 0),
+    buyerTotalMinor: Number(session.metadata?.buyerTotalMinor ?? 0),
+    organiserPayoutMinor: Number(session.metadata?.organiserPayoutMinor ?? 0),
     /** Chosen seats, in the order the tickets should carry them. */
     seats: (session.metadata?.seats || '')
       .split(',')

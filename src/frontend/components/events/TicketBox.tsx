@@ -304,6 +304,8 @@ export function TicketBox({ event }: { event: Event }) {
           tierId: tier.id,
           quantity: effectiveQuantity,
           seats: orderedSeats,
+          // A one-off gift rides mobile money too; only MONTHLY gifts are card-only.
+          donationMinor,
           ...(hasTypes
             ? {
                 mix: mixEntries.map((entry) => ({
@@ -600,7 +602,10 @@ export function TicketBox({ event }: { event: Event }) {
                   <span className="font-medium tabular-nums">{seat}</span>
                   <div className="flex items-center gap-2">
                     <select
-                      className="h-8 rounded-md border border-border bg-background px-2 text-sm"
+                      // 16px on mobile or the browser zooms the whole page in on focus
+                      // and STAYS zoomed — the "everything is cut off on my phone"
+                      // report, twice. Same rule as components/ui/input.tsx.
+                      className="h-9 rounded-md border border-border bg-background px-2 text-base md:h-8 md:text-sm"
                       value={typeId}
                       aria-label={`Ticket type for seat ${seat}`}
                       onChange={(event) => {
@@ -981,14 +986,15 @@ export function TicketBox({ event }: { event: Event }) {
             </form>
 
             {/*
-              A donation rides on the Stripe session only. The other rails would charge
-              the ticket total and drop the gift, so the buyer would pay less than the
-              total they were just shown and the charity would never see the money. Better
-              to say so than to take a payment that quietly disagrees with the page.
+              A one-off gift rides Stripe AND mobile money now — the KODA intent carries
+              it and the webhook records it with no platform fee, mirroring the card
+              rail. Bitripay alone would drop it, so that button stays disabled with a
+              gift aboard. Only a MONTHLY gift is card-by-nature (no pull payments on
+              mobile money).
             */}
-            {donationMinor > 0 && (
+            {donationMinor > 0 && methods.bitripay && (
               <p className="text-center text-xs text-muted-foreground">
-                Donations are card-only for now. Remove the donation to pay another way.
+                Bitripay cannot carry the donation — pay by card or mobile money.
               </p>
             )}
 
@@ -1016,9 +1022,7 @@ export function TicketBox({ event }: { event: Event }) {
               correct must not exist: KODA (USD/CDF, the merchant's real enrolled
               numbers, verified codes) or no mobile money at all.
             */}
-            {userProfile &&
-            donationMinor === 0 &&
-            ['USD', 'CDF'].includes(event.currency?.toUpperCase() ?? '') ? (
+            {userProfile && ['USD', 'CDF'].includes(event.currency?.toUpperCase() ?? '') ? (
               methods.koda ? (
                 <Button
                   variant="outline"

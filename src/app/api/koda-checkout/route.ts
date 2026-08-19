@@ -45,6 +45,9 @@ export async function POST(request: Request) {
     seats?: string[];
     mix?: Array<{ typeId?: unknown; quantity?: unknown }>;
     accessCode?: string;
+    /** A one-off gift riding the order, minor units. Recorded by the webhook with
+        no platform fee, exactly as the Stripe rail treats it. */
+    donationMinor?: number;
   };
   try {
     body = await request.json();
@@ -107,6 +110,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Free tickets are claimed, not paid.' }, { status: 400 });
   }
 
+  /*
+   * The gift, added AFTER the quote so it carries no platform fee — the same order of
+   * operations as the card rail, for the same reason: charging a percentage of a
+   * donation is indefensible. Only a one-off gift rides here; a MONTHLY gift is a
+   * card subscription by nature (KODA has no pull payment) and stays on Stripe.
+   */
+  const donationMinor = Math.max(0, Math.round(Number(body.donationMinor ?? 0)));
+  const organiserId = (eventSnap.data() as { organizerId?: string } | undefined)?.organizerId ?? '';
+
   const seats = (body.seats ?? []).map((seat) => String(seat).trim().toUpperCase()).filter(Boolean);
   if (seats.length > 0 && seats.length !== quantity) {
     return NextResponse.json({ error: 'Choose one seat for each ticket.' }, { status: 400 });
@@ -126,7 +138,7 @@ export async function POST(request: Request) {
       {
         // KODA charges CDF in whole francs, not centimes — see toKodaAmount. Sending
         // our minor units raw asked a live buyer for 100× the displayed price.
-        amount: toKodaAmount(currency, quote.buyerTotalMinor),
+        amount: toKodaAmount(currency, quote.buyerTotalMinor + donationMinor),
         currency,
         operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
         successUrl: `${siteUrl}/checkout/success?provider=mobile-money`,
@@ -141,6 +153,10 @@ export async function POST(request: Request) {
           holdId: hold.holdId,
           seats: seats.join(','),
           ...(mixEntries.length > 0 ? { mix: JSON.stringify(mixEntries) } : {}),
+          // The gift, kept apart from the ticket money all the way to the record.
+          ...(donationMinor > 0 && organiserId
+            ? { donationMinor: String(donationMinor), donationOrganiserId: organiserId }
+            : {}),
           // §16: the order keeps the pricing it was quoted under, forever.
           pricingVersion: String(quote.pricingVersion),
           feeConfigVersion: quote.configVersion,

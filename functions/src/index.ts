@@ -315,7 +315,28 @@ export const onTicketsIssued = onDocumentCreated(
       return;
     }
 
-    const email = ticketIssuedEmail(tickets, siteUrl());
+    /*
+     * The fee snapshot lives on the payment document under the same id as this
+     * marker. When present the email itemises face + fee + total paid, so the inbox
+     * receipt agrees with what the checkout showed. Best-effort: an unreadable
+     * payment doc costs the itemisation, never the ticket.
+     */
+    let fee: { serviceFee: number; totalPaid: number } | undefined;
+    try {
+      const payment = (
+        await firestore.collection('payment_events').doc(event.params.providerEventId).get()
+      ).data() as PaymentEventDoc | undefined;
+      if (payment?.feeSnapshot && payment.feeSnapshot.buyerTotalMinor > 0) {
+        fee = {
+          serviceFee: payment.feeSnapshot.serviceFeeMinor / 100,
+          totalPaid: payment.feeSnapshot.buyerTotalMinor / 100,
+        };
+      }
+    } catch {
+      // Face value only — the historical behaviour.
+    }
+
+    const email = ticketIssuedEmail(tickets, siteUrl(), fee);
     const outcome = await send({ to: recipient, ...email });
 
     if (outcome.status === 'failed') {

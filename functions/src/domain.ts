@@ -139,6 +139,20 @@ export interface PaymentEventDoc {
   ticketIds?: string[];
   /** The checkout hold this payment consumes, if one was placed. */
   holdId?: string;
+  /**
+   * The fee quote this order was made under (§16), persisted by the webhook so
+   * accounting never recomputes history from a later config — and so the ticket
+   * email can show the all-in total the buyer actually paid, not just face value.
+   * Absent on refunds and on payments recorded before the field existed.
+   */
+  feeSnapshot?: {
+    pricingVersion: number;
+    feeConfigVersion: string;
+    faceMinor: number;
+    serviceFeeMinor: number;
+    buyerTotalMinor: number;
+    organiserPayoutMinor?: number;
+  };
 }
 
 /** Mirrors `VenueZone` in `src/shared/types`. See `qr-contract.ts` on why it is restated. */

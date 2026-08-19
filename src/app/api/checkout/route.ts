@@ -713,6 +713,57 @@ export async function POST(request: Request) {
     }
   }
 
+  /*
+   * A season pass by mobile money. Availability was already proven across every
+   * fixture above; the KODA webhook settles the purchase through the same
+   * `settlePassPurchase` the Stripe webhook uses. The CD mobile-money quote carries
+   * the service fee and the 2% rail charge, so the amount asked for is the amount
+   * every USD/CDF page advertises.
+   */
+  if (String(form.get('rail') ?? '') === 'momo' && form.get('passId') && claimables.length === 0) {
+    if (currency !== 'USD' && currency !== 'CDF') {
+      return fail(`Mobile money supports USD and CDF, not ${currency}`);
+    }
+    if (!isKodaConfigured()) return fail('Mobile money is temporarily unavailable');
+
+    try {
+      const buyerId = String(form.get('userId') ?? '');
+      const buyer = (
+        await getAdminDb().collection('users').doc(buyerId).get()
+      ).data() as { fullName?: string; email?: string } | undefined;
+
+      const momoQuote = computeOrderFees(
+        lines.map((line) => ({ faceMinor: toMinor(line.amount), qty: line.quantity })),
+        { rail: 'bitripay_momo', countryCode: 'CD' }
+      );
+
+      const passIdValue = String(form.get('passId'));
+      const intent = await createIntent(
+        {
+          amount: toKodaAmount(currency as 'USD' | 'CDF', momoQuote.buyerTotalMinor),
+          currency: currency as 'USD' | 'CDF',
+          operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
+          successUrl: `${siteUrl}/checkout/success?provider=mobile-money`,
+          metadata: {
+            passId: passIdValue,
+            userId: buyerId,
+            attendeeName: buyer?.fullName ?? 'Pass holder',
+            attendeeEmail: buyer?.email ?? '',
+            pricingVersion: String(momoQuote.pricingVersion),
+            feeConfigVersion: momoQuote.configVersion,
+            faceMinor: String(momoQuote.faceMinor),
+            serviceFeeMinor: String(momoQuote.serviceFeeMinor),
+            buyerTotalMinor: String(momoQuote.buyerTotalMinor),
+          },
+        },
+        `pass_${passIdValue}_${buyerId}_${crypto.randomUUID()}`
+      );
+      return NextResponse.redirect(intent.checkout_url, { status: 303 });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : 'Mobile money is unavailable');
+    }
+  }
+
   if (!isStripeConfigured()) {
     if (holdId) await releaseHold(holdId, 'abandoned');
     return fail('Stripe is not configured');

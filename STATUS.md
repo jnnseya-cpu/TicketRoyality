@@ -133,26 +133,26 @@ is precisely what caused the confusion this file exists to end.
 | Gap | Consequence if you launch without it | Spec |
 | --- | --- | --- |
 | **International cards lose money above ~£166** | Not a bug — an arithmetic consequence of the published rate, found by modelling the full cost stack. Net of VAT the fee earns 3.99 ÷ 1.2 = **3.325%** of face; an international card costs 3.25% of face **plus fee** = **3.38%** of face. The 49p fixed component covers the gap on small tickets and is exhausted around £166, going permanently negative from about £193. It bites exactly where §26 says the percentage is meant to earn — VIP, hospitality, premium. The fee cannot be varied by payment method (that is a surcharge), so the levers are a negotiated international rate, routing, or a higher headline percentage. Pinned by test. | `shared/fees.test.ts` |
-| **Per-order pricing snapshot** | The quote is written into the Stripe session metadata (`pricingVersion`, `faceMinor`, `serviceFeeMinor`, `buyerTotalMinor`, `organiserPayoutMinor`) but **not yet persisted to a Firestore document on issuance**. Until it is, the unit-economics console recomputes historical orders from today's config, which is exactly what the brief forbids for accounting. The console says so on its own face. | `api/checkout`, `services/profitability.ts` |
-| **Ticket delivery email shows face value** | The issuance email is built in `functions/`, a separate package that cannot import `shared/fees.ts`. It still itemises face value only. Not a pricing error — the buyer already paid the all-in total and Stripe's receipt itemises the fee — but the two should agree. | `functions/src/templates.ts` |
+| **Per-order pricing snapshot** | **CLOSED 19 Aug (audit).** Both webhooks now persist `feeSnapshot` (pricingVersion, config version, face, fee, buyer total, payout) onto `payment_events` from the provider metadata. Remaining half: `services/profitability.ts` still recomputes PRE-snapshot orders from today's config and should prefer the snapshot where present. | `api/stripe-webhook`, `webhooks/koda` |
+| **Ticket delivery email shows face value** | **CLOSED 19 Aug (audit), pending functions deploy.** The issuance email reads the payment's `feeSnapshot` and itemises ticket value + service fee + total paid; pre-snapshot payments keep the face-only rendering. Live after the next `firebase deploy --only functions`. | `functions/src/templates.ts` |
 | **Stripe API itself, unexercised** | The loop is proven from "a signed webhook has been verified and recorded" onward. Creating a checkout session, Stripe signing the webhook, and money actually moving all happen on Stripe's side and cannot be simulated here. **One test-mode purchase against the live Stripe API is still required before real money moves**, and only someone with the keys and network access can run it. | `api/checkout`, `api/stripe-webhook` |
-| Comms **callers** — the rest | The revenue-critical three are wired (refund processed, issuance failed/oversold, organiser approved/declined). Payouts, event changes, cancellations and waitlists still complete without telling anyone. | `docs/04` M10 |
+| Comms **callers** — the rest | Refunds, issuance failures, organiser decisions AND event cancellations now dispatch (`event.cancelled` is mandatory in `services/cancellation.ts`). Payouts (no payout system exists) and waitlists (not built) remain silent because the features they would announce do not exist. | `docs/04` M10 |
 | **Push delivery (FCM)** | Still not wired, and still records `suppressed` with the reason rather than claiming a queue. In-app now delivers, so an FCM outage is no longer total silence. | `docs/04` M10 |
 
 
 
 
-| Ticket recommendations | Nothing renders on the ticket | `docs/04` M3a |
+| Ticket recommendations | **CLOSED 18 Aug.** The printed ticket splits the page and fills the second half with three behaviour-based picks; the modal suggests from purchase history. | `TicketModal.tsx` |
 | **App Check enforcement (B6, remaining half)** | Still not enforced, and it is the half that matters: login throttling raises the cost of credential stuffing **through our form**, but a script calling Firebase Auth directly never touches it. App Check enforces at the Firebase service itself. **Blocked on a reCAPTCHA Enterprise site key from the Google Cloud console** — same project, no new vendor, but it cannot be created from here. Until it exists, do not describe the platform as protected against automated account attacks. | `shared/security/appcheck.ts` |
 
-| Organiser profile `get` rule | `firestore.rules` allows **anyone** to read a full organiser `users` document by uid — including email, phone, address and date of birth. The public pages no longer expose it, but the rule still permits a direct SDK read. Should be narrowed to a public projection or a separate collection. | `firestore.rules` |
+| Organiser profile `get` rule | **CLOSED.** `users` get is `isSelf || isSuperuser`, list is superuser-only; the directory and sitemap read through the Admin-SDK projection. The rules file documents the closure. | `firestore.rules` |
 | Sentinel telemetry | `sentinel.ts` reads no real signal | `docs/03` §3.6 |
 | Atomic ACU ledger (**D2**) | Ledger entry and balance are not written in one transaction | `docs/13` D2 |
 | Venue map generation | Only a preview component exists | `docs/04` M23 |
 | Waitlist | Defined in the comms catalogue, no implementation | `docs/04` M6 |
 | SMS / WhatsApp delivery | **Blocked, not pending.** No approved provider exists inside the vendor list (`CLAUDE.md` §1). The channels are declared in the catalogue; `dispatch()` records and sends nothing. | `docs/04` M10 |
-| Error tracking | Not wired. Google Cloud Error Reporting is available in-project; Sentry would be a new vendor. | `docs/21` |
-| Google Maps key | No key is set, so event pages fall back to a text address panel instead of a map. Not a new vendor — the same Google Cloud project. Needs an HTTP-referrer restriction before it goes in, or the key can be lifted and billed to this project. | `docs/07` |
+| Error tracking | **CLOSED.** `backend/observability/report-error.ts` emits the structured `ReportedErrorEvent` shape Google Cloud Error Reporting groups and alerts on, with credential scrubbing; wired through the payment webhooks, checkout and services. | `docs/21` |
+| Google Maps key | **CLOSED.** `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is declared in `apphosting.yaml` (event map + browse map), `GOOGLE_MAPS_SERVER_KEY` powers geocoding. Keys live in the console, referrer/API-restricted. | `docs/07` |
 
 
 ## 18 August 2026 — first live test day, and what it changed
@@ -770,6 +770,69 @@ until removed.
 Verified: typecheck, lint, production build. Not testable here: live KODA intents and
 webhook round-trips — conversions and branches mirror the tested Stripe paths and the
 pure unit rules.
+
+### 19 August (late) — the deep audit: ten days re-read, the forgotten list cleared or named
+
+A full pass over 139 commits, every conversation promise, every "Not built" row and
+every TODO. What it closed in code, in this commit:
+
+- **One-off donations ride mobile money.** The KODA intent carries the gift (added
+  after the quote, no platform fee), the webhook records it separately and subtracts
+  it from the per-ticket price so a refund can never return gift money as ticket
+  money. Only the monthly gift stays card-only — a subscription needs a pull payment
+  mobile money does not have.
+- **Season passes finally have a public buy surface.** The selling machinery existed
+  end-to-end and nothing linked to it. `SeasonPassOffer` renders on every covered
+  fixture's page — card AND mobile money (`rail=momo` fork in checkout; the KODA
+  webhook settles through the same `settlePassPurchase`).
+- **§16 pricing snapshot persisted** and **the ticket email itemises the all-in
+  total** — the two oldest "Not built" money rows (details in the table above).
+- **The mobile "everything is cut off" report, root-caused with a browser.** The
+  standalone build was served and probed headless at phone width: no page is wider
+  than the viewport (scrollWidth 412 at 412 on every route) — the screenshots show
+  the page ZOOMED, the same focus-zoom class as before. The one remaining sub-16px
+  focusable — the seat-type dropdown in "Who sits where" — is now 16px on mobile.
+  If a phone is already stuck zoomed: pinch out once; new focuses will not re-zoom.
+- Housekeeping: stale `cart_orders` marked abandoned by the sweep after 24h;
+  `test:cart-metadata` joined `npm test`; six stale "Not built" rows corrected above
+  (recommendations, error tracking, users-rule, maps, comms callers, plus the two
+  money rows).
+
+What remains, honestly, in three buckets:
+
+**Needs the owner, not code** — cannot be done from this repository:
+1. Change the exposed test password on info@produbuzz.com (flagged since day one).
+2. `firebase deploy --only functions` (picks up the itemised email + fee snapshot
+   reads) and `--only firestore:rules` if not yet re-deployed.
+3. On the KODA VPS: `cd /root/koda/app && git pull && docker compose up -d --build`
+   (the currency migration commit 8e6f671 must be live before CDF/USD volume).
+4. Stripe dashboard: enable Bacs Direct Debit (standing orders line) and Stripe
+   Connect (real multi-party promoter payouts). Both are dashboard toggles + KYC,
+   not code; the code work starts when they exist.
+5. reCAPTCHA Enterprise site key from the Google Cloud console (App Check
+   enforcement, B6's second half).
+6. One test-mode Stripe purchase and one small live KODA purchase after the next
+   rollout — the two loops nobody but the key-holder can close.
+
+**Designed, not built — the honest next build queue, in order of asked-for-ness:**
+1. Waitlist (M6): join on sold-out tier, sweep offers freed stock through the
+   catalogue's existing `waitlist.offer` key. Self-contained; nothing blocks it.
+2. Automatic seat renewal between seasons (`renewsPassId` + holder-first window).
+3. Speaker portals (profile/schedule self-service — buildable; the single-viewer
+   stream gate stays vendor-blocked).
+4. Offline cross-door awareness (stream admissions into the offline cache while
+   connectivity lasts).
+5. Canvas seat builder (docs/23 phase 3) — the largest remaining piece.
+6. Profitability console reading `feeSnapshot` for historical orders.
+
+**Vendor-blocked by CLAUDE.md §1 — decisions, not defaults:** SMS/WhatsApp delivery,
+streaming provider (single-viewer gate), wristband manufacturer cloud APIs, retailer
+registry integration, SSO/IdP directory sync. Each stays specified in `docs/` and
+truthfully absent on `/industries`.
+
+Verified: app typecheck, functions build, lint, production build, `test:delivery`
+10/10 (exercises the new email), `test:fees` 37/37, headless viewport probe on five
+routes.
 
 ### 19 August — mobile money: the telecom 2% is already charged on top (verified, no change)
 

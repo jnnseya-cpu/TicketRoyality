@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { isAuthorisedCron } from '@/shared/cron';
-import { clearConsumedSeatLocks, expireHolds } from '@/backend/services/holds';
+import { clearConsumedSeatLocks, expireHolds, expireStaleCartOrders } from '@/backend/services/holds';
 import { expireLapsedBookings } from '@/backend/services/hospitality';
 import { purgeSpentAttestations } from '@/backend/security/attestation';
 import { closeDueLots } from '@/backend/services/auctions';
@@ -74,6 +74,9 @@ export async function GET(request: Request) {
    */
   const placementsExpired = (await expirePlacements()).expired;
 
+  /* Basket order documents whose checkout died — bookkeeping, no inventory involved. */
+  const cartOrdersAbandoned = await expireStaleCartOrders();
+
   return NextResponse.json(
     {
       released,
@@ -83,6 +86,7 @@ export async function GET(request: Request) {
       lotsClosed,
       webhooks,
       placementsExpired,
+      cartOrdersAbandoned,
       implemented: true,
     },
     { headers: { 'Cache-Control': 'no-store' } }

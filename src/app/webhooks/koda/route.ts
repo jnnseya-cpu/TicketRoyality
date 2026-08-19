@@ -6,6 +6,8 @@ import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { activatePlacement } from '@/backend/services/promotions';
 import { recordBookingPayment } from '@/backend/services/hospitality';
 import { recordContribution } from '@/backend/services/registry';
+import { recordDonation } from '@/backend/services/donations';
+import { settlePassPurchase } from '@/backend/services/season-passes';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,6 +52,17 @@ interface KodaMetadata {
   /** Set when the intent is a gift-registry contribution. */
   registryItemId?: string;
   registryMessage?: string;
+  /** A one-off gift riding a ticket order — recorded separately, no platform fee. */
+  donationMinor?: string;
+  donationOrganiserId?: string;
+  /** Set when the intent buys a season pass — settles into every covered fixture. */
+  passId?: string;
+  /** §16 quote fields, set at intent creation and persisted onto the payment event. */
+  pricingVersion?: string;
+  feeConfigVersion?: string;
+  faceMinor?: string;
+  serviceFeeMinor?: string;
+  buyerTotalMinor?: string;
 }
 
 export async function POST(request: Request) {
@@ -110,6 +123,27 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'datastore_unavailable' }, { status: 503 });
         }
         return NextResponse.json({ received: true, placement: activated });
+      }
+
+      /*
+       * A season pass over mobile money — settles into one ticket per covered
+       * fixture through the same `settlePassPurchase` the Stripe rail uses,
+       * idempotent per fixture by ids derived from this payment.
+       */
+      if (providerEventId && meta.passId) {
+        const settled = await settlePassPurchase({
+          providerEventId,
+          passId: meta.passId,
+          userId: meta.userId ?? '',
+          attendeeName: meta.attendeeName ?? 'Pass holder',
+          attendeeEmail: meta.attendeeEmail ?? '',
+          providerRef: data.intent_id,
+        });
+        if (!settled.ok && settled.reason === 'unavailable') {
+          // 5xx so KODA retries: a paid pass with no tickets is the worst outcome.
+          return NextResponse.json({ error: 'datastore_unavailable' }, { status: 503 });
+        }
+        return NextResponse.json({ received: true, pass: settled.ok ? settled.issued : 0 });
       }
 
       /*
@@ -268,6 +302,33 @@ export async function POST(request: Request) {
 
       const quantity = Math.max(1, Number(meta.quantity ?? 1));
 
+      /*
+       * A gift riding the order — recorded first and independently, exactly as the
+       * Stripe webhook does it: a donation that fails to record must never cost
+       * anyone their tickets, so this reports and carries on.
+       */
+      const donationMinor = Math.max(0, Math.round(Number(meta.donationMinor ?? 0)));
+      if (donationMinor > 0 && meta.donationOrganiserId && providerEventId) {
+        try {
+          await recordDonation({
+            providerEventId: `${providerEventId}__gift`,
+            organizerId: meta.donationOrganiserId,
+            eventId: meta.eventId,
+            userId: meta.userId,
+            donorName: meta.attendeeName ?? 'Anonymous',
+            donorEmail: meta.attendeeEmail ?? '',
+            amountMinor: donationMinor,
+            currency: (data.currency ?? 'USD').toUpperCase(),
+            providerRef: data.intent_id,
+          });
+        } catch (error) {
+          console.error('[koda] donation not recorded', {
+            providerEventId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
       // Carried from the intent we created; tolerated when absent because older
       // intents (and any manual KODA dashboard test) never set them.
       const seats = (meta.seats ?? '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -294,8 +355,15 @@ export async function POST(request: Request) {
           // (see fromKodaAmount) — and the amount is the total, not a unit price.
           // Both conversions have to happen, and forgetting either produces a ticket
           // priced 100x wrong; the raw /100 that stood here did exactly that for CDF.
+          // A gift riding the order is subtracted first: it is not ticket money, and
+          // a refund must never return it as if it were.
           price: data.amount
-            ? fromKodaAmount(data.currency ?? 'CDF', data.amount) / 100 / quantity
+            ? Math.max(
+                0,
+                fromKodaAmount(data.currency ?? 'CDF', data.amount) - donationMinor
+              ) /
+              100 /
+              quantity
             : 0,
           currency: (data.currency ?? 'CDF').toUpperCase(),
           attendeeName: meta.attendeeName ?? 'Ticket holder',
@@ -304,6 +372,18 @@ export async function POST(request: Request) {
           ...(seats.length > 0 ? { seats } : {}),
           ...(meta.holdId ? { holdId: meta.holdId } : {}),
           ...(mix && mix.length > 0 ? { mix } : {}),
+          // §16: the quote this order was made under, persisted for accounting.
+          ...(Number(meta.pricingVersion ?? 0) > 0
+            ? {
+                feeSnapshot: {
+                  pricingVersion: Number(meta.pricingVersion),
+                  feeConfigVersion: meta.feeConfigVersion ?? '',
+                  faceMinor: Number(meta.faceMinor ?? 0),
+                  serviceFeeMinor: Number(meta.serviceFeeMinor ?? 0),
+                  buyerTotalMinor: Number(meta.buyerTotalMinor ?? 0),
+                },
+              }
+            : {}),
         });
 
         if (outcome === 'unavailable') {
