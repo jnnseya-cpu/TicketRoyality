@@ -199,11 +199,20 @@ export function TicketBox({ event }: { event: Event }) {
   const lineTotal = hasTypes
     ? mixEntries.reduce((sum, entry) => sum + entry.type.price * entry.count, 0)
     : unitPrice * quantity;
-  // One engine, so this total and the server's charge cannot disagree.
+  /*
+   * One engine, so this total and the server's charge cannot disagree — and on a
+   * USD/CDF event the quote is the CONGOLESE config at the mobile-money rail, which
+   * carries the 2% operator surcharge. The advertised price always contains the worst
+   * rail (see allInTicketPriceMinor's doctrine): paying by card can come out cheaper
+   * than the figure shown, never dearer. Without this the page showed the card total
+   * and KODA then asked for 2% more, live.
+   */
+  const isMomoCurrency = ['USD', 'CDF'].includes(event.currency?.toUpperCase() ?? '');
   const quote = computeOrderFees(
     hasTypes
       ? mixEntries.map((entry) => ({ faceMinor: toMinor(entry.type.price), qty: entry.count }))
-      : [{ faceMinor: toMinor(unitPrice), qty: quantity }]
+      : [{ faceMinor: toMinor(unitPrice), qty: quantity }],
+    isMomoCurrency ? { rail: 'bitripay_momo', countryCode: 'CD' } : undefined
   );
   // A rail with no credentials must not be offered — see use-payment-methods.
   const methods = usePaymentMethods();
@@ -362,6 +371,16 @@ export function TicketBox({ event }: { event: Event }) {
   const seatedSections = (event.seating ?? []).filter((s) => s.tierId === tier?.id);
   const isSeated = seatedSections.length > 0;
   const seatsChosen = selectedSeats.length === effectiveQuantity;
+
+  /*
+   * Seats the current selection would strand, reported by the picker with the same
+   * pure function the server enforces at hold time. While this is non-empty every
+   * buy button is DISABLED and says so — the refusal used to arrive only after
+   * tapping Pay, where it read as the payment rail being broken.
+   */
+  const [orphanSeats, setOrphanSeats] = React.useState<string[]>([]);
+  const orphanBlocked = isSeated && orphanSeats.length > 0;
+  const orphanLabel = `Leaves seat ${orphanSeats.join(', ')} stranded — adjust your seats`;
 
   /*
    * The one legitimate way to ask for more than the tier holds: the organiser opted
@@ -562,6 +581,7 @@ export function TicketBox({ event }: { event: Event }) {
             quantity={hasTypes ? Math.max(1, partyTarget) : effectiveQuantity}
             selected={selectedSeats}
             onChange={setSelectedSeats}
+            onOrphans={setOrphanSeats}
           />
         )}
 
@@ -800,6 +820,7 @@ export function TicketBox({ event }: { event: Event }) {
               !selectedWindow.onSale ||
               !loyaltyOk ||
               soldOut ||
+              orphanBlocked ||
               (isSeated && !seatsChosen) ||
               (hasTypes && effectiveQuantity === 0) ||
               Boolean(companionIssue)
@@ -808,11 +829,13 @@ export function TicketBox({ event }: { event: Event }) {
             <ShoppingCart className="h-4 w-4" />{' '}
             {soldOut
               ? 'Sold out'
-              : hasTypes && effectiveQuantity === 0
-                ? 'Choose your tickets above'
-                : isSeated && !seatsChosen
-                  ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'} to add`
-                  : 'Add to cart'}
+              : orphanBlocked
+                ? orphanLabel
+                : hasTypes && effectiveQuantity === 0
+                  ? 'Choose your tickets above'
+                  : isSeated && !seatsChosen
+                    ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'} to add`
+                    : 'Add to cart'}
           </Button>
         )}
 
@@ -870,13 +893,15 @@ export function TicketBox({ event }: { event: Event }) {
                 type="submit"
                 variant="royal"
                 className="w-full"
-                disabled={soldOut || (isSeated && !seatsChosen) || Boolean(companionIssue)}
+                disabled={soldOut || orphanBlocked || (isSeated && !seatsChosen) || Boolean(companionIssue)}
               >
                 {soldOut
                   ? 'Sold out'
-                  : isSeated && !seatsChosen
-                    ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
-                    : `Get ${effectiveQuantity} free ticket${effectiveQuantity === 1 ? '' : 's'}`}
+                  : orphanBlocked
+                    ? orphanLabel
+                    : isSeated && !seatsChosen
+                      ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
+                      : `Get ${effectiveQuantity} free ticket${effectiveQuantity === 1 ? '' : 's'}`}
               </Button>
             ) : (
               <p className="text-center text-sm text-muted-foreground">
@@ -939,17 +964,19 @@ export function TicketBox({ event }: { event: Event }) {
                 type="submit"
                 variant="outline"
                 className="w-full"
-                disabled={soldOut || (isSeated && !seatsChosen) || (hasTypes && effectiveQuantity === 0) || Boolean(companionIssue)}
+                disabled={soldOut || orphanBlocked || (isSeated && !seatsChosen) || (hasTypes && effectiveQuantity === 0) || Boolean(companionIssue)}
               >
                 <CreditCard className="h-4 w-4" />
                 {/* A disabled button must say why, or it reads as broken. */}
                 {soldOut
                   ? 'Sold out'
-                  : hasTypes && effectiveQuantity === 0
-                    ? 'Choose your tickets above'
-                    : isSeated && !seatsChosen
-                      ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
-                      : 'Pay with Stripe'}
+                  : orphanBlocked
+                    ? orphanLabel
+                    : hasTypes && effectiveQuantity === 0
+                      ? 'Choose your tickets above'
+                      : isSeated && !seatsChosen
+                        ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
+                        : 'Pay with Stripe'}
               </Button>
             </form>
 
@@ -999,6 +1026,7 @@ export function TicketBox({ event }: { event: Event }) {
                   onClick={handleKoda}
                   disabled={
                     soldOut ||
+                    orphanBlocked ||
                     kodaLoading ||
                     (isSeated && !seatsChosen) ||
                     (hasTypes && effectiveQuantity === 0) ||
@@ -1013,11 +1041,13 @@ export function TicketBox({ event }: { event: Event }) {
                   {/* Same explanations as the card button: silent disabled = "broken". */}
                   {soldOut
                     ? 'Sold out'
-                    : hasTypes && effectiveQuantity === 0
-                      ? 'Choose your tickets above'
-                      : isSeated && !seatsChosen
-                        ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
-                        : 'Pay with Mobile Money'}
+                    : orphanBlocked
+                      ? orphanLabel
+                      : hasTypes && effectiveQuantity === 0
+                        ? 'Choose your tickets above'
+                        : isSeated && !seatsChosen
+                          ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
+                          : 'Pay with Mobile Money'}
                 </Button>
               ) : (
                 <p className="text-center text-xs text-muted-foreground">

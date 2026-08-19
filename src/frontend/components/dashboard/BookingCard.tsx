@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { CalendarClock, CreditCard, Loader2, Trash2, Users } from 'lucide-react';
+import { CalendarClock, CreditCard, Loader2, Smartphone, Trash2, Users } from 'lucide-react';
 
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
@@ -10,6 +10,7 @@ import { Input } from '@/frontend/components/ui/input';
 import { Label } from '@/frontend/components/ui/label';
 import { Separator } from '@/frontend/components/ui/separator';
 import { useToast } from '@/frontend/hooks/use-toast';
+import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { toMajor } from '@/shared/fees';
 import { formatCurrency } from '@/shared/utils';
@@ -38,6 +39,7 @@ const STATUS_LABEL: Record<HospitalityBooking['status'], { text: string; tone: '
  */
 export function BookingCard({ booking, onChanged }: { booking: Booking; onChanged: () => void }) {
   const { toast } = useToast();
+  const methods = usePaymentMethods();
   const currency = booking.currency ?? 'GBP';
   const outstanding = Math.max(0, booking.totalMinor - booking.paidMinor);
   const dueNow = booking.paidMinor <= 0 ? booking.depositMinor : outstanding;
@@ -158,16 +160,28 @@ export function BookingCard({ booking, onChanged }: { booking: Booking; onChange
         )}
 
         {open && dueNow > 0 && (
-          // A plain form POST so the Stripe redirect stays inside the click gesture. The
+          // Plain form POSTs so the redirects stay inside the click gesture. The
           // amount is not posted — the server reads what is owed from the booking.
-          <form action="/api/hospitality/pay" method="POST">
-            <input type="hidden" name="bookingId" value={booking.id} />
-            <Button type="submit" variant="royal" className="w-full">
-              <CreditCard className="h-4 w-4" />
-              Pay {formatCurrency(toMajor(dueNow), currency)}
-              {booking.paidMinor <= 0 && dueNow < booking.totalMinor ? ' deposit' : ''}
-            </Button>
-          </form>
+          <div className="space-y-2">
+            <form action="/api/hospitality/pay" method="POST">
+              <input type="hidden" name="bookingId" value={booking.id} />
+              <Button type="submit" variant="royal" className="w-full">
+                <CreditCard className="h-4 w-4" />
+                Pay {formatCurrency(toMajor(dueNow), currency)}
+                {booking.paidMinor <= 0 && dueNow < booking.totalMinor ? ' deposit' : ''}
+              </Button>
+            </form>
+            {/* Mobile money for the corridor KODA serves — USD/CDF bookings only. */}
+            {methods.koda && ['USD', 'CDF'].includes(currency.toUpperCase()) && (
+              <form action="/api/hospitality/pay" method="POST">
+                <input type="hidden" name="bookingId" value={booking.id} />
+                <input type="hidden" name="rail" value="momo" />
+                <Button type="submit" variant="outline" className="w-full">
+                  <Smartphone className="h-4 w-4" /> Pay by Mobile Money
+                </Button>
+              </form>
+            )}
+          </div>
         )}
 
         {booking.status === 'deposit_paid' && (

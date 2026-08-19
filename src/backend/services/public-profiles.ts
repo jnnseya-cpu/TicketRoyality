@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
+import type { Event } from '@/shared/types';
 
 /**
  * The public view of an organiser.
@@ -68,6 +69,41 @@ export async function getPublicOrganisers(): Promise<PublicOrganiser[]> {
     return snapshot.docs.map((doc) => project(doc.id, doc.data()));
   } catch (error) {
     console.error('[public-profiles] organiser directory unavailable', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+}
+
+/**
+ * The organiser's PUBLIC events — published and publicly listed, nothing else.
+ *
+ * The profile page used to call the client-SDK repository from the server, which runs
+ * as an anonymous reader; the security rules refuse to list an organiser's drafts and
+ * cancelled events to anonymous (correctly), and that refusal threw — so the moment an
+ * organiser had any non-published event, their public page was "Application error: a
+ * server-side exception has occurred". The Admin SDK does the read here, and the
+ * public filter is applied in code: a public page has no business showing drafts,
+ * unlisted events or cancellations anyway.
+ *
+ * Never throws — an unreachable database yields an empty list, not a dead page.
+ */
+export async function getPublicOrganiserEvents(uid: string): Promise<Event[]> {
+  if (!isAdminConfigured()) return [];
+
+  try {
+    const snapshot = await getAdminDb()
+      .collection('events')
+      .where('organizerId', '==', uid)
+      .get();
+
+    return snapshot.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }) as Event)
+      .filter((event) => event.status === 'published' && event.listing !== 'unlisted')
+      .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+  } catch (error) {
+    console.error('[public-profiles] organiser events unavailable', {
+      uid,
       error: error instanceof Error ? error.message : String(error),
     });
     return [];

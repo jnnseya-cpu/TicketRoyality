@@ -44,6 +44,7 @@ export function SeatPicker({
   quantity,
   selected,
   onChange,
+  onOrphans,
 }: {
   eventId: string;
   sections: SeatingSection[];
@@ -52,6 +53,13 @@ export function SeatPicker({
   quantity: number;
   selected: string[];
   onChange: (seats: string[]) => void;
+  /**
+   * Told which seats the current selection would strand, so the buy box can DISABLE
+   * its pay buttons with the reason instead of letting the click bounce off the hold.
+   * Live testing pressed Pay with a stranding selection and read the refusal as
+   * "mobile money broken".
+   */
+  onOrphans?: (seats: string[]) => void;
 }) {
   const [taken, setTaken] = React.useState<Set<string>>(new Set());
   /*
@@ -113,6 +121,25 @@ export function SeatPicker({
 
   const mine = new Set(selected);
   const forThisTier = sections.filter((section) => section.tierId === tierId);
+
+  // Report strandings upward whenever the selection or the live map changes — the
+  // same computation as the amber warning below, delivered where the buttons live.
+  React.useEffect(() => {
+    if (!onOrphans) return;
+    const occupied = new Set([...taken, ...liveHeld]);
+    onOrphans(
+      forThisTier
+        .filter((section) => section.preventOrphans)
+        .flatMap((section) =>
+          orphansCreated(
+            section,
+            occupied,
+            selected.filter((label) => sectionSeats(section).some((seat) => seat.label === label))
+          )
+        )
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected.join(','), taken, liveHeld, tierId]);
 
   /**
    * "Just give me the best seats" — which is the request most people actually want to

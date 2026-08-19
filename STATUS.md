@@ -718,6 +718,59 @@ Verified: typecheck, lint, production build, `test:pricing` 48/48, `test:fees` 3
 `test:cart-metadata` 8/8. Not testable here: live KODA intents and Stripe webhook
 round-trips — the conversions and branches follow the tested unit rules above.
 
+### 19 August (night) — KODA everywhere, and the last basket walls down
+
+Live testing kept finding payments KODA could not make and baskets that refused
+legitimate orders. All closed in one pass:
+
+- **The basket pays by mobile money.** The cart page gets "Checkout with Mobile
+  Money" on USD/CDF baskets — same `/api/checkout`, same re-pricing, same per-line
+  holds and order document; `rail=momo` creates one KODA intent (idempotent by the
+  order document) and the KODA webhook issues every line with its seats, mix and hold,
+  exactly as the Stripe webhook does. USD/CDF totals everywhere (event page and cart)
+  now quote the Congolese config at the mobile-money rail, so the figure shown is the
+  WORST any rail charges — a card comes out cheaper, never dearer; before this the
+  page showed the card total and KODA asked for 2% more.
+- **Hospitality by mobile money.** `/api/hospitality/pay` takes `rail=momo` on
+  USD/CDF bookings (booking card shows the button); the KODA webhook records the
+  payment against the booking and issuance still waits for the balance to close.
+- **Registry gifts by mobile money** on USD/CDF items — `rail=momo` on the same
+  checkout, recorded by the KODA webhook through `recordContribution`. Also fixed en
+  route: a registry-only order used to fall back to GBP whatever the item's currency.
+- **Same-category seats now accumulate in the basket.** The seated-line merge rule
+  REPLACED the line, so adding seat B3 after B2 kept overwriting — "only tickets of
+  different categories are allowed in the basket", live. Seated lines now merge as a
+  seat-set union (quantity = the seats held, re-adding a seat cannot double-count);
+  mixed lines merge by summing each type's count.
+- **The stranded-seat rule speaks before the click.** Choosing seats that leave one
+  stranded (organiser's `preventOrphans`) used to surface only as a refusal on
+  whichever pay button was pressed — read live as "mobile money unavailable". The
+  picker now reports strandings to the buy box and every buy button disables with
+  "Leaves seat A1 stranded — adjust your seats". The server hold remains the
+  authority.
+- **Donations** stay card-only (stated on the page): a recurring gift is a Stripe
+  subscription and KODA has no pull-payment to build it on. Season passes have no
+  public purchase surface yet; the moment one exists it takes the same rail pair.
+
+### 19 August (night) — organiser page crash, the REAL root cause (digest 1237730)
+
+The profile page fetched the organiser's events with the CLIENT SDK from the server —
+an anonymous read the security rules rightly refuse the moment the organiser has any
+draft or cancelled event, and the refusal threw. (The image fix earlier today removed
+a genuine crash class, but this was the one killing THIS page.) New
+`getPublicOrganiserEvents()` reads with the Admin SDK and filters in code to
+published, publicly-listed events — which is all a public page should show — and
+never throws.
+
+Also: the superuser can now place ANY event into any of the three slots free of
+charge — "Place any event" on the dashboard placements card, server-side via
+`/api/admin/placement-grant` (requireAdmin); manual grants carry no expiry and stand
+until removed.
+
+Verified: typecheck, lint, production build. Not testable here: live KODA intents and
+webhook round-trips — conversions and branches mirror the tested Stripe paths and the
+pure unit rules.
+
 ### 19 August — mobile money: the telecom 2% is already charged on top (verified, no change)
 
 "On top of our fees the telecom 2% fee to be added too" — checked against

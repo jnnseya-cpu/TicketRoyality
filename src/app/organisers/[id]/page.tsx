@@ -8,8 +8,7 @@ import { Globe } from 'lucide-react';
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { EventCard } from '@/frontend/components/events/EventCard';
-import { getEventsByOrganizer } from '@/shared/data/repositories';
-import { getPublicOrganiser } from '@/backend/services/public-profiles';
+import { getPublicOrganiser, getPublicOrganiserEvents } from '@/backend/services/public-profiles';
 import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
 
 /**
@@ -41,7 +40,10 @@ export default async function OrganiserDetailPage({
   const organiser = await getPublicOrganiser(id);
   if (!organiser) notFound();
 
-  const events = await getEventsByOrganizer(id);
+  // Admin-SDK read, public filter applied server-side. The client-SDK repository ran
+  // here as an anonymous reader and the rules' refusal to list drafts killed the page
+  // (digest 1237730) the moment this organiser had any non-published event.
+  const events = await getPublicOrganiserEvents(id);
   const now = Date.now();
   const upcoming = events.filter((e) => new Date(e.date).getTime() >= now);
   const past = events.filter((e) => new Date(e.date).getTime() < now);

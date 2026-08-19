@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { createCheckoutSession, isStripeConfigured, type CheckoutLine } from '@/backend/payments/stripe';
+import { createIntent, isKodaConfigured, toKodaAmount } from '@/backend/payments/koda';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
@@ -448,7 +449,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Nothing to check out.' }, { status: 400 });
   }
 
-  const currency = lines[0]?.currency ?? 'GBP';
+  // A registry-only or donation-only order has no ticket lines, so the currency comes
+  // from the form (the item's own currency) — it used to fall back to GBP and would
+  // have charged a CDF gift in pounds.
+  const currency =
+    lines[0]?.currency ?? (String(form.get('currency') ?? '').toUpperCase() || 'GBP');
 
   /*
    * The service fee, as its own Stripe line so the buyer's receipt itemises what the
@@ -661,6 +666,53 @@ export async function POST(request: Request) {
     return fail('Sign in to buy tickets — they need an account to live in');
   }
 
+  /*
+   * A registry gift by mobile money — no lines, no holds, one KODA intent whose
+   * webhook records the contribution. Tickets take the cart fork below; anything
+   * else on the momo rail without ticket lines is refused rather than guessed.
+   */
+  if (
+    String(form.get('rail') ?? '') === 'momo' &&
+    claimables.length === 0 &&
+    registryMinor > 0 &&
+    registryItemId
+  ) {
+    if (donationMinor > 0) return fail('Donations are card-only for now');
+    if (currency !== 'USD' && currency !== 'CDF') {
+      return fail(`Mobile money supports USD and CDF, not ${currency}`);
+    }
+    if (!isKodaConfigured()) return fail('Mobile money is temporarily unavailable');
+
+    try {
+      const giverId = String(form.get('userId') ?? '');
+      const giver = giverId
+        ? ((await getAdminDb().collection('users').doc(giverId).get()).data() as
+            | { fullName?: string; email?: string }
+            | undefined)
+        : undefined;
+
+      const intent = await createIntent(
+        {
+          amount: toKodaAmount(currency as 'USD' | 'CDF', registryMinor),
+          currency: currency as 'USD' | 'CDF',
+          operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
+          successUrl: `${siteUrl}/checkout/success?provider=mobile-money`,
+          metadata: {
+            registryItemId,
+            registryMessage: String(form.get('registryMessage') ?? '').slice(0, 200),
+            userId: giverId,
+            attendeeName: giver?.fullName ?? 'Anonymous',
+            attendeeEmail: giver?.email ?? '',
+          },
+        },
+        `registry_${registryItemId}_${crypto.randomUUID()}`
+      );
+      return NextResponse.redirect(intent.checkout_url, { status: 303 });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : 'Mobile money is unavailable');
+    }
+  }
+
   if (!isStripeConfigured()) {
     if (holdId) await releaseHold(holdId, 'abandoned');
     return fail('Stripe is not configured');
@@ -727,6 +779,69 @@ export async function POST(request: Request) {
     } catch {
       await releaseCartHolds();
       return fail('Could not prepare the order — nothing was charged');
+    }
+
+    /*
+     * The basket's mobile-money exit. Same holds, same order document, same webhook
+     * discipline — only the payment page differs. Re-quoted at the Congolese config's
+     * mobile-money rail so the 2% operator surcharge is inside the amount, which is
+     * also the total the cart page displayed (it quotes the worst rail on USD/CDF).
+     */
+    if (String(form.get('rail') ?? '') === 'momo') {
+      if (currency.toUpperCase() !== 'USD' && currency.toUpperCase() !== 'CDF') {
+        await releaseCartHolds();
+        return fail(`Mobile money supports USD and CDF, not ${currency}`);
+      }
+      if (!isKodaConfigured()) {
+        await releaseCartHolds();
+        return fail('Mobile money is temporarily unavailable — pay by card');
+      }
+
+      try {
+        const momoQuote = computeOrderFees(
+          cartRefs.flatMap((ref) =>
+            ref.lines.map((line) => ({ faceMinor: toMinor(line.amount), qty: line.quantity }))
+          ),
+          { rail: 'bitripay_momo', countryCode: 'CD' }
+        );
+
+        const buyerId = String(form.get('userId') ?? '');
+        const buyerSnap = await getAdminDb().collection('users').doc(buyerId).get();
+        const buyer = buyerSnap.data() as { fullName?: string; email?: string } | undefined;
+
+        const intent = await createIntent(
+          {
+            amount: toKodaAmount(
+              currency.toUpperCase() as 'USD' | 'CDF',
+              momoQuote.buyerTotalMinor
+            ),
+            currency: currency.toUpperCase() as 'USD' | 'CDF',
+            operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
+            successUrl: `${siteUrl}/checkout/success?provider=mobile-money`,
+            metadata: {
+              cartOrderId,
+              userId: buyerId,
+              attendeeName: buyer?.fullName ?? 'Ticket holder',
+              attendeeEmail: buyer?.email ?? '',
+              pricingVersion: String(momoQuote.pricingVersion),
+              feeConfigVersion: momoQuote.configVersion,
+              faceMinor: String(momoQuote.faceMinor),
+              serviceFeeMinor: String(momoQuote.serviceFeeMinor),
+              buyerTotalMinor: String(momoQuote.buyerTotalMinor),
+            },
+          },
+          // The order document is the idempotency key, so a KODA-side retry of THIS
+          // order can never mint a second intent for it.
+          cartOrderId
+        );
+
+        return NextResponse.redirect(intent.checkout_url, { status: 303 });
+      } catch (error) {
+        await releaseCartHolds();
+        return fail(
+          error instanceof Error ? error.message : 'Mobile money is unavailable — pay by card'
+        );
+      }
     }
   }
 

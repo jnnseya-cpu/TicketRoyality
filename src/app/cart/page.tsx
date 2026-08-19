@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { CreditCard, Loader2, Minus, Plus, ShoppingCart, Trash2, Wallet } from 'lucide-react';
+import { CreditCard, Loader2, Minus, Plus, ShoppingCart, Smartphone, Trash2, Wallet } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/frontend/components/ui/card';
@@ -47,9 +47,17 @@ export default function CartPage() {
    * because a cart-wide discount cannot be attributed back to individual tickets
    * without inventing an allocation.
    */
+  // On a USD/CDF basket the quote runs at the mobile-money rail (CD config, 2%
+  // surcharge folded in) so the total shown is the WORST a buyer can pay — a card
+  // comes out cheaper, never dearer. Same doctrine as the event page.
+  const isMomoCurrency = ['USD', 'CDF'].includes(currency?.toUpperCase() ?? '');
   const quote = React.useMemo(
-    () => computeOrderFees([{ faceMinor: toMinor(total), qty: 1 }]),
-    [total]
+    () =>
+      computeOrderFees(
+        [{ faceMinor: toMinor(total), qty: 1 }],
+        isMomoCurrency ? { rail: 'bitripay_momo', countryCode: 'CD' } : undefined
+      ),
+    [total, isMomoCurrency]
   );
 
   // A rail with no credentials must not be offered — see use-payment-methods.
@@ -305,6 +313,23 @@ export default function CartPage() {
                 <CreditCard className="h-4 w-4" /> Checkout with Stripe
               </Button>
             </form>
+
+            {/*
+              The basket's mobile-money exit — same /api/checkout, same re-pricing,
+              same per-line holds and order document; only the payment page differs.
+              USD/CDF only, because that is all KODA moves.
+            */}
+            {methods.koda && isMomoCurrency && (
+              <form action="/api/checkout" method="POST">
+                <input type="hidden" name="items" value={stripePayload} />
+                <input type="hidden" name="userId" value={user?.uid ?? ''} />
+                <input type="hidden" name="couponCode" value={coupon?.code ?? ''} />
+                <input type="hidden" name="rail" value="momo" />
+                <Button type="submit" variant="outline" className="w-full">
+                  <Smartphone className="h-4 w-4" /> Checkout with Mobile Money
+                </Button>
+              </form>
+            )}
 
             {methods.bitripay && (
             <Button

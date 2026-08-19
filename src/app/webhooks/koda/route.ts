@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 
 import { fromKodaAmount, verifyWebhook } from '@/backend/payments/koda';
+import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { activatePlacement } from '@/backend/services/promotions';
+import { recordBookingPayment } from '@/backend/services/hospitality';
+import { recordContribution } from '@/backend/services/registry';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,6 +43,13 @@ interface KodaMetadata {
   /** Set when the intent buys a homepage/newsletter placement, not tickets. */
   promoPlacement?: string;
   promoEventId?: string;
+  /** Set when the intent pays a BASKET — the order document carries the lines. */
+  cartOrderId?: string;
+  /** Set when the intent pays a hospitality deposit or balance, not tickets. */
+  bookingId?: string;
+  /** Set when the intent is a gift-registry contribution. */
+  registryItemId?: string;
+  registryMessage?: string;
 }
 
 export async function POST(request: Request) {
@@ -100,6 +110,147 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'datastore_unavailable' }, { status: 503 });
         }
         return NextResponse.json({ received: true, placement: activated });
+      }
+
+      /*
+       * A hospitality deposit or balance over mobile money. Recorded against the
+       * booking; tickets appear only when the payment closes the balance, and even
+       * then through the one issuance path — the same division the Stripe rail keeps.
+       */
+      if (providerEventId && meta.bookingId) {
+        const paid = await recordBookingPayment(
+          meta.bookingId,
+          data.amount ? fromKodaAmount(data.currency ?? 'USD', data.amount) : 0,
+          providerEventId
+        );
+
+        if (!paid.ok) {
+          if (paid.status === 503) {
+            return NextResponse.json({ error: 'datastore_unavailable' }, { status: 503 });
+          }
+          console.error('[koda] hospitality payment refused', {
+            providerEventId,
+            bookingId: meta.bookingId,
+            reason: paid.error,
+          });
+          return NextResponse.json({ received: true, booked: false }, { status: 202 });
+        }
+
+        if (paid.settled) {
+          const outcome = await recordPaymentEvent({
+            providerEventId: `${providerEventId}__issue`,
+            provider: 'bitripay',
+            providerType: payload.type ?? 'payment.verified',
+            intent: 'issue',
+            eventId: paid.settled.eventId,
+            tierId: paid.settled.tierId,
+            userId: paid.settled.buyerUserId,
+            quantity: paid.settled.covers,
+            price: paid.settled.unitFaceMinor / 100,
+            currency: paid.settled.currency,
+            attendeeName: meta.attendeeName ?? 'Table guest',
+            attendeeEmail: paid.settled.buyerEmail,
+            providerRef: data.intent_id,
+            holdId: paid.settled.holdId,
+          });
+          if (outcome === 'unavailable') {
+            return NextResponse.json({ error: 'datastore_unavailable' }, { status: 503 });
+          }
+        }
+
+        return NextResponse.json({ received: true, booking: paid.status });
+      }
+
+      /*
+       * A gift-registry contribution over mobile money — its own transaction, moving
+       * the item's running total, same as the Stripe rail.
+       */
+      if (providerEventId && meta.registryItemId) {
+        const contributed = await recordContribution({
+          providerEventId,
+          itemId: meta.registryItemId,
+          amountMinor: data.amount ? fromKodaAmount(data.currency ?? 'USD', data.amount) : 0,
+          giverName: meta.attendeeName ?? 'Anonymous',
+          giverEmail: meta.attendeeEmail ?? '',
+          message: meta.registryMessage,
+          userId: meta.userId,
+        });
+        if (!contributed.ok && contributed.reason === 'unavailable') {
+          return NextResponse.json({ error: 'datastore_unavailable' }, { status: 503 });
+        }
+        return NextResponse.json({ received: true, registry: contributed.ok });
+      }
+
+      /*
+       * A basket paid by mobile money. The order document `/api/checkout` wrote holds
+       * every line — seats, mixes and the holds that reserved them — and each line
+       * issues as its own payment event, idempotent by `${providerEventId}__{index}`,
+       * exactly as the Stripe webhook does it.
+       */
+      if (providerEventId && meta.cartOrderId) {
+        if (!isAdminConfigured()) {
+          return NextResponse.json({ error: 'datastore_unavailable' }, { status: 503 });
+        }
+        const orderSnap = await getAdminDb()
+          .collection('cart_orders')
+          .doc(meta.cartOrderId)
+          .get();
+        const order = orderSnap.data() as
+          | {
+              userId?: string;
+              currency?: string;
+              lines?: Array<{
+                eventId: string;
+                tierId: string;
+                quantity: number;
+                unitMajor: number;
+                holdId?: string;
+                seats?: string[];
+                mix?: Array<{ typeId: string; typeName: string; price: number; quantity: number }>;
+              }>;
+            }
+          | undefined;
+
+        if (!order?.lines?.length || !order.userId) {
+          // The checkout wrote this document before creating the intent; its absence
+          // is a datastore fault. 5xx → KODA redelivers.
+          console.error('[koda] cart order missing', { cartOrderId: meta.cartOrderId });
+          return NextResponse.json({ error: 'cart_order_missing' }, { status: 503 });
+        }
+
+        for (const [index, line] of order.lines.entries()) {
+          const outcome = await recordPaymentEvent({
+            providerEventId: `${providerEventId}__${index}`,
+            provider: 'bitripay',
+            providerType: payload.type ?? 'payment.verified',
+            intent: 'issue',
+            eventId: line.eventId,
+            tierId: line.tierId,
+            userId: order.userId,
+            quantity: line.quantity,
+            price: line.unitMajor,
+            currency: (order.currency ?? data.currency ?? 'CDF').toUpperCase(),
+            attendeeName: meta.attendeeName ?? 'Ticket holder',
+            attendeeEmail: meta.attendeeEmail ?? '',
+            providerRef: data.intent_id,
+            holdId: line.holdId,
+            ...(line.seats?.length ? { seats: line.seats } : {}),
+            ...(line.mix?.length ? { mix: line.mix } : {}),
+          });
+          if (outcome === 'unavailable') {
+            // Already-written lines are idempotent by document id; a redelivery
+            // resumes where this stopped and cannot issue twice.
+            return NextResponse.json({ error: 'datastore_unavailable' }, { status: 503 });
+          }
+        }
+
+        await getAdminDb()
+          .collection('cart_orders')
+          .doc(meta.cartOrderId)
+          .update({ status: 'issued', issuedAt: new Date().toISOString() })
+          .catch(() => {});
+
+        return NextResponse.json({ received: true, items: order.lines.length });
       }
 
       if (!providerEventId || !meta.eventId || !meta.tierId || !meta.userId) {

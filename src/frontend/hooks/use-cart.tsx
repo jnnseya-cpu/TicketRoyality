@@ -46,14 +46,34 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       );
       if (index === -1) return [...current, item];
       const next = [...current];
-      // A line with seats or a type mix REPLACES its predecessor rather than merging:
-      // "2 adults in A1, A2" plus "1 child in B5" is a re-choice, not an addition, and
-      // summing quantities would claim seats the buyer never picked. Plain lines keep
-      // the old behaviour of topping up the count.
-      next[index] =
-        item.seats?.length || item.mix?.length
-          ? item
-          : { ...next[index], quantity: next[index].quantity + item.quantity };
+      const existing = next[index];
+
+      if (item.seats?.length) {
+        /*
+         * Seated lines MERGE: seat B2 in the basket plus a new pick of B3 is two
+         * tickets, B2 and B3 — replacing the line made adding a second seat of the
+         * same category impossible ("only tickets of different categories are
+         * allowed", live). The union also means re-adding the same seat cannot
+         * double-count it, and the quantity is always exactly the seats held.
+         */
+        const seats = [...new Set([...(existing.seats ?? []), ...item.seats])];
+        next[index] = { ...item, seats, quantity: seats.length };
+      } else if (item.mix?.length) {
+        // Mixed lines merge by summing each attendee type's count.
+        const counts = new Map<string, number>();
+        for (const entry of existing.mix ?? []) counts.set(entry.typeId, entry.quantity);
+        for (const entry of item.mix) {
+          counts.set(entry.typeId, (counts.get(entry.typeId) ?? 0) + entry.quantity);
+        }
+        const mix = [...counts.entries()].map(([typeId, quantity]) => ({ typeId, quantity }));
+        next[index] = {
+          ...item,
+          mix,
+          quantity: mix.reduce((sum, entry) => sum + entry.quantity, 0),
+        };
+      } else {
+        next[index] = { ...existing, quantity: existing.quantity + item.quantity };
+      }
       return next;
     });
   }, []);

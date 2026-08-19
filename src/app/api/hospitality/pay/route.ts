@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { createCheckoutSession, isStripeConfigured } from '@/backend/payments/stripe';
+import { createIntent, isKodaConfigured, toKodaAmount } from '@/backend/payments/koda';
 import { amountDueMinor, getBooking } from '@/backend/services/hospitality';
 import { toMajor } from '@/shared/fees';
 
@@ -33,11 +34,15 @@ export async function POST(request: Request) {
       status: 303,
     });
 
-  if (!isStripeConfigured()) return fail('Stripe is not configured');
-
   const form = await request.formData();
   const bookingId = String(form.get('bookingId') ?? '');
   if (!bookingId) return fail('No booking to pay for');
+  // 'card' (Stripe) or 'momo' (KODA, USD/CDF bookings only). Both rails record
+  // through the same webhook discipline; the amount owed is read from the booking
+  // either way, never from the form.
+  const rail = String(form.get('rail') ?? 'card');
+
+  if (rail !== 'momo' && !isStripeConfigured()) return fail('Stripe is not configured');
 
   const booking = await getBooking(bookingId);
   if (!booking) return fail('That booking no longer exists');
@@ -52,6 +57,37 @@ export async function POST(request: Request) {
   const label = isDeposit
     ? `${booking.packageName ?? 'Table'} — deposit`
     : `${booking.packageName ?? 'Table'} — ${booking.paidMinor > 0 ? 'balance' : 'payment in full'}`;
+
+  /*
+   * The mobile-money rail. KODA moves USD and CDF only; the webhook records the
+   * payment against the booking exactly as the Stripe webhook does, and issuance
+   * still happens only when the balance closes — a deposit reserves, it never admits.
+   */
+  if (rail === 'momo') {
+    const currency = (booking.currency ?? 'USD').toUpperCase();
+    if (currency !== 'USD' && currency !== 'CDF') {
+      return fail(`Mobile money supports USD and CDF, not ${currency}`);
+    }
+    if (!isKodaConfigured()) return fail('Mobile money is temporarily unavailable');
+
+    try {
+      const intent = await createIntent(
+        {
+          amount: toKodaAmount(currency as 'USD' | 'CDF', dueMinor),
+          currency: currency as 'USD' | 'CDF',
+          operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
+          successUrl: `${siteUrl}/dashboard/customer/bookings?paid=${bookingId}`,
+          metadata: { bookingId },
+        },
+        // Stage-scoped: the deposit and the balance are different payments and may
+        // each have their own intent; retries of the SAME stage reuse one.
+        `hosp_${bookingId}_${booking.paidMinor}`
+      );
+      return NextResponse.redirect(intent.checkout_url, { status: 303 });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : 'Mobile money is unavailable');
+    }
+  }
 
   try {
     const url = await createCheckoutSession({

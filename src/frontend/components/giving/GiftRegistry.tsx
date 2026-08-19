@@ -2,12 +2,13 @@
 
 import * as React from 'react';
 import Image from 'next/image';
-import { Gift, Loader2 } from 'lucide-react';
+import { Gift, Loader2, Smartphone } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import { Input } from '@/frontend/components/ui/input';
 import { Progress } from '@/frontend/components/ui/progress';
+import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
 import { formatCurrency } from '@/shared/utils';
 
 interface ItemView {
@@ -41,6 +42,7 @@ interface ItemView {
 export function GiftRegistry({ eventId, userId }: { eventId: string; userId?: string }) {
   const [items, setItems] = React.useState<ItemView[] | null>(null);
   const [amounts, setAmounts] = React.useState<Record<string, string>>({});
+  const methods = usePaymentMethods();
 
   React.useEffect(() => {
     let cancelled = false;
@@ -160,6 +162,14 @@ export function GiftRegistry({ eventId, userId }: { eventId: string; userId?: st
                         item.currency
                       )}
                     </Button>
+
+                    {/* The mobile-money exit, for the corridor KODA serves. Same
+                        route, rail=momo; the KODA webhook records the gift. */}
+                    {methods.koda && ['USD', 'CDF'].includes(item.currency.toUpperCase()) && (
+                      <Button type="submit" size="sm" variant="outline" name="rail" value="momo">
+                        <Smartphone className="h-3.5 w-3.5" /> Mobile money
+                      </Button>
+                    )}
                   </form>
                 )}
               </div>
