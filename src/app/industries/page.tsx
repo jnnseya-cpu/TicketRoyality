@@ -54,7 +54,7 @@ const SEGMENTS = [
     need: 'Tiered inventory, fast entry, one revenue picture',
     detail:
       'Price the ground in tiers — general, premium, VIP — each with its own capacity, and let issuance enforce it: a tier cannot be oversold even under a simultaneous rush. Define doors within the ground that admit only the tiers you assign to them, each with its own limit and its own re-entry rule, and sell hospitality tables as inventory alongside the tickets.',
-    next: 'Sellout upgrades are opt-in per event: a buyer whose tier sells out mid-checkout is moved to the next tier up at the price they chose. Moving an already-issued ticket to a different tier is still a refund and a rebooking.',
+    next: 'Sellout upgrades are opt-in per event: a buyer whose tier sells out mid-checkout is moved to the next tier up at the price they chose. An already-issued ticket upgrades too — general admission straight from the ticket, paying only the difference; seated tickets by choosing a seat in the dearer section. Moving down remains a refund, deliberately.',
   },
   {
     icon: Tent,

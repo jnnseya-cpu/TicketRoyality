@@ -7,7 +7,7 @@ import {
   readSubscription,
   verifyWebhook,
 } from '@/backend/payments/stripe';
-import { applyPaidMove } from '@/backend/services/seat-swap';
+import { applyPaidMove, applyPaidTierUpgrade } from '@/backend/services/seat-swap';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { recordBookingPayment } from '@/backend/services/hospitality';
 import { recordAttribution } from '@/backend/services/partners';
@@ -230,15 +230,25 @@ export async function POST(request: Request) {
          * successful charge is reported loudly, never swallowed: money with no seat is
          * the operations queue's most urgent kind of row.
          */
-        if (checkout.upgradeTicketId && checkout.upgradeToSeat && checkout.upgradeToTierId) {
-          const moved = await applyPaidMove({
-            providerEventId: event.id,
-            ticketId: checkout.upgradeTicketId,
-            toSeat: checkout.upgradeToSeat,
-            toTierId: checkout.upgradeToTierId,
-            differenceMajor: checkout.upgradeDiff,
-            holdId: checkout.holdId,
-          });
+        if (checkout.upgradeTicketId && checkout.upgradeToTierId) {
+          // With a seat: the seated upgrade (ticket moves INTO that chair). Without:
+          // a general-admission tier upgrade — same money-first rule, no chair involved.
+          const moved = checkout.upgradeToSeat
+            ? await applyPaidMove({
+                providerEventId: event.id,
+                ticketId: checkout.upgradeTicketId,
+                toSeat: checkout.upgradeToSeat,
+                toTierId: checkout.upgradeToTierId,
+                differenceMajor: checkout.upgradeDiff,
+                holdId: checkout.holdId,
+              })
+            : await applyPaidTierUpgrade({
+                providerEventId: event.id,
+                ticketId: checkout.upgradeTicketId,
+                toTierId: checkout.upgradeToTierId,
+                differenceMajor: checkout.upgradeDiff,
+                holdId: checkout.holdId,
+              });
 
           if (!moved.ok) {
             // 500 → Stripe redelivers; a transient race gets another chance before a

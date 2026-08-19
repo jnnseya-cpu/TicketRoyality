@@ -21,6 +21,7 @@ import type { Event, Ticket } from '@/shared/types';
 import { QR_VERSION, encodeTicketQr } from '@/shared/tickets/qr';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { TransferTicket } from '@/frontend/components/tickets/TransferTicket';
+import { UpgradeTicket } from '@/frontend/components/tickets/UpgradeTicket';
 import { ChangeSeat } from '@/frontend/components/tickets/ChangeSeat';
 import {
   ROTATION_WINDOW_SECONDS,
@@ -283,6 +284,10 @@ export function TicketModal({
               <TransferTicket ticket={ticket} />
               {/* Renders nothing for general admission, which is most events. */}
               <ChangeSeat ticket={ticket} />
+              {/* The mirror image: renders nothing for seated tickets, and offers a
+                  general-admission ticket its dearer types — pay the difference,
+                  keep the same QR. */}
+              <UpgradeTicket ticket={ticket} />
             </div>
           )}
 

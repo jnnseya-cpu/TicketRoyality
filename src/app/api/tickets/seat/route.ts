@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { requireUser } from '@/backend/auth/require-user';
-import { exchangeSeats, moveSeat, quoteMove } from '@/backend/services/seat-swap';
+import { exchangeSeats, moveSeat, quoteMove, quoteTierUpgrade } from '@/backend/services/seat-swap';
 import { placeHold, releaseHold } from '@/backend/services/holds';
 import { createCheckoutSession, isStripeConfigured } from '@/backend/payments/stripe';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
@@ -22,12 +22,113 @@ export async function POST(request: Request) {
   const caller = await requireUser(request);
   if (!caller.ok) return NextResponse.json({ error: caller.error }, { status: caller.status });
 
-  let body: { action?: string; ticketId?: string; seat?: string; withTicketId?: string };
-  // 'quote' | 'upgrade' | 'exchange' | default free move
+  let body: {
+    action?: string;
+    ticketId?: string;
+    seat?: string;
+    withTicketId?: string;
+    toTierId?: string;
+  };
+  // 'quote' | 'upgrade' | 'tier-quote' | 'tier-upgrade' | 'exchange' | default free move
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Malformed request.' }, { status: 400 });
+  }
+
+  /*
+   * A general-admission ticket moving to a dearer TYPE — the seatless twin of the
+   * seat upgrade below. Same shape end to end: priced server-side from the stored
+   * tier, inventory held while they pay, the move itself landing in the webhook
+   * after the money. This closes the last "still a refund and a rebooking".
+   */
+  if (body.action === 'tier-quote' || body.action === 'tier-upgrade') {
+    const ticketId = String(body.ticketId ?? '');
+    const toTierId = String(body.toTierId ?? '');
+    const quote = await quoteTierUpgrade(ticketId, toTierId, caller.uid);
+
+    if (!quote.ok) {
+      const status =
+        quote.reason === 'not-yours'
+          ? 403
+          : quote.reason === 'no-ticket'
+            ? 404
+            : quote.reason === 'sold-out'
+              ? 409
+              : 400;
+      return NextResponse.json({ error: quote.error, reason: quote.reason }, { status });
+    }
+
+    const fees = computeOrderFees([{ faceMinor: toMinor(quote.differenceMajor), qty: 1 }]);
+
+    if (body.action === 'tier-quote') {
+      return NextResponse.json({
+        ok: true,
+        toTierName: quote.toTierName,
+        differenceMinor: toMinor(quote.differenceMajor),
+        serviceFeeMinor: fees.serviceFeeMinor,
+        totalMinor: fees.buyerTotalMinor,
+      });
+    }
+
+    if (!isStripeConfigured()) {
+      return NextResponse.json({ error: 'Card payments are not configured.' }, { status: 503 });
+    }
+    if (!isAdminConfigured()) {
+      return NextResponse.json({ error: 'Unavailable.' }, { status: 503 });
+    }
+
+    const ticketSnap = await getAdminDb().collection('tickets').doc(ticketId).get();
+    const eventId = String(ticketSnap.data()?.eventId ?? '');
+    const eventTitle = String(ticketSnap.data()?.eventTitle ?? 'Event');
+    const currency = String(ticketSnap.data()?.currency ?? 'GBP');
+
+    // A place on the dearer tier is reserved while they pay, so the last VIP ticket
+    // cannot be sold twice — once at the door and once through this upgrade.
+    const hold = await placeHold(eventId, quote.toTierId, 1);
+    if (!hold.ok) return NextResponse.json({ error: hold.error }, { status: 409 });
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
+    try {
+      const url = await createCheckoutSession({
+        lines: [
+          {
+            name: `${eventTitle} — upgrade to ${quote.toTierName}`,
+            amount: quote.differenceMajor,
+            quantity: 1,
+            currency,
+          },
+          ...(fees.serviceFeeMinor > 0
+            ? [
+                {
+                  name: 'TicketRoyality Service Fee',
+                  amount: toMajor(fees.serviceFeeMinor),
+                  quantity: 1,
+                  currency,
+                },
+              ]
+            : []),
+        ],
+        successUrl: `${siteUrl}/dashboard/customer?upgraded=1`,
+        cancelUrl: `${siteUrl}/dashboard/customer`,
+        // No upgradeToSeat: that absence is what routes the webhook to the tier path.
+        metadata: {
+          userId: caller.uid,
+          upgradeTicketId: ticketId,
+          upgradeToTierId: quote.toTierId,
+          upgradeDiff: String(quote.differenceMajor),
+          holdId: hold.holdId,
+        },
+      });
+      return NextResponse.json({ ok: true, url });
+    } catch (error) {
+      // Stripe never got them; the reserved place must not stay held on a dead checkout.
+      await releaseHold(hold.holdId, 'abandoned');
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Checkout failed.' },
+        { status: 502 }
+      );
+    }
   }
 
   /*

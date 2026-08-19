@@ -384,6 +384,94 @@ async function run() {
     assert.equal(ticket.tierId, 'stalls');
   });
 
+  /*
+   * ── GA tier upgrades — the seatless flow that closes "still a refund and a
+   * rebooking". Same money rule, same ledger, no chair. ──
+   */
+
+  const seedGa = async () => {
+    await seed();
+    await db.collection('tickets').doc('t-ga').set({
+      reference: 'TR-GA-1',
+      eventId: EVENT,
+      userId: HOLDER_A,
+      tierId: 'stalls',
+      price: 20,
+      status: 'valid',
+    });
+  };
+
+  await test('a GA upgrade quotes the difference over what was actually paid', async () => {
+    await seedGa();
+    const quote = await swap.quoteTierUpgrade('t-ga', 'circle', HOLDER_A);
+    assert.ok(quote.ok);
+    if (quote.ok) {
+      assert.equal(quote.differenceMajor, 40);
+      assert.equal(quote.toTierName, 'Circle');
+    }
+  });
+
+  await test('a GA upgrade is refused to strangers, downgrades and seated tickets', async () => {
+    await seedGa();
+    const stranger = await swap.quoteTierUpgrade('t-ga', 'circle', HOLDER_B);
+    assert.equal(stranger.ok, false);
+
+    const down = await swap.quoteTierUpgrade('t-ga', 'stalls', HOLDER_A);
+    assert.equal(down.ok, false);
+
+    // A seated ticket must go through the seat flow, or the tier moves and the
+    // chair is stranded on the old tier.
+    const seated = await swap.quoteTierUpgrade('t-a', 'circle', HOLDER_A);
+    assert.equal(seated.ok, false);
+    if (!seated.ok) assert.equal(seated.reason, 'wrong-tier');
+  });
+
+  await test('a sold-out target refuses the quote before any money moves', async () => {
+    await seedGa();
+    const event = (await db.collection('events').doc(EVENT).get()).data()!;
+    const tiers = event.ticketTiers.map((t: { id: string }) =>
+      t.id === 'circle' ? { ...t, sold: 20 } : t
+    );
+    await db.collection('events').doc(EVENT).update({ ticketTiers: tiers });
+    const quote = await swap.quoteTierUpgrade('t-ga', 'circle', HOLDER_A);
+    assert.equal(quote.ok, false);
+    if (!quote.ok) assert.equal(quote.reason, 'sold-out');
+  });
+
+  await test('a paid GA upgrade lands once: tier, price and both counters', async () => {
+    await seedGa();
+    const applied = await swap.applyPaidTierUpgrade({
+      providerEventId: 'evt_stripe_ga_1',
+      ticketId: 't-ga',
+      toTierId: 'circle',
+      differenceMajor: 40,
+    });
+    assert.ok(applied.ok);
+
+    const ticket = (await db.collection('tickets').doc('t-ga').get()).data()!;
+    assert.equal(ticket.tierId, 'circle');
+    assert.equal(ticket.tierName, 'Circle');
+    assert.equal(ticket.price, 60, 'price = what was paid originally plus the difference');
+    assert.equal(ticket.seat, undefined, 'a GA upgrade never invents a seat');
+
+    const event = (await db.collection('events').doc(EVENT).get()).data()!;
+    const stalls = event.ticketTiers.find((t: { id: string }) => t.id === 'stalls');
+    const circle = event.ticketTiers.find((t: { id: string }) => t.id === 'circle');
+    assert.equal(stalls.sold, 0);
+    assert.equal(circle.sold, 1);
+
+    // The replay applies nothing twice — the ledger id is the exclusion.
+    const replay = await swap.applyPaidTierUpgrade({
+      providerEventId: 'evt_stripe_ga_1',
+      ticketId: 't-ga',
+      toTierId: 'circle',
+      differenceMajor: 40,
+    });
+    assert.ok(replay.ok && replay.duplicate);
+    const after = (await db.collection('events').doc(EVENT).get()).data()!;
+    assert.equal(after.ticketTiers.find((t: { id: string }) => t.id === 'circle').sold, 1);
+  });
+
   console.log(`\n${passed}/${passed + failures.length} passed\n`);
   if (failures.length > 0) process.exit(1);
 }

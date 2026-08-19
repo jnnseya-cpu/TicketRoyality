@@ -46,6 +46,7 @@ export type WebhookEvent =
   | 'ticket.redeemed'
   | 'ticket.refunded'
   | 'ticket.transferred'
+  | 'ticket.upgraded'
   | 'seat.moved'
   | 'seat.upgraded'
   | 'donation.received';
@@ -61,6 +62,7 @@ export const ALL_EVENTS: WebhookEvent[] = [
   'ticket.redeemed',
   'ticket.refunded',
   'ticket.transferred',
+  'ticket.upgraded',
   'seat.moved',
   'seat.upgraded',
   'donation.received',

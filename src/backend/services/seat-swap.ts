@@ -4,7 +4,8 @@ import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
 import { SEAT_LOCKS, seatLockId } from '@/backend/services/holds';
 import { seatBelongsToTier } from '@/shared/seating';
-import type { SeatingSection } from '@/shared/types';
+import { tierSaleWindow } from '@/shared/pricing';
+import type { SeatingSection, TicketTier } from '@/shared/types';
 
 /**
  * Moving after the sale.
@@ -448,6 +449,183 @@ export async function applyPaidMove(input: {
       scope: 'seats.upgrade',
       ticketId: input.ticketId,
       seat,
+      providerEventId: input.providerEventId,
+      paid: input.differenceMajor,
+    });
+    return { ok: false, error: message };
+  }
+}
+
+/*
+ * ── Tier upgrades for unseated tickets ──────────────────────────────────────
+ *
+ * The seated flow above upgrades by choosing a dearer SEAT. A general-admission
+ * ticket has no seat to choose, and until now "move my Standard ticket to VIP"
+ * was a refund and a rebooking — the last line of the industries page still
+ * reading "Not yet". This pair closes it: same money rule (the difference over
+ * what was actually paid), same idempotency ledger (`upgrade_events`), same
+ * order of operations (money first via Stripe, the move lands in the webhook).
+ * Downgrades stay refunds, deliberately — paying money back through an upgrade
+ * dialog is where two support queues become one confused one.
+ */
+
+export type TierUpgradeQuote =
+  | { ok: true; toTierId: string; toTierName: string; differenceMajor: number }
+  | {
+      ok: false;
+      reason: 'no-ticket' | 'not-yours' | 'not-live' | 'wrong-tier' | 'downgrade' | 'sold-out' | 'unavailable';
+      error: string;
+    };
+
+export async function quoteTierUpgrade(
+  ticketId: string,
+  toTierId: string,
+  actorId: string
+): Promise<TierUpgradeQuote> {
+  if (!isAdminConfigured()) return { ok: false, reason: 'unavailable', error: 'Upgrades are unavailable.' };
+  const db = getAdminDb();
+
+  try {
+    const snap = await db.collection('tickets').doc(ticketId).get();
+    if (!snap.exists) return { ok: false, reason: 'no-ticket', error: 'That ticket no longer exists.' };
+    const ticket = snap.data() as TicketShape & { price?: number; seat?: string };
+
+    if (ticket.userId !== actorId) {
+      return { ok: false, reason: 'not-yours', error: 'That ticket is not yours to upgrade.' };
+    }
+    if (ticket.status !== 'valid') {
+      return { ok: false, reason: 'not-live', error: 'That ticket can no longer be upgraded.' };
+    }
+    if (ticket.seat) {
+      // A seated ticket upgrades by choosing a seat in the dearer section — the flow
+      // that already exists. Sending it here would move the tier and strand the seat.
+      return { ok: false, reason: 'wrong-tier', error: 'Seated tickets upgrade by choosing a new seat.' };
+    }
+
+    const event = (await db.collection('events').doc(ticket.eventId).get()).data() ?? {};
+    const tiers = (event.ticketTiers ?? []) as TicketTier[];
+    const toTier = tiers.find((tier) => tier.id === toTierId);
+
+    if (!toTier || toTier.visibility === 'hidden' || toTier.pricing === 'choose') {
+      return { ok: false, reason: 'wrong-tier', error: 'That ticket type is not open to upgrades.' };
+    }
+    if (toTier.id === ticket.tierId) {
+      return { ok: false, reason: 'wrong-tier', error: 'That is already this ticket’s type.' };
+    }
+    if (!tierSaleWindow(toTier).onSale) {
+      return { ok: false, reason: 'wrong-tier', error: 'That ticket type is not on sale.' };
+    }
+    if (toTier.quantity - (toTier.sold ?? 0) - (toTier.held ?? 0) < 1) {
+      return { ok: false, reason: 'sold-out', error: 'That ticket type has sold out.' };
+    }
+
+    const difference = Math.round((toTier.price - (ticket.price ?? 0)) * 100) / 100;
+    if (difference <= 0) {
+      return {
+        ok: false,
+        reason: 'downgrade',
+        error: 'That type costs the same or less. Moving down is a refund and a new booking — contact the organiser.',
+      };
+    }
+
+    return { ok: true, toTierId: toTier.id, toTierName: toTier.name, differenceMajor: difference };
+  } catch (error) {
+    reportError(error, { scope: 'tickets.tier-quote', ticketId, toTierId });
+    return { ok: false, reason: 'unavailable', error: 'Could not price that upgrade.' };
+  }
+}
+
+/**
+ * Land a paid tier upgrade, exactly once — the seatless sibling of `applyPaidMove`.
+ * Same dedupe ledger, same single transaction over ticket + both tier counters + the
+ * hold; no seat and no lock, because a GA ticket never owned a chair.
+ */
+export async function applyPaidTierUpgrade(input: {
+  providerEventId: string;
+  ticketId: string;
+  toTierId: string;
+  differenceMajor: number;
+  holdId?: string;
+}): Promise<{ ok: boolean; duplicate?: boolean; error?: string }> {
+  if (!isAdminConfigured()) return { ok: false, error: 'unavailable' };
+  const db = getAdminDb();
+  let upgradeContext: { organizerId: string; eventId: string; toTierName: string } | null = null;
+
+  try {
+    const outcome = await db.runTransaction(async (tx) => {
+      const dedupeRef = db.collection('upgrade_events').doc(input.providerEventId);
+      const dedupe = await tx.get(dedupeRef);
+      if (dedupe.exists) return { ok: true, duplicate: true };
+
+      const ticketRef = db.collection('tickets').doc(input.ticketId);
+      const ticketSnap = await tx.get(ticketRef);
+      if (!ticketSnap.exists) throw new Error('ticket-missing');
+      const ticket = ticketSnap.data() as TicketShape & { price?: number };
+
+      const eventRef = db.collection('events').doc(ticket.eventId);
+      const eventSnap = await tx.get(eventRef);
+      const event = eventSnap.data() ?? {};
+      const tiers = [...((event.ticketTiers ?? []) as TicketTier[])];
+
+      const fromIndex = tiers.findIndex((tier) => tier.id === ticket.tierId);
+      const toIndex = tiers.findIndex((tier) => tier.id === input.toTierId);
+      if (toIndex < 0) throw new Error('tier-missing');
+
+      if (fromIndex >= 0) {
+        tiers[fromIndex] = { ...tiers[fromIndex], sold: Math.max(0, (tiers[fromIndex].sold ?? 0) - 1) };
+      }
+      tiers[toIndex] = {
+        ...tiers[toIndex],
+        sold: (tiers[toIndex].sold ?? 0) + 1,
+        ...(input.holdId ? { held: Math.max(0, (tiers[toIndex].held ?? 0) - 1) } : {}),
+      };
+      tx.update(eventRef, { ticketTiers: tiers });
+
+      if (input.holdId) tx.delete(db.collection('checkout_holds').doc(input.holdId));
+
+      tx.update(ticketRef, {
+        tierId: input.toTierId,
+        tierName: tiers[toIndex].name,
+        price: Math.round(((ticket.price ?? 0) + input.differenceMajor) * 100) / 100,
+        upgradedAt: new Date().toISOString(),
+      });
+
+      tx.create(dedupeRef, {
+        ticketId: input.ticketId,
+        toTierId: input.toTierId,
+        differenceMajor: input.differenceMajor,
+        at: new Date().toISOString(),
+      });
+
+      upgradeContext = {
+        organizerId: String(event.organizerId ?? ''),
+        eventId: ticket.eventId,
+        toTierName: tiers[toIndex].name,
+      };
+      return { ok: true };
+    });
+
+    // Widened out of the transaction callback — TS narrows the capture to null.
+    const upgraded = upgradeContext as { organizerId: string; eventId: string; toTierName: string } | null;
+    if (outcome.ok && !outcome.duplicate && upgraded) {
+      const { queueEvent } = await import('@/backend/services/webhooks');
+      await queueEvent(upgraded.organizerId, 'ticket.upgraded', {
+        ticketId: input.ticketId,
+        eventId: upgraded.eventId,
+        toTierId: input.toTierId,
+        toTierName: upgraded.toTierName,
+        differenceMajor: input.differenceMajor,
+      }).catch(() => undefined);
+    }
+
+    return outcome;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'failed';
+    // Money was taken; the move must never silently not happen.
+    reportError(error, {
+      scope: 'tickets.tier-upgrade',
+      ticketId: input.ticketId,
+      toTierId: input.toTierId,
       providerEventId: input.providerEventId,
       paid: input.differenceMajor,
     });

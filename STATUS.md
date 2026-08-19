@@ -516,6 +516,22 @@ version ready — Reload" prompt appears at the moment the user is actually look
 Until this ships, the manual fix is: fully close the installed app (swipe away from
 recents) and reopen it.
 
+### GA tier upgrades — the last "refund and a rebooking" closed (user request)
+
+An already-issued general-admission ticket now upgrades to a dearer type from the
+ticket itself: `quoteTierUpgrade` (owner-only, valid-only, public fixed on-sale target
+with capacity; difference priced over what was *actually paid*; downgrades stay
+refunds, deliberately) and `applyPaidTierUpgrade` (same `upgrade_events` idempotency
+ledger as seat upgrades, one transaction over ticket + both tier counters + the hold;
+`ticket.upgraded` webhook after commit). The money goes first: `tier-quote` /
+`tier-upgrade` actions on the tickets API place a hold on the target tier and send the
+buyer to Stripe for the difference plus the service fee on it; the webhook's missing
+`upgradeToSeat` is what routes it to the tier path. UI: `UpgradeTicket` in the ticket
+modal — renders only on valid, seatless tickets with a dearer public tier available;
+seated tickets keep upgrading by choosing a seat (ChangeSeat, unchanged). Emulator
+28/28 incl. quote-over-paid-price, stranger/downgrade/seated refusals, sold-out
+refusal before money, land-once + replay no-op. Industries copy updated to match.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.
