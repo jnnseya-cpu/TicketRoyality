@@ -87,6 +87,15 @@ export function TicketBox({ event }: { event: Event }) {
   const tier = visibleTiers.find((t) => t.id === tierId) ?? visibleTiers[0];
 
   /*
+   * Stock, enforced where the buyer chooses. The stepper was a plain 1–10 control that
+   * never looked at the tier, so a page saying "5 remaining" would happily price ten
+   * tickets and send the buyer to a payment the hold was always going to refuse. The
+   * server hold is still the authority; this stops the order that cannot succeed from
+   * being quoted at all.
+   */
+  const tierRemaining = tier ? Math.max(0, tier.quantity - (tier.sold ?? 0)) : 0;
+
+  /*
    * Pay what you want. The buyer's amount is the price on a `choose` tier, floored at the
    * organiser's minimum. `resolveLinePrice` is the same function the checkout route runs
    * server-side, so what is shown here and what is charged cannot drift — and a tier that
@@ -334,6 +343,22 @@ export function TicketBox({ event }: { event: Event }) {
   const seatedSections = (event.seating ?? []).filter((s) => s.tierId === tier?.id);
   const isSeated = seatedSections.length > 0;
   const seatsChosen = selectedSeats.length === effectiveQuantity;
+
+  /*
+   * The one legitimate way to ask for more than the tier holds: the organiser opted
+   * into sellout upgrades, where a clean sold-out on an unseated order is retried
+   * against the next tier up (see /api/checkout). Seated orders never qualify —
+   * chosen seats cannot follow the buyer into a different room.
+   */
+  const canOverbuyForUpgrade = Boolean(event.autoUpgradeOnSellout) && !isSeated;
+  const maxBuyable = canOverbuyForUpgrade ? 10 : Math.min(10, tierRemaining);
+  const soldOut = tierRemaining === 0 && !canOverbuyForUpgrade;
+
+  React.useEffect(() => {
+    // Switching to a tier with less stock must shrink the order, not carry a quantity
+    // the new tier cannot honour.
+    setQuantity((q) => Math.min(q, Math.max(1, maxBuyable)));
+  }, [maxBuyable]);
 
   React.useEffect(() => {
     // A seat chosen for the stalls is not a seat in the circle, and four seats are not
@@ -611,11 +636,21 @@ export function TicketBox({ event }: { event: Event }) {
                       size="icon"
                       className="h-8 w-8"
                       onClick={() =>
-                        setMixCounts((current) => ({
-                          ...current,
-                          [type.id]: Math.min(10, (current[type.id] ?? 0) + 1),
-                        }))
+                        setMixCounts((current) => {
+                          // The party as a whole is capped by the tier's stock, not
+                          // each type separately — 3 Adults + 3 Children is six seats.
+                          const total = attendeeTypes.reduce(
+                            (sum, t) => sum + (current[t.id] ?? 0),
+                            0
+                          );
+                          if (total >= maxBuyable) return current;
+                          return {
+                            ...current,
+                            [type.id]: Math.min(10, (current[type.id] ?? 0) + 1),
+                          };
+                        })
                       }
+                      disabled={partyTarget >= maxBuyable}
                       aria-label={`More ${type.name}`}
                     >
                       <Plus className="h-3 w-3" />
@@ -650,13 +685,21 @@ export function TicketBox({ event }: { event: Event }) {
               variant="outline"
               size="icon"
               className="h-8 w-8"
-              onClick={() => setQuantity((q) => Math.min(10, q + 1))}
+              onClick={() => setQuantity((q) => Math.min(Math.max(1, maxBuyable), q + 1))}
+              disabled={quantity >= maxBuyable}
               aria-label="Increase quantity"
             >
               <Plus className="h-3 w-3" />
             </Button>
           </div>
         </div>
+        )}
+
+        {/* Why the + button stopped: the stock did, not the software. */}
+        {!soldOut && !canOverbuyForUpgrade && tierRemaining < 10 && (
+          <p className="text-right text-xs text-muted-foreground">
+            Only {tierRemaining} left for this ticket type.
+          </p>
         )}
 
         {/*
@@ -734,9 +777,9 @@ export function TicketBox({ event }: { event: Event }) {
           variant="royal"
           className="w-full"
           onClick={handleAddToCart}
-          disabled={!selectedWindow.onSale || !loyaltyOk}
+          disabled={!selectedWindow.onSale || !loyaltyOk || soldOut}
         >
-            <ShoppingCart className="h-4 w-4" /> Add to cart
+            <ShoppingCart className="h-4 w-4" /> {soldOut ? 'Sold out' : 'Add to cart'}
           </Button>
         )}
 
@@ -794,11 +837,13 @@ export function TicketBox({ event }: { event: Event }) {
                 type="submit"
                 variant="royal"
                 className="w-full"
-                disabled={(isSeated && !seatsChosen) || Boolean(companionIssue)}
+                disabled={soldOut || (isSeated && !seatsChosen) || Boolean(companionIssue)}
               >
-                {isSeated && !seatsChosen
-                  ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
-                  : `Get ${effectiveQuantity} free ticket${effectiveQuantity === 1 ? '' : 's'}`}
+                {soldOut
+                  ? 'Sold out'
+                  : isSeated && !seatsChosen
+                    ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
+                    : `Get ${effectiveQuantity} free ticket${effectiveQuantity === 1 ? '' : 's'}`}
               </Button>
             ) : (
               <p className="text-center text-sm text-muted-foreground">
@@ -861,15 +906,17 @@ export function TicketBox({ event }: { event: Event }) {
                 type="submit"
                 variant="outline"
                 className="w-full"
-                disabled={(isSeated && !seatsChosen) || (hasTypes && effectiveQuantity === 0) || Boolean(companionIssue)}
+                disabled={soldOut || (isSeated && !seatsChosen) || (hasTypes && effectiveQuantity === 0) || Boolean(companionIssue)}
               >
                 <CreditCard className="h-4 w-4" />
                 {/* A disabled button must say why, or it reads as broken. */}
-                {hasTypes && effectiveQuantity === 0
-                  ? 'Choose your tickets above'
-                  : isSeated && !seatsChosen
-                    ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
-                    : 'Pay with Stripe'}
+                {soldOut
+                  ? 'Sold out'
+                  : hasTypes && effectiveQuantity === 0
+                    ? 'Choose your tickets above'
+                    : isSeated && !seatsChosen
+                      ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
+                      : 'Pay with Stripe'}
               </Button>
             </form>
 
@@ -918,6 +965,7 @@ export function TicketBox({ event }: { event: Event }) {
                   className="w-full"
                   onClick={handleKoda}
                   disabled={
+                    soldOut ||
                     kodaLoading ||
                     (isSeated && !seatsChosen) ||
                     (hasTypes && effectiveQuantity === 0) ||
@@ -930,11 +978,13 @@ export function TicketBox({ event }: { event: Event }) {
                     <Smartphone className="h-4 w-4" />
                   )}
                   {/* Same explanations as the card button: silent disabled = "broken". */}
-                  {hasTypes && effectiveQuantity === 0
-                    ? 'Choose your tickets above'
-                    : isSeated && !seatsChosen
-                      ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
-                      : 'Pay with Mobile Money'}
+                  {soldOut
+                    ? 'Sold out'
+                    : hasTypes && effectiveQuantity === 0
+                      ? 'Choose your tickets above'
+                      : isSeated && !seatsChosen
+                        ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
+                        : 'Pay with Mobile Money'}
                 </Button>
               ) : (
                 <p className="text-center text-xs text-muted-foreground">

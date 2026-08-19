@@ -2,6 +2,8 @@ import 'server-only';
 
 import Stripe from 'stripe';
 
+import { decodeCart } from '@/shared/cart-metadata';
+
 /**
  * Stripe adapter. Server-only — the secret key must never reach a client bundle.
  * Route handlers stay thin and call into here; all Stripe knowledge lives in this file
@@ -205,6 +207,16 @@ export function readCheckoutSession(session: Stripe.Checkout.Session) {
         return undefined;
       }
     })(),
+    /**
+     * The priced basket, one entry per cart line — the multi-event path. Decoded
+     * defensively for the same reason as `mix`: the money has already moved, so
+     * malformed metadata degrades to an empty list the webhook logs loudly rather
+     * than a parse error that loses the payment.
+     */
+    cart: decodeCart(session.metadata?.cart),
+    /** Set when this payment buys a homepage/newsletter placement, not tickets. */
+    promoPlacement: session.metadata?.promoPlacement || undefined,
+    promoEventId: session.metadata?.promoEventId || undefined,
     /** Set when the payment is a hospitality deposit or balance rather than a ticket sale. */
     bookingId: session.metadata?.bookingId || undefined,
     /** Set on a season pass, which settles into one ticket per covered fixture. */

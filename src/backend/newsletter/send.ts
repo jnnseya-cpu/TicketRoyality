@@ -6,6 +6,7 @@ import { isEmailConfigured, send } from '@/backend/comms/email';
 import { unsubscribeHeaders, unsubscribeUrl } from '@/backend/comms/unsubscribe';
 import { getEvents } from '@/shared/data/repositories';
 import { siteUrl } from '@/shared/site';
+import type { Event } from '@/shared/types';
 
 import { buildNewsletter, eventsForNewsletter, newsletterArticles, weekIndex } from './build';
 
@@ -41,6 +42,13 @@ export interface RunState {
   sent: number;
   failed: number;
   skipped: number;
+  /**
+   * Paid newsletter-spotlight events, snapshotted when the run starts so every batch
+   * of one week's send carries the same block — a spotlight bought mid-run waits for
+   * next week rather than reaching half a list. Cleared from the events when the run
+   * completes: that completion IS the "single send" the organiser paid for.
+   */
+  spotlightIds?: string[];
   completedAt?: string;
 }
 
@@ -57,6 +65,24 @@ export interface SendResult {
 /** Globally unique — epoch week numbers do not reset at the year boundary. */
 export function currentWeekId(now: Date): string {
   return `week-${weekIndex(now)}`;
+}
+
+/**
+ * The completed run consumes the paid spotlights — "single send" means exactly one
+ * full run, and it has just happened. Best-effort per event: a flag that fails to
+ * clear gets one more week, which errs in the paying organiser's favour.
+ */
+async function consumeSpotlights(
+  db: ReturnType<typeof getAdminDb>,
+  ids: string[]
+): Promise<void> {
+  for (const id of ids) {
+    await db
+      .collection('events')
+      .doc(id)
+      .update({ newsletterSpotlight: false })
+      .catch(() => {});
+  }
 }
 
 /**
@@ -82,7 +108,36 @@ export async function sendNewsletterBatch(now = new Date()): Promise<SendResult>
       // tick — or an impatient manual trigger — a no-op rather than a second mailing.
       if (run.completedAt) return { ...empty, reason: 'already completed this week' };
     } else {
-      run = { weekId, startedAt: now.toISOString(), cursor: null, sent: 0, failed: 0, skipped: 0 };
+      // The paid spotlight list is fixed at the moment the run starts — see RunState.
+      let spotlightIds: string[] = [];
+      try {
+        const flagged = await db
+          .collection('events')
+          .where('newsletterSpotlight', '==', true)
+          .get();
+        spotlightIds = flagged.docs
+          .filter((doc) => {
+            const data = doc.data() as { status?: string; date?: string };
+            // Only a published, still-upcoming event goes into an inbox with the
+            // platform's name on it.
+            return (
+              data.status === 'published' &&
+              (!data.date || new Date(data.date).getTime() > now.getTime())
+            );
+          })
+          .map((doc) => doc.id);
+      } catch {
+        // No spotlight beats no newsletter.
+      }
+      run = {
+        weekId,
+        startedAt: now.toISOString(),
+        cursor: null,
+        sent: 0,
+        failed: 0,
+        skipped: 0,
+        spotlightIds,
+      };
       await runRef.set(run);
     }
   } catch (error) {
@@ -103,6 +158,7 @@ export async function sendNewsletterBatch(now = new Date()): Promise<SendResult>
 
   if (users.empty) {
     await runRef.update({ completedAt: now.toISOString() }).catch(() => {});
+    await consumeSpotlights(db, run.spotlightIds ?? []);
     return { ...empty, reason: 'run complete' };
   }
 
@@ -110,6 +166,23 @@ export async function sendNewsletterBatch(now = new Date()): Promise<SendResult>
   const articles = newsletterArticles(now);
   const allEvents = await getEvents({ max: 60 }).catch(() => []);
   const events = eventsForNewsletter(allEvents, now);
+
+  // The paid spotlight block, from the ids frozen when the run started.
+  const spotlightIds = run.spotlightIds ?? [];
+  let spotlight: Event[] = [];
+  if (spotlightIds.length) {
+    try {
+      const snaps = await Promise.all(
+        spotlightIds.map((id) => db.collection('events').doc(id).get())
+      );
+      spotlight = snaps
+        .filter((snap) => snap.exists)
+        .map((snap) => ({ id: snap.id, ...(snap.data() as object) }) as Event);
+    } catch {
+      // The paid block failing to load must not stop the send; the flag stays set, so
+      // the next completed run still delivers what was bought.
+    }
+  }
 
   let sent = 0;
   let skipped = 0;
@@ -140,6 +213,7 @@ export async function sendNewsletterBatch(now = new Date()): Promise<SendResult>
     const content = buildNewsletter({
       articles,
       events,
+      spotlight,
       siteUrl: base,
       unsubscribeUrl: unsubscribeUrl(doc.id, base),
       recipientName: profile.fullName?.split(' ')[0],
@@ -181,6 +255,8 @@ export async function sendNewsletterBatch(now = new Date()): Promise<SendResult>
       ...(done ? { completedAt: new Date().toISOString() } : {}),
     })
     .catch(() => {});
+
+  if (done) await consumeSpotlights(db, run.spotlightIds ?? []);
 
   return { weekId, processed: users.size, sent, skipped, failed, done };
 }

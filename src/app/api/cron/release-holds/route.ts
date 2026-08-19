@@ -6,6 +6,7 @@ import { expireLapsedBookings } from '@/backend/services/hospitality';
 import { purgeSpentAttestations } from '@/backend/security/attestation';
 import { closeDueLots } from '@/backend/services/auctions';
 import { deliverDue } from '@/backend/services/webhooks';
+import { expirePlacements } from '@/backend/services/promotions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,6 +66,14 @@ export async function GET(request: Request) {
    */
   const webhooks = await deliverDue();
 
+  /*
+   * Paid homepage placements whose term has lapsed. Swept here because this is the one
+   * schedule that demonstrably runs — `/api/cron/expire-placements` exists for a manual
+   * or separately scheduled call, but a slot bought for 7 days must not depend on a
+   * second scheduler job anybody has to remember to create.
+   */
+  const placementsExpired = (await expirePlacements()).expired;
+
   return NextResponse.json(
     {
       released,
@@ -73,6 +82,7 @@ export async function GET(request: Request) {
       attestationsPurged,
       lotsClosed,
       webhooks,
+      placementsExpired,
       implemented: true,
     },
     { headers: { 'Cache-Control': 'no-store' } }

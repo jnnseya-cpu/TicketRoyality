@@ -536,6 +536,14 @@ export interface Event {
    */
   autoUpgradeOnSellout?: boolean;
   featured?: boolean;
+  /** When a PAID featured placement lapses (ISO). Absent on manual grants, which the
+      expiry cron therefore never touches. */
+  featuredUntil?: string;
+  /** The paid spotlight-strip placement (docs/04 M24), self-serve since 19 Aug 2026. */
+  spotlight?: boolean;
+  spotlightUntil?: string;
+  /** Queued for the weekly newsletter's dedicated block; cleared after one full send. */
+  newsletterSpotlight?: boolean;
   /**
    * The organiser asked for homepage placement. `featured` itself is granted by a
    * superuser (and billed); the form can only ever set this flag. The two are separate

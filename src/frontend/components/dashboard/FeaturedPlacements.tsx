@@ -106,8 +106,9 @@ export function FeaturedPlacements() {
       <CardHeader>
         <CardTitle>Featured placements</CardTitle>
         <CardDescription>
-          Organisers request; you grant. Invoice the placement before granting it — nothing here
-          takes the money for you.
+          Paid placements activate themselves the moment the card payment lands and lapse
+          on their own after their term. This card is the override: grant a free placement
+          (it never expires until you remove it), or pull anything off the homepage.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">

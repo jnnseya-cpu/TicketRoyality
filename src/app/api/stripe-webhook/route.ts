@@ -10,6 +10,7 @@ import {
 import { applyPaidMove, applyPaidTierUpgrade } from '@/backend/services/seat-swap';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { recordBookingPayment } from '@/backend/services/hospitality';
+import { activatePlacement } from '@/backend/services/promotions';
 import { recordAttribution } from '@/backend/services/partners';
 import { recordDonation } from '@/backend/services/donations';
 import { recordContribution } from '@/backend/services/registry';
@@ -154,6 +155,38 @@ export async function POST(request: Request) {
         }
 
         /*
+         * A paid placement — homepage spotlight, featured grid or newsletter block.
+         *
+         * Active the moment this lands, per the owner's direction: the organiser paid
+         * the catalogue price and the flags the homepage and newsletter render from are
+         * set in one transaction with the placement record. Idempotent by the Stripe
+         * event id, so a redelivery cannot extend a placement it already started.
+         */
+        if (checkout.promoPlacement && checkout.promoEventId) {
+          const activated = await activatePlacement({
+            providerEventId: event.id,
+            placementId: checkout.promoPlacement,
+            eventId: checkout.promoEventId,
+            userId: checkout.userId ?? '',
+            amountMajor: checkout.amountTotal,
+            currency: checkout.currency,
+          });
+
+          if (activated === 'unavailable') {
+            // 500 so Stripe redelivers: the organiser has paid for a slot the homepage
+            // does not yet know about.
+            return NextResponse.json({ error: 'datastore_unavailable' }, { status: 500 });
+          }
+          if (activated === 'invalid') {
+            console.error('[stripe] placement payment with unknown placement', {
+              eventId: event.id,
+              placement: checkout.promoPlacement,
+            });
+          }
+          return NextResponse.json({ received: true, placement: activated });
+        }
+
+        /*
          * A hospitality deposit or balance, which is a payment against a booking rather
          * than a ticket sale.
          *
@@ -275,6 +308,113 @@ export async function POST(request: Request) {
           }
 
           return NextResponse.json({ received: true, pass: settled.ok ? settled.issued : 0 });
+        }
+
+        /*
+         * A basket — several lines, possibly several events, one payment.
+         *
+         * Each line becomes its own `payment_events` document, idempotent by
+         * `${event.id}__{index}`: the Stripe event id makes a redelivery rewrite the
+         * same documents, and the index keeps two lines of one basket from colliding.
+         * Issuance stays the single existing path in `functions/` — a basket is just
+         * several single purchases that happened to share a card.
+         *
+         * Before this branch existed the cart's metadata carried no items at all, so a
+         * paid basket fell through to the missing-metadata stop below and issued
+         * NOTHING. That is the failure this branch removes.
+         */
+        if (checkout.cart.length > 0) {
+          if (!checkout.userId) {
+            // The route refuses signed-out baskets before charging, so reaching this
+            // means metadata was lost — surfaced, not retried, exactly as below.
+            console.error('[stripe] cart checkout with no userId', {
+              eventId: event.id,
+              sessionId: checkout.sessionId,
+            });
+            return NextResponse.json(
+              { received: true, issued: false, reason: 'missing_metadata' },
+              { status: 202 }
+            );
+          }
+
+          for (const [index, item] of checkout.cart.entries()) {
+            const recorded = await recordPaymentEvent({
+              providerEventId: `${event.id}__${index}`,
+              provider: 'stripe',
+              providerType: event.type,
+              intent: 'issue',
+              eventId: item.eventId,
+              tierId: item.tierId,
+              userId: checkout.userId,
+              quantity: item.quantity,
+              // The line's own post-coupon unit price, never the session total: a
+              // partial refund reverses one ticket at what that ticket cost.
+              price: item.unitMajor,
+              currency: checkout.currency,
+              attendeeName: checkout.customerName ?? 'Ticket holder',
+              attendeeEmail: checkout.customerEmail ?? '',
+              providerRef: checkout.paymentIntentId,
+            });
+
+            if (recorded === 'unavailable') {
+              // 500 so Stripe redelivers the whole event; already-written lines are
+              // idempotent by document id and cannot issue twice.
+              return NextResponse.json({ error: 'datastore_unavailable' }, { status: 500 });
+            }
+          }
+
+          // `order.completed` per line, so each organiser hears about their own sale
+          // and nobody hears about somebody else's. Best-effort, never instead of
+          // the issuance above.
+          for (const item of checkout.cart) {
+            try {
+              const organizerId = await organiserOf(item.eventId);
+              if (organizerId) {
+                await queueEvent(organizerId, 'order.completed', {
+                  eventId: item.eventId,
+                  tierId: item.tierId,
+                  quantity: item.quantity,
+                  amountMinor: Math.round(item.unitMajor * 100) * item.quantity,
+                  currency: checkout.currency,
+                });
+              }
+            } catch (error) {
+              reportError(error, { scope: 'stripe.queueOrder', stripeEventId: event.id });
+            }
+          }
+
+          /*
+           * Attribution only when the whole basket belongs to one organiser. The
+           * commission base (`faceMinor`) covers the entire order, and paying partner A
+           * a percentage of organiser B's tickets is money nobody agreed to lose.
+           */
+          if (checkout.ref) {
+            try {
+              const owners = await Promise.all(
+                [...new Set(checkout.cart.map((item) => item.eventId))].map(organiserOf)
+              );
+              const [organizerId] = owners;
+              if (organizerId && owners.every((owner) => owner === organizerId)) {
+                await recordAttribution({
+                  providerEventId: event.id,
+                  code: checkout.ref,
+                  eventId: checkout.cart[0].eventId,
+                  organizerId,
+                  quantity: checkout.cart.reduce((sum, item) => sum + item.quantity, 0),
+                  faceMinor: checkout.faceMinor,
+                  providerRef: checkout.paymentIntentId,
+                });
+              } else if (organizerId) {
+                console.warn('[stripe] cart spans organisers — attribution skipped', {
+                  stripeEventId: event.id,
+                });
+              }
+            } catch (error) {
+              reportError(error, { scope: 'stripe.attribution', providerEventId: event.id });
+            }
+          }
+
+          return NextResponse.json({ received: true, items: checkout.cart.length });
         }
 
         // Metadata is set when the checkout session is created. Without it there is

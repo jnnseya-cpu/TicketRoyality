@@ -585,6 +585,72 @@ warning when unlinked, and `validateLayout` flags every display-only section by 
 in the live issues list (38/38 seating tests). Existing events fix in one edit: set
 "Sells from" on each section.
 
+### 19 August — P0: a paid basket issued nothing
+
+The cart path priced its lines, charged the card, and sent Stripe metadata with **no
+items in it** — so the webhook hit its missing-metadata stop and a paid multi-item
+basket produced no tickets at all. Fixed end to end:
+
+- `shared/cart-metadata.ts`: the priced basket rides in one metadata value (dense
+  positional encoding, 480-char cap, **refused rather than truncated** when a basket
+  cannot fit — a silently dropped line is a paid-for ticket that never exists). Pure
+  suite: `npm run test:cart-metadata`, 8/8.
+- `/api/checkout` cart branch: encodes the basket **after** the coupon spread, so each
+  unit price is the post-discount price actually charged; also now checks tier stock
+  before the card (the cart takes no hold), and refuses signed-out ticket purchases
+  before Stripe instead of after (a guest could previously pay and hit the
+  missing-metadata stop — charged, nothing issued, nowhere to issue to).
+- Webhook: a basket issues one `payment_events` document per line, idempotent by
+  `${stripeEventId}__{index}`; issuance stays the single existing path in `functions/`.
+  `order.completed` queues per line to each line's own organiser. Attribution runs only
+  when the whole basket belongs to one organiser — commission on somebody else's
+  tickets is money nobody agreed to lose.
+
+### 19 August — the stepper sold stock that does not exist
+
+"Only 5 tickets available but the website sells 10." The buy box's quantity control was
+a hard-coded 1–10 that never looked at the tier: it priced ten tickets against five
+remaining and sent the buyer to a hold that was always going to refuse. Now the
+stepper and the attendee-type party are capped at the tier's remainder (with "Only N
+left" said next to it), sold-out disables every pay surface with the word "Sold out",
+and switching tiers shrinks an oversized quantity. The one deliberate exception
+survives: an organiser who opted into sellout upgrades keeps the overbuy on unseated
+orders, because the hold's clean failure is what triggers the upgrade to the next tier.
+
+### 19 August — placements are self-serve: pay by card, live on the webhook (owner order)
+
+"This shouldn't be any enquiries — they pay for these and it can be directly active.
+ACTIVATE ALL THESE." Done, all three:
+
+- `shared/placements.ts` is the catalogue and the single pricing authority (£249
+  spotlight strip / £149 featured / £99 newsletter, GBP): the page renders from it and
+  `/api/promotions/checkout` charges from it, ignoring anything the browser says. Only
+  the event's own organiser can buy, only for a published, still-upcoming event.
+- The Stripe webhook activates on `promoPlacement` metadata via
+  `activatePlacement()` — one transaction writes the placement record
+  (`placements/{stripeEventId}`, create-guarded, so a redelivery cannot extend twice)
+  and sets the event flags: `spotlight`+`spotlightUntil` (strip), `featured`+
+  `featuredUntil` (grid + strip), `newsletterSpotlight` (one weekly send).
+- Fulfilment is real on all three surfaces: the homepage strip renders
+  `featured || spotlight`; the featured grid is unchanged; the weekly newsletter gained
+  an "In the spotlight · sponsored" block — the spotlight list is frozen into the run
+  when it starts (every recipient of one send sees the same block), and the completed
+  run clears the flags, which is exactly the "single send" that was sold.
+- Expiry: `expirePlacements()` runs inside the every-minute cron sweep (and
+  `/api/cron/expire-placements` is now real, not a stub). Only paid placements carry an
+  `…Until`; a manual superuser grant has none and never lapses on its own. The
+  superuser card stays as the free-grant/override switch and says so.
+- The enquiry route still exists but nothing links to it; the promotions page's
+  "Enquire" buttons are now "Pay £N — go live". The organiser's three unanswered
+  enquiries from live testing were emails to info@ticketroyality.com — check that
+  inbox; they never reached the dashboard because the dashboard's queue only ever
+  listed `featuredRequested` events, which the enquiry flow never set.
+
+Verified: typecheck, lint, production build, `test:newsletter` 15/15,
+`test:cart-metadata` 8/8. Not testable here: a real Stripe webhook round-trip — the
+placement branch follows the same recordPaymentEvent/idempotency patterns as the
+tested paths.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

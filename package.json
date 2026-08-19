@@ -45,6 +45,7 @@
     "test:wristbands": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/wristbands.test.ts\"",
     "test:media": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/media.test.ts\"",
     "test:seating": "tsx src/shared/seating.test.ts",
+    "test:cart-metadata": "tsx src/shared/cart-metadata.test.ts",
     "test:kill": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/production-kill.test.ts\"",
     "test:seat-swap": "firebase emulators:exec --only firestore --project ticketroyality-test --config firebase.emulator.json \"npx tsx --conditions=react-server scripts/seat-swap.test.ts\"",
     "test:gift-aid": "tsx src/shared/gift-aid.test.ts",

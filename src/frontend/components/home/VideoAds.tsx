@@ -44,7 +44,9 @@ export default function VideoAds({ events }: { events: Event[] }) {
     Autoplay({ delay: 8_000, stopOnInteraction: false, stopOnMouseEnter: true })
   );
 
-  const promoted = events.filter((event) => event.featured).slice(0, 6);
+  // Both paid placements reach the strip: the £249 spotlight buys the strip alone,
+  // the £149 featured placement buys the grid and rides here too.
+  const promoted = events.filter((event) => event.featured || event.spotlight).slice(0, 6);
 
   // Nothing featured: the section does not exist rather than inventing something to fill it.
   if (promoted.length === 0) return null;

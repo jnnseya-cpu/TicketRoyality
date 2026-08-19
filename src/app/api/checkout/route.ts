@@ -15,6 +15,7 @@ import {
   type MixEntry,
 } from '@/shared/pricing';
 import { codeOpensTier } from '@/backend/services/access-codes';
+import { encodeCart } from '@/shared/cart-metadata';
 import { REF_COOKIE } from '@/backend/services/partners';
 import { getPass, passAvailability } from '@/backend/services/season-passes';
 import { meetsTier, membershipFor } from '@/backend/services/loyalty';
@@ -44,8 +45,9 @@ export const dynamic = 'force-dynamic';
  * The single-event path posts `eventId` and `tierId`, so the tier's real price is looked
  * up and the posted `amount` is ignored. That closes a hole that predates this change —
  * the form previously named its own price, and a hand-crafted POST could have bought a
- * £250 ticket for a penny. The cart path still trusts its posted amounts and is flagged
- * in STATUS.md; it needs a per-item lookup that is a larger change than this one.
+ * £250 ticket for a penny. The cart path re-prices every line the same way, and carries
+ * the priced basket to the webhook in metadata (`shared/cart-metadata.ts`) so a paid
+ * basket issues every line — it used to carry nothing, so a paid basket issued nothing.
  */
 export async function POST(request: Request) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
@@ -89,6 +91,15 @@ export async function POST(request: Request) {
   const claimables: Array<{ eventId: string; tierId: string; quantity: number; currency: string }> = [];
   /** Attendee-type entries for a mixed single-event order; empty means single-price. */
   let mixEntries: MixEntry[] = [];
+  /*
+   * Cart lines with the CheckoutLine they priced into, kept as references so the coupon
+   * spread below is already inside `line.amount` when the basket is encoded. This is what
+   * reaches the webhook: without it a paid basket had no items in its metadata and
+   * issued nothing.
+   */
+  const cartRefs: Array<{ eventId: string; tierId: string; quantity: number; line: CheckoutLine }> = [];
+  /** The encoded basket for Stripe metadata; empty on every non-cart path. */
+  let cartMetaValue = '';
 
   // `items` is a JSON array for cart checkout; single-event checkout sends flat fields.
   const rawItems = form.get('items');
@@ -156,6 +167,20 @@ export async function POST(request: Request) {
                 : `${tier.name} has closed`
             );
           }
+          /*
+           * Stock, checked before the card. The cart takes no hold (it spans events), so
+           * without this a basket could be charged for tickets the tier does not have and
+           * refused only at issuance — after the money moved. The cart's stepper has no
+           * idea what remains; this is where the platform does.
+           */
+          const remaining = tier.quantity - (tier.sold ?? 0);
+          if (quantity > remaining) {
+            return fail(
+              remaining > 0
+                ? `Only ${remaining} left of ${tier.name} for ${data?.title ?? item.eventTitle}`
+                : `${tier.name} for ${data?.title ?? item.eventTitle} is sold out`
+            );
+          }
           // A fixed tier ignores the posted price; a pay-what-you-want tier accepts it
           // above the organiser's floor. The mode comes from the stored event, so a
           // crafted POST cannot turn a £250 ticket into a donation.
@@ -167,9 +192,11 @@ export async function POST(request: Request) {
         }
       }
 
-      lines.push({ name, amount, quantity, currency });
+      const line: CheckoutLine = { name, amount, quantity, currency };
+      lines.push(line);
       if (item.eventId && item.tierId) {
         claimables.push({ eventId: item.eventId, tierId: item.tierId, quantity, currency });
+        cartRefs.push({ eventId: item.eventId, tierId: item.tierId, quantity, line });
       }
     }
 
@@ -202,6 +229,27 @@ export async function POST(request: Request) {
         // A coupon that cannot be read is simply not applied. Failing the whole checkout
         // over a discount would turn a promotion outage into a sales outage.
       }
+    }
+
+    /*
+     * The basket, encoded for the webhook AFTER the coupon spread so each unit price is
+     * what was actually charged. Refused, never truncated, when it cannot fit Stripe's
+     * metadata limit: a silently dropped line is a paid-for ticket that never exists —
+     * the exact failure this encoding removes.
+     */
+    if (cartRefs.length > 0) {
+      const encoded = encodeCart(
+        cartRefs.map((ref) => ({
+          eventId: ref.eventId,
+          tierId: ref.tierId,
+          quantity: ref.quantity,
+          unitMajor: ref.line.amount,
+        }))
+      );
+      if (!encoded.ok) {
+        return fail('That basket is too large for one payment — please split it into two orders');
+      }
+      cartMetaValue = encoded.value;
     }
   } else if (form.get('passId')) {
     /*
@@ -550,6 +598,18 @@ export async function POST(request: Request) {
     }
   }
 
+  /*
+   * Tickets need an account to live in, checked BEFORE the card rather than after.
+   *
+   * A signed-out buyer could previously reach Stripe, pay, and hit the webhook's
+   * missing-metadata stop — charged, with nothing issued and nowhere to issue it to.
+   * A donation or registry gift on its own stays open to guests: it issues nothing.
+   */
+  if (!String(form.get('userId') ?? '') && (claimables.length > 0 || form.get('passId'))) {
+    if (holdId) await releaseHold(holdId, 'abandoned');
+    return fail('Sign in to buy tickets — they need an account to live in');
+  }
+
   if (!isStripeConfigured()) {
     if (holdId) await releaseHold(holdId, 'abandoned');
     return fail('Stripe is not configured');
@@ -585,6 +645,9 @@ export async function POST(request: Request) {
         holdId,
         // Carried to issuance, which already writes one seat per ticket in order.
         seats: chosenSeats.join(','),
+        // The priced basket, one entry per cart line. The webhook issues each entry as
+        // its own payment event; empty on every non-cart path.
+        cart: cartMetaValue,
         // Just the code. What it is worth is decided server-side at attribution time.
         ref: referral ?? '',
         // Set only on a season pass, which settles into one ticket per covered fixture.

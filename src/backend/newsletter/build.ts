@@ -27,6 +27,13 @@ import type { Event } from '@/shared/types';
 export interface NewsletterInput {
   articles: Article[];
   events: Event[];
+  /**
+   * Paid newsletter-spotlight events — a dedicated block above everything else,
+   * labelled as sponsored because it is. Chosen at the start of the weekly run and
+   * held constant across its batches, so every recipient of one send sees the same
+   * block: that is what "single send" sold.
+   */
+  spotlight?: Event[];
   siteUrl: string;
   /** The link that turns this off. Absent only when CRON_SECRET is unset. */
   unsubscribeUrl: string | null;
@@ -98,6 +105,7 @@ function money(amount: number, currency: string): string {
  */
 export function buildNewsletter(input: NewsletterInput): NewsletterContent {
   const { articles, events, siteUrl, unsubscribeUrl, recipientName } = input;
+  const spotlight = input.spotlight ?? [];
 
   const greeting = recipientName ? `Hello ${recipientName},` : 'Hello,';
   const lead = events.length
@@ -113,6 +121,18 @@ export function buildNewsletter(input: NewsletterInput): NewsletterContent {
   /* ---------------------------------------------------------------- */
 
   const textParts: string[] = [greeting, '', lead, ''];
+
+  if (spotlight.length) {
+    textParts.push('IN THE SPOTLIGHT (sponsored)', '');
+    for (const event of spotlight) {
+      textParts.push(
+        `• ${event.title}`,
+        `  ${formatEventDate(event.date)} · ${event.location}`,
+        `  ${money(event.price, event.currency)} — ${siteUrl}/events/${event.id}`,
+        ''
+      );
+    }
+  }
 
   if (events.length) {
     textParts.push('ON SALE NOW', '');
@@ -184,6 +204,24 @@ export function buildNewsletter(input: NewsletterInput): NewsletterContent {
     )
     .join('');
 
+  const spotlightRows = spotlight
+    .map(
+      (event) => `
+      <tr><td style="padding:0 0 14px">
+        <a href="${escapeHtml(siteUrl)}/events/${escapeHtml(event.id)}"
+           style="display:block;padding:14px 16px;border:1px solid #E0A82E;border-radius:8px;background:#fdf9ef;text-decoration:none">
+          <span style="display:block;font-size:15px;font-weight:600;color:#111116">${escapeHtml(event.title)}</span>
+          <span style="display:block;margin-top:4px;font-size:13px;color:#6b6b73">
+            ${escapeHtml(formatEventDate(event.date))} &middot; ${escapeHtml(event.location)}
+          </span>
+          <span style="display:inline-block;margin-top:8px;font-size:13px;font-weight:600;color:#B07A12">
+            ${escapeHtml(money(event.price, event.currency))} &rsaquo; Get tickets
+          </span>
+        </a>
+      </td></tr>`
+    )
+    .join('');
+
   const section = (title: string, rows: string) =>
     rows
       ? `<tr><td style="padding:22px 28px 0">
@@ -210,6 +248,7 @@ export function buildNewsletter(input: NewsletterInput): NewsletterContent {
       <p style="margin:6px 0 0;font-size:15px;line-height:1.6;color:#2b2b30">${escapeHtml(lead)}</p>
     </td></tr>
 
+    ${section('In the spotlight &middot; sponsored', spotlightRows)}
     ${section('On sale now', eventRows)}
     ${events.length ? `<tr><td style="padding:2px 28px 0"><a href="${escapeHtml(siteUrl)}/events" style="font-size:13px;font-weight:600;color:#B07A12;text-decoration:none">See every event &rsaquo;</a></td></tr>` : ''}
     ${section('Worth reading', articleRows)}
