@@ -2484,11 +2484,16 @@ export function CreateEventForm({
                           ))}
                         </SelectContent>
                       </Select>
-                      <FormDescription className="text-xs">
-                        Choose a tier and buyers pick their own seats from this section, held
-                        while they pay. Leave it on display only and the section is a picture
-                        of the room, as it has been.
-                      </FormDescription>
+                      {f.value ? (
+                        <FormDescription className="text-xs">
+                          Buyers pick their own seats from this section, held while they pay.
+                        </FormDescription>
+                      ) : (
+                        <p className="text-xs font-medium text-amber-600 dark:text-amber-500">
+                          Display only — buyers can SEE these seats but cannot choose them.
+                          Pick a ticket type to make them bookable.
+                        </p>
+                      )}
                     </FormItem>
                   )}
                 />
@@ -2649,7 +2654,10 @@ export function CreateEventForm({
                   startRow: String.fromCharCode(65 + seating.fields.length),
                   rows: 5,
                   seatsPerRow: 20,
-                  tierId: '',
+                  // Bookable by default — a map nobody can choose from is a picture,
+                  // and "you can't choose seat to book" was a live-testing bug report,
+                  // not a configuration. Display only remains available in the select.
+                  tierId: watchedTiers[0]?.id ?? '',
                   unavailableSeats: '',
                   accessibleSeats: '',
                 })

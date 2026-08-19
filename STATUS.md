@@ -564,6 +564,27 @@ placeholder (cover falls back to the picture) before the file goes, so their pag
 keep rendering. The guard also now covers `coverImageUrl`, which it never checked.
 Media tests 12/12.
 
+### P0 from live testing: the placeholder mobile-money panel is retired
+
+The manual "pay to this number" panel carried four HARD-CODED PLACEHOLDER numbers
+from `shared/constants/billing` — fictional wallets a real buyer nearly paid. It also
+rendered for a GBP event, offering to move pounds through Congolese mobile money.
+Retired from the buy box entirely: mobile money is **KODA's hosted page and nothing
+else** — real enrolled numbers, verified codes — shown only for USD/CDF events with
+KODA configured; otherwise a one-line "temporarily unavailable, pay by card" note or
+nothing. A payment surface that cannot be correct must not exist. (The superuser
+verification queue for historical manual submissions is untouched.)
+
+### Seat maps: display-only sections now say so (live testing)
+
+"You can't choose seat to book" — the organiser's sections were never linked to a
+ticket type, which by design leaves them as a picture, and nothing said so. Now: new
+sections default to the first tier (bookable is why anyone draws a map; display-only
+remains a deliberate choice in the "Sells from" select), the field shows an amber
+warning when unlinked, and `validateLayout` flags every display-only section by name
+in the live issues list (38/38 seating tests). Existing events fix in one edit: set
+"Sells from" on each section.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

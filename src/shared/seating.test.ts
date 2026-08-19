@@ -412,5 +412,17 @@ test('a clean room returns the green light: nothing', () => {
   assert.deepEqual(validateLayout([room], [{ id: 'tier-1', name: 'Stalls', quantity: 18 }]), []);
 });
 
+test('a section with no ticket type is warned as display only, by name', () => {
+  // "You can't choose seat to book" — three drawn sections, none linked to a tier,
+  // and nothing on screen saying why the seats were not clickable. The validator now
+  // says it while the organiser is still typing.
+  const picture = section({ name: 'Balcony', rows: 2, seatsPerRow: 4, tierId: undefined });
+  const issues = validateLayout([picture]);
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].severity, 'warning');
+  assert.match(issues[0].message, /Balcony/);
+  assert.match(issues[0].message, /display only/i);
+});
+
 console.log(`\n${passed}/${passed + failures.length} passed\n`);
 if (failures.length > 0) process.exit(1);

@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/frontend/components/
 import { Label } from '@/frontend/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/frontend/components/ui/radio-group';
 import { Separator } from '@/frontend/components/ui/separator';
-import { OfflinePayment } from '@/frontend/components/events/OfflinePayment';
 import { SeatPicker } from '@/frontend/components/events/SeatPicker';
 import { useAuth } from '@/frontend/hooks/use-auth';
 import { useCart } from '@/frontend/hooks/use-cart';
@@ -903,55 +902,45 @@ export function TicketBox({ event }: { event: Event }) {
             )}
 
             {/*
-              Mobile money, two shapes with one price. When KODA's keys are live the
-              buyer goes to KODA's hosted interface (USD/CDF only — its corridor) and
-              the signed webhook issues; the manual pay-to-this-number panel is the
-              fallback for when KODA is unconfigured or the currency rules it out.
-              Both are priced by the same engine call, so the total never depends on
-              which surface the buyer happened to see.
+              Mobile money is KODA's hosted page, and nothing else, ever. A manual
+              "pay to this number" panel used to render here as the fallback — with
+              PLACEHOLDER numbers from the repo's constants, four fictional wallets a
+              real buyer nearly paid in live testing. A payment surface that cannot be
+              correct must not exist: KODA (USD/CDF, the merchant's real enrolled
+              numbers, verified codes) or no mobile money at all.
             */}
             {userProfile &&
             donationMinor === 0 &&
-            methods.koda &&
             ['USD', 'CDF'].includes(event.currency?.toUpperCase() ?? '') ? (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleKoda}
-                disabled={
-                  kodaLoading ||
-                  (isSeated && !seatsChosen) ||
-                  (hasTypes && effectiveQuantity === 0) ||
-                  Boolean(companionIssue)
-                }
-              >
-                {kodaLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Smartphone className="h-4 w-4" />
-                )}
-                {/* Same explanations as the card button: silent disabled = "broken". */}
-                {hasTypes && effectiveQuantity === 0
-                  ? 'Choose your tickets above'
-                  : isSeated && !seatsChosen
-                    ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
-                    : 'Pay with Mobile Money'}
-              </Button>
-            ) : userProfile && donationMinor === 0 ? (
-              // The same lines the card quote prices — one engine, so the mobile-money
-              // total can never quietly diverge from what every other rail charges.
-              <OfflinePayment
-                event={event}
-                lines={
-                  hasTypes
-                    ? mixEntries.map((entry) => ({
-                        faceMinor: toMinor(entry.type.price),
-                        qty: entry.count,
-                      }))
-                    : [{ faceMinor: toMinor(unitPrice), qty: quantity }]
-                }
-                user={userProfile}
-              />
+              methods.koda ? (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleKoda}
+                  disabled={
+                    kodaLoading ||
+                    (isSeated && !seatsChosen) ||
+                    (hasTypes && effectiveQuantity === 0) ||
+                    Boolean(companionIssue)
+                  }
+                >
+                  {kodaLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Smartphone className="h-4 w-4" />
+                  )}
+                  {/* Same explanations as the card button: silent disabled = "broken". */}
+                  {hasTypes && effectiveQuantity === 0
+                    ? 'Choose your tickets above'
+                    : isSeated && !seatsChosen
+                      ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'}`
+                      : 'Pay with Mobile Money'}
+                </Button>
+              ) : (
+                <p className="text-center text-xs text-muted-foreground">
+                  Mobile money is temporarily unavailable — pay by card above.
+                </p>
+              )
             ) : userProfile ? null : (
               <p className="text-center text-xs text-muted-foreground">
                 <Link href="/login" className="text-primary hover:underline">

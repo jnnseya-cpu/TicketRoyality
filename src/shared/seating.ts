@@ -578,6 +578,23 @@ export function validateLayout(
 ): LayoutIssue[] {
   const issues: LayoutIssue[] = [];
 
+  /*
+   * A section not linked to a ticket type is a PICTURE — buyers can see every seat
+   * and choose none of them. Legitimate for a stage plan; almost never what an
+   * organiser who drew three priced sections meant, and in live testing it read as
+   * "you can't choose seat to book" with nothing on screen saying why. A warning,
+   * not an error, because display-only remains a real choice — made knowingly.
+   */
+  for (const section of sections) {
+    if (!section.tierId && sectionSeats(section).length > 0) {
+      issues.push({
+        severity: 'warning',
+        sectionIds: [section.id],
+        message: `${section.name || 'A section'} is display only — buyers can see its seats but cannot choose them. Set "Sells from" to a ticket type to make them bookable.`,
+      });
+    }
+  }
+
   /* Duplicate labels, within and across sections. */
   const owners = new Map<string, string[]>();
   for (const section of sections) {
