@@ -277,7 +277,10 @@ export const eventDraftTask: AiTask<EventDraftInput, EventDraftOutput> = {
     lines.push(
       '',
       'Keep the description concrete and free of superlatives. Do not name performers, ' +
-        'venues or dates unless the brief names them.'
+        'venues or dates unless the brief names them.',
+      // A Kinshasa organiser writes in French and must get French back — the draft
+      // mirrors the brief's language rather than defaulting to the platform's.
+      'Write the title, description and tier names in the same language as the brief.'
     );
 
     return lines.join('\n');

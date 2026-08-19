@@ -106,7 +106,18 @@ export type DynamicPricingOutput = z.infer<typeof DynamicPricingOutputSchema>;
  * ticket price that gets published unread is exactly the failure mode to avoid.
  */
 export const EventDraftInputSchema = z.object({
-  brief: z.string().min(10).max(1200),
+  /*
+   * Generous, and truncating rather than refusing above the cap: organisers paste
+   * whole concept documents here (a real one from live testing was ~4,000 characters
+   * of programme structure), and "Invalid input for this task" against a paste is a
+   * dead end nobody understands. The first 8,000 characters carry more than enough
+   * signal for a listing draft.
+   */
+  brief: z
+    .string()
+    .min(10)
+    .max(60_000)
+    .transform((value) => value.slice(0, 8_000)),
   /** Constrains the model to the real taxonomy instead of inventing a category. */
   categories: z.array(z.string()).min(1),
   city: z.string().optional(),
