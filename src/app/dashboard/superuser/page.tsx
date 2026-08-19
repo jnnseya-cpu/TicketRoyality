@@ -15,6 +15,7 @@ import {
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import { FeaturedPlacements } from '@/frontend/components/dashboard/FeaturedPlacements';
+import { PlacementPricing } from '@/frontend/components/dashboard/PlacementPricing';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import {
   getOrganisers,
@@ -131,6 +132,9 @@ function AdminOverview() {
         administrator making decisions from that screen was being lied to by it.
       */}
       <FeaturedPlacements />
+
+      {/* The owner sets what a placement costs; code carries only the defaults. */}
+      <PlacementPricing />
     </div>
   );
 }

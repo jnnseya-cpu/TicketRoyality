@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { requireUser } from '@/backend/auth/require-user';
-import { createIntent, isKodaConfigured, KodaError } from '@/backend/payments/koda';
+import { createIntent, isKodaConfigured, KodaError, toKodaAmount } from '@/backend/payments/koda';
 import { placeHold, releaseHold } from '@/backend/services/holds';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { computeOrderFees, toMinor } from '@/shared/fees';
@@ -124,7 +124,9 @@ export async function POST(request: Request) {
   try {
     const intent = await createIntent(
       {
-        amount: quote.buyerTotalMinor,
+        // KODA charges CDF in whole francs, not centimes — see toKodaAmount. Sending
+        // our minor units raw asked a live buyer for 100× the displayed price.
+        amount: toKodaAmount(currency, quote.buyerTotalMinor),
         currency,
         operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
         successUrl: `${siteUrl}/checkout/success?provider=mobile-money`,

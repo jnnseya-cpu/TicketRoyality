@@ -323,7 +323,41 @@ export async function POST(request: Request) {
          * paid basket fell through to the missing-metadata stop below and issued
          * NOTHING. That is the failure this branch removes.
          */
-        if (checkout.cart.length > 0) {
+        /*
+         * The basket's lines: preferably from its `cart_orders` document (which
+         * carries seats, attendee mixes and the per-line holds the checkout placed),
+         * falling back to the inline metadata encoding for sessions created before
+         * the document existed.
+         */
+        let basket: Array<{
+          eventId: string;
+          tierId: string;
+          quantity: number;
+          unitMajor: number;
+          holdId?: string;
+          seats?: string[];
+          mix?: Array<{ typeId: string; typeName: string; price: number; quantity: number }>;
+        }> = checkout.cart;
+
+        if (checkout.cartOrderId) {
+          if (!isAdminConfigured()) {
+            return NextResponse.json({ error: 'datastore_unavailable' }, { status: 500 });
+          }
+          const orderSnap = await getAdminDb()
+            .collection('cart_orders')
+            .doc(checkout.cartOrderId)
+            .get();
+          const order = orderSnap.data() as { lines?: typeof basket } | undefined;
+          if (!order?.lines?.length) {
+            // The checkout wrote this document before creating the session, so its
+            // absence is a datastore fault, not a normal state. 500 → redelivery.
+            console.error('[stripe] cart order missing', { cartOrderId: checkout.cartOrderId });
+            return NextResponse.json({ error: 'cart_order_missing' }, { status: 500 });
+          }
+          basket = order.lines;
+        }
+
+        if (basket.length > 0) {
           if (!checkout.userId) {
             // The route refuses signed-out baskets before charging, so reaching this
             // means metadata was lost — surfaced, not retried, exactly as below.
@@ -337,7 +371,7 @@ export async function POST(request: Request) {
             );
           }
 
-          for (const [index, item] of checkout.cart.entries()) {
+          for (const [index, item] of basket.entries()) {
             const recorded = await recordPaymentEvent({
               providerEventId: `${event.id}__${index}`,
               provider: 'stripe',
@@ -354,6 +388,11 @@ export async function POST(request: Request) {
               attendeeName: checkout.customerName ?? 'Ticket holder',
               attendeeEmail: checkout.customerEmail ?? '',
               providerRef: checkout.paymentIntentId,
+              // The hold this line reserved at checkout: issuance consumes it so the
+              // seats move from held to sold in one step.
+              holdId: item.holdId,
+              ...(item.seats?.length ? { seats: item.seats } : {}),
+              ...(item.mix?.length ? { mix: item.mix } : {}),
             });
 
             if (recorded === 'unavailable') {
@@ -363,10 +402,20 @@ export async function POST(request: Request) {
             }
           }
 
+          // The order document's state, for the operations view. Best-effort: the
+          // payment events above are the record that matters.
+          if (checkout.cartOrderId && isAdminConfigured()) {
+            await getAdminDb()
+              .collection('cart_orders')
+              .doc(checkout.cartOrderId)
+              .update({ status: 'issued', issuedAt: new Date().toISOString() })
+              .catch(() => {});
+          }
+
           // `order.completed` per line, so each organiser hears about their own sale
           // and nobody hears about somebody else's. Best-effort, never instead of
           // the issuance above.
-          for (const item of checkout.cart) {
+          for (const item of basket) {
             try {
               const organizerId = await organiserOf(item.eventId);
               if (organizerId) {
@@ -391,16 +440,16 @@ export async function POST(request: Request) {
           if (checkout.ref) {
             try {
               const owners = await Promise.all(
-                [...new Set(checkout.cart.map((item) => item.eventId))].map(organiserOf)
+                [...new Set(basket.map((item) => item.eventId))].map(organiserOf)
               );
               const [organizerId] = owners;
               if (organizerId && owners.every((owner) => owner === organizerId)) {
                 await recordAttribution({
                   providerEventId: event.id,
                   code: checkout.ref,
-                  eventId: checkout.cart[0].eventId,
+                  eventId: basket[0].eventId,
                   organizerId,
-                  quantity: checkout.cart.reduce((sum, item) => sum + item.quantity, 0),
+                  quantity: basket.reduce((sum, item) => sum + item.quantity, 0),
                   faceMinor: checkout.faceMinor,
                   providerRef: checkout.paymentIntentId,
                 });
@@ -414,7 +463,7 @@ export async function POST(request: Request) {
             }
           }
 
-          return NextResponse.json({ received: true, items: checkout.cart.length });
+          return NextResponse.json({ received: true, items: basket.length });
         }
 
         // Metadata is set when the checkout session is created. Without it there is

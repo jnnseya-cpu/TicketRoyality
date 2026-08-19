@@ -18,10 +18,17 @@ export interface PlacementDef {
   id: PlacementId;
   title: string;
   description: string;
-  /** What the organiser pays, major units. Platform revenue — no organiser payout. */
+  /** What the organiser pays by card, GBP major units. Platform revenue. */
   priceMajor: number;
-  /** Placements are priced in GBP regardless of the event's own currency. */
+  /** Placements are priced in GBP on the card rail regardless of the event's currency. */
   currency: 'GBP';
+  /**
+   * The mobile-money price, USD major units — KODA moves USD and CDF only, so a GBP
+   * charge cannot go down that rail. Defaults mirror the GBP figure; the superuser
+   * sets the real number from the dashboard (`config/placements`), which overrides
+   * every default here.
+   */
+  priceUsdMajor: number;
   /** Days the placement runs; null is a one-shot (the newsletter's single send). */
   days: number | null;
   periodLabel: string;
@@ -37,6 +44,7 @@ export const PLACEMENTS: Record<PlacementId, PlacementDef> = {
       'Your event in the rotating spotlight strip on the homepage. Video slots are not built — this is your cover image, and it links to your event.',
     priceMajor: 249,
     currency: 'GBP',
+    priceUsdMajor: 249,
     days: 7,
     periodLabel: '7 days',
   },
@@ -47,6 +55,7 @@ export const PLACEMENTS: Record<PlacementId, PlacementDef> = {
       'Your event appears in the Featured Events grid on the homepage and in the spotlight strip.',
     priceMajor: 149,
     currency: 'GBP',
+    priceUsdMajor: 149,
     days: 7,
     periodLabel: '7 days',
   },
@@ -57,6 +66,7 @@ export const PLACEMENTS: Record<PlacementId, PlacementDef> = {
       'A dedicated block in the weekly TicketRoyality email to opted-in attendees in your region.',
     priceMajor: 99,
     currency: 'GBP',
+    priceUsdMajor: 99,
     days: null,
     periodLabel: 'single send',
   },

@@ -60,6 +60,15 @@ export function DonationBox({
   const giving = event.giving;
   const suggested = giving?.suggested?.length ? giving.suggested : [5, 10, 25];
 
+  /*
+   * Gift Aid is a UK tax scheme — HMRC repays 25% of a GBP gift made by a UK
+   * taxpayer. On a CDF or USD event the declaration form was still offered, could
+   * only ever fail ("Gift Aid not added — check the details on the form", live, in
+   * Kinshasa), and claimed a UK-only relief on money HMRC will never see. Off the
+   * page entirely outside GBP; the donation itself is untouched.
+   */
+  const giftAidEligible = event.currency?.toUpperCase() === 'GBP';
+
   React.useEffect(() => {
     onAmountChange(amount);
   }, [amount, onAmountChange]);
@@ -172,7 +181,7 @@ export function DonationBox({
             {formatCurrency(amount, event.currency)}.
           </p>
 
-          {declared === true ? (
+          {!giftAidEligible ? null : declared === true ? (
             <p className="text-xs text-primary">
               Gift Aid is already set up — worth another{' '}
               {formatCurrency(giftAidOnMinor(minor) / 100, event.currency)} to them at no cost to you.

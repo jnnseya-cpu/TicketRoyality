@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 
-import { verifyWebhook } from '@/backend/payments/koda';
+import { fromKodaAmount, verifyWebhook } from '@/backend/payments/koda';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
+import { activatePlacement } from '@/backend/services/promotions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,9 @@ interface KodaMetadata {
   seats?: string;
   /** JSON-encoded MixEntry[] for a mixed-price order. */
   mix?: string;
+  /** Set when the intent buys a homepage/newsletter placement, not tickets. */
+  promoPlacement?: string;
+  promoEventId?: string;
 }
 
 export async function POST(request: Request) {
@@ -76,6 +80,28 @@ export async function POST(request: Request) {
       // set of tickets, and the intent is what both deliveries have in common.
       const providerEventId = payload.id ?? data.intent_id;
 
+      /*
+       * A paid placement over mobile money — same activation as the Stripe rail,
+       * idempotent by the provider event id, so KODA's retries cannot extend a
+       * placement twice.
+       */
+      if (providerEventId && meta.promoPlacement && meta.promoEventId) {
+        const activated = await activatePlacement({
+          providerEventId,
+          placementId: meta.promoPlacement,
+          eventId: meta.promoEventId,
+          userId: meta.userId ?? '',
+          amountMajor: data.amount
+            ? fromKodaAmount(data.currency ?? 'USD', data.amount) / 100
+            : 0,
+          currency: (data.currency ?? 'USD').toUpperCase(),
+        });
+        if (activated === 'unavailable') {
+          return NextResponse.json({ error: 'datastore_unavailable' }, { status: 503 });
+        }
+        return NextResponse.json({ received: true, placement: activated });
+      }
+
       if (!providerEventId || !meta.eventId || !meta.tierId || !meta.userId) {
         console.error('[koda] verified payment missing metadata', {
           intentId: data.intent_id,
@@ -113,10 +139,13 @@ export async function POST(request: Request) {
           tierId: meta.tierId,
           userId: meta.userId,
           quantity,
-          // KODA amounts are minor units (docs/08 §8.3) and are the total, not a unit
-          // price. Both conversions have to happen, and forgetting either produces a
-          // ticket priced 100x wrong.
-          price: data.amount ? data.amount / 100 / quantity : 0,
+          // KODA's units differ by currency — whole francs for CDF, cents for USD
+          // (see fromKodaAmount) — and the amount is the total, not a unit price.
+          // Both conversions have to happen, and forgetting either produces a ticket
+          // priced 100x wrong; the raw /100 that stood here did exactly that for CDF.
+          price: data.amount
+            ? fromKodaAmount(data.currency ?? 'CDF', data.amount) / 100 / quantity
+            : 0,
           currency: (data.currency ?? 'CDF').toUpperCase(),
           attendeeName: meta.attendeeName ?? 'Ticket holder',
           attendeeEmail: meta.attendeeEmail ?? '',

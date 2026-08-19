@@ -15,7 +15,6 @@ import {
   type MixEntry,
 } from '@/shared/pricing';
 import { codeOpensTier } from '@/backend/services/access-codes';
-import { encodeCart } from '@/shared/cart-metadata';
 import { REF_COOKIE } from '@/backend/services/partners';
 import { getPass, passAvailability } from '@/backend/services/season-passes';
 import { meetsTier, membershipFor } from '@/backend/services/loyalty';
@@ -92,14 +91,19 @@ export async function POST(request: Request) {
   /** Attendee-type entries for a mixed single-event order; empty means single-price. */
   let mixEntries: MixEntry[] = [];
   /*
-   * Cart lines with the CheckoutLine they priced into, kept as references so the coupon
-   * spread below is already inside `line.amount` when the basket is encoded. This is what
-   * reaches the webhook: without it a paid basket had no items in its metadata and
-   * issued nothing.
+   * Cart lines with the CheckoutLines each priced into, kept as references so the
+   * coupon spread below is already inside `line.amount` when the basket is written to
+   * its order document. That document is what reaches the webhook: without it a paid
+   * basket had no items in its metadata and issued nothing.
    */
-  const cartRefs: Array<{ eventId: string; tierId: string; quantity: number; line: CheckoutLine }> = [];
-  /** The encoded basket for Stripe metadata; empty on every non-cart path. */
-  let cartMetaValue = '';
+  const cartRefs: Array<{
+    eventId: string;
+    tierId: string;
+    quantity: number;
+    lines: CheckoutLine[];
+    seats: string[];
+    mix: MixEntry[];
+  }> = [];
 
   // `items` is a JSON array for cart checkout; single-event checkout sends flat fields.
   const rawItems = form.get('items');
@@ -112,6 +116,10 @@ export async function POST(request: Request) {
       price: number;
       quantity: number;
       currency: string;
+      /** Chosen seats for a reserved-seating line. Locked in a hold below. */
+      seats?: unknown;
+      /** Attendee-type breakdown. Re-priced by resolveMix, never trusted. */
+      mix?: unknown;
     }>;
     try {
       parsed = JSON.parse(rawItems);
@@ -131,10 +139,22 @@ export async function POST(request: Request) {
      * exactly when a stale price is most likely to be wrong.
      */
     for (const item of parsed) {
-      const quantity = Math.max(1, Math.min(20, Number(item.quantity) || 1));
+      let quantity = Math.max(1, Math.min(20, Number(item.quantity) || 1));
       let amount = Number(item.price) || 0;
       let currency = String(item.currency ?? 'GBP');
       let name = `${item.eventTitle} — ${item.tierName}`;
+
+      // Seats ride with the line so a reserved-seating tier can live in a basket
+      // beside everything else. Advisory until the hold below locks them.
+      const lineSeats = Array.isArray(item.seats)
+        ? (item.seats as unknown[])
+            .map((seat) => String(seat).trim().toUpperCase())
+            .filter(Boolean)
+        : [];
+      /** Re-priced attendee-type entries, empty for a single-price line. */
+      let lineMix: MixEntry[] = [];
+      /** The Stripe lines this ONE cart item priced into — several for a mix. */
+      const itemLines: CheckoutLine[] = [];
 
       if (isAdminConfigured() && item.eventId && item.tierId) {
         try {
@@ -142,8 +162,8 @@ export async function POST(request: Request) {
           const data = doc.data() as
             | { title?: string; currency?: string; status?: string; ticketTiers?: TicketTier[] }
             | undefined;
-          // The cart is the one path that does not reserve through placeHold, so the
-          // cancelled-event refusal has to live here as well as there.
+          // Cancelled events refuse here as well as in placeHold, because a basket can
+          // reach this code with the event's page long closed.
           if (data?.status === 'cancelled') {
             return fail(`${item.eventTitle} has been cancelled`);
           }
@@ -167,11 +187,55 @@ export async function POST(request: Request) {
                 : `${tier.name} has closed`
             );
           }
+
+          currency = data?.currency ?? currency;
+
           /*
-           * Stock, checked before the card. The cart takes no hold (it spans events), so
-           * without this a basket could be charged for tickets the tier does not have and
-           * refused only at issuance — after the money moved. The cart's stepper has no
-           * idea what remains; this is where the platform does.
+           * A mixed line — Adult ×2 + Child ×1 in one basket entry. The browser posts
+           * type ids and counts only; every price comes from the stored tier, exactly
+           * as the single-event path does it, and the mix REPLACES the posted quantity
+           * so the priced half and the issued half cannot disagree.
+           */
+          if (Array.isArray(item.mix) && item.mix.length > 0) {
+            const resolved = resolveMix(
+              tier,
+              item.mix as Array<{ typeId?: unknown; quantity?: unknown }>
+            );
+            if (!resolved.ok) return fail(resolved.error);
+            // Same contradiction guard as the single-event path: a priced tier whose
+            // chosen types are ALL free is broken data, not a free event.
+            if (
+              tier.pricing !== 'choose' &&
+              tier.price > 0 &&
+              resolved.entries.every((entry) => entry.price === 0)
+            ) {
+              return fail(
+                'The prices on this ticket type are misconfigured — please contact the organiser'
+              );
+            }
+            lineMix = resolved.entries;
+            quantity = resolved.total;
+            for (const entry of resolved.entries) {
+              itemLines.push({
+                name: `${data?.title ?? item.eventTitle} — ${tier.name} (${entry.typeName})`,
+                amount: entry.price,
+                quantity: entry.quantity,
+                currency,
+              });
+            }
+          } else {
+            // A fixed tier ignores the posted price; a pay-what-you-want tier accepts
+            // it above the organiser's floor. The mode comes from the stored event, so
+            // a crafted POST cannot turn a £250 ticket into a donation.
+            amount = resolveLinePrice(tier, Number(item.price));
+            name = `${data?.title ?? item.eventTitle} — ${tier.name}`;
+          }
+
+          /*
+           * Stock, checked before the card and after the mix decided the real
+           * quantity. The hold below is the authority under contention; this is the
+           * friendly refusal that names the tier instead of failing a whole basket
+           * with a generic error.
            */
           const remaining = tier.quantity - (tier.sold ?? 0);
           if (quantity > remaining) {
@@ -181,22 +245,29 @@ export async function POST(request: Request) {
                 : `${tier.name} for ${data?.title ?? item.eventTitle} is sold out`
             );
           }
-          // A fixed tier ignores the posted price; a pay-what-you-want tier accepts it
-          // above the organiser's floor. The mode comes from the stored event, so a
-          // crafted POST cannot turn a £250 ticket into a donation.
-          amount = resolveLinePrice(tier, Number(item.price));
-          currency = data?.currency ?? currency;
-          name = `${data?.title ?? item.eventTitle} — ${tier.name}`;
         } catch {
           return fail('Could not confirm the ticket prices');
         }
       }
 
-      const line: CheckoutLine = { name, amount, quantity, currency };
-      lines.push(line);
+      // A seat per ticket or none at all — the same rule the single-event path holds.
+      if (lineSeats.length > 0 && lineSeats.length !== quantity) {
+        return fail(`Choose one seat for each ticket of ${name}`);
+      }
+
+      if (itemLines.length === 0) itemLines.push({ name, amount, quantity, currency });
+
+      lines.push(...itemLines);
       if (item.eventId && item.tierId) {
         claimables.push({ eventId: item.eventId, tierId: item.tierId, quantity, currency });
-        cartRefs.push({ eventId: item.eventId, tierId: item.tierId, quantity, line });
+        cartRefs.push({
+          eventId: item.eventId,
+          tierId: item.tierId,
+          quantity,
+          lines: itemLines,
+          seats: lineSeats,
+          mix: lineMix,
+        });
       }
     }
 
@@ -231,26 +302,6 @@ export async function POST(request: Request) {
       }
     }
 
-    /*
-     * The basket, encoded for the webhook AFTER the coupon spread so each unit price is
-     * what was actually charged. Refused, never truncated, when it cannot fit Stripe's
-     * metadata limit: a silently dropped line is a paid-for ticket that never exists —
-     * the exact failure this encoding removes.
-     */
-    if (cartRefs.length > 0) {
-      const encoded = encodeCart(
-        cartRefs.map((ref) => ({
-          eventId: ref.eventId,
-          tierId: ref.tierId,
-          quantity: ref.quantity,
-          unitMajor: ref.line.amount,
-        }))
-      );
-      if (!encoded.ok) {
-        return fail('That basket is too large for one payment — please split it into two orders');
-      }
-      cartMetaValue = encoded.value;
-    }
   } else if (form.get('passId')) {
     /*
      * A season pass. One line, one charge, and a ticket in every covered fixture once it
@@ -615,6 +666,70 @@ export async function POST(request: Request) {
     return fail('Stripe is not configured');
   }
 
+  /*
+   * Reserve every basket line before anyone reaches a payment page — the same rule the
+   * single-event path has always had, applied per line because a basket spans tiers
+   * and events. The hold locks the chosen seats atomically, so "seat taken while you
+   * were paying" is refused HERE, with the seat named, instead of surfacing as a paid
+   * order that cannot issue.
+   *
+   * The priced basket then goes into `cart_orders/{id}` and only the id rides in
+   * Stripe metadata: seats and attendee mixes do not fit metadata's 500-character
+   * values, and truncating a basket is how a paid-for ticket silently never exists.
+   */
+  const cartHoldIds: string[] = [];
+  const releaseCartHolds = async () => {
+    for (const id of cartHoldIds) {
+      try {
+        await releaseHold(id, 'abandoned');
+      } catch {
+        // The TTL sweep frees anything this misses.
+      }
+    }
+  };
+
+  let cartOrderId = '';
+  if (cartRefs.length > 0) {
+    for (const ref of cartRefs) {
+      const hold = await placeHold(ref.eventId, ref.tierId, ref.quantity, undefined, ref.seats);
+      if (!hold.ok) {
+        await releaseCartHolds();
+        return fail(hold.error);
+      }
+      cartHoldIds.push(hold.holdId);
+    }
+
+    try {
+      cartOrderId = crypto.randomUUID();
+      await getAdminDb()
+        .collection('cart_orders')
+        .doc(cartOrderId)
+        .set({
+          userId: String(form.get('userId') ?? ''),
+          currency,
+          createdAt: new Date().toISOString(),
+          status: 'pending',
+          lines: cartRefs.map((ref, index) => ({
+            eventId: ref.eventId,
+            tierId: ref.tierId,
+            quantity: ref.quantity,
+            // Post-coupon average unit price — the same refund convention as the
+            // single path, where `price` is the order total over its quantity.
+            unitMajor:
+              Math.round(
+                (ref.lines.reduce((t, l) => t + l.amount * l.quantity, 0) / ref.quantity) * 100
+              ) / 100,
+            holdId: cartHoldIds[index],
+            seats: ref.seats,
+            ...(ref.mix.length > 0 ? { mix: ref.mix } : {}),
+          })),
+        });
+    } catch {
+      await releaseCartHolds();
+      return fail('Could not prepare the order — nothing was charged');
+    }
+  }
+
   try {
     const url = await createCheckoutSession({
       lines,
@@ -645,9 +760,9 @@ export async function POST(request: Request) {
         holdId,
         // Carried to issuance, which already writes one seat per ticket in order.
         seats: chosenSeats.join(','),
-        // The priced basket, one entry per cart line. The webhook issues each entry as
+        // The basket's order document. The webhook reads it and issues each line as
         // its own payment event; empty on every non-cart path.
-        cart: cartMetaValue,
+        cartOrderId,
         // Just the code. What it is worth is decided server-side at attribution time.
         ref: referral ?? '',
         // Set only on a season pass, which settles into one ticket per covered fixture.
@@ -663,9 +778,11 @@ export async function POST(request: Request) {
     });
     return NextResponse.redirect(url, { status: 303 });
   } catch (error) {
-    // Stripe never got the buyer, so the seat must not stay reserved for fifteen
-    // minutes on the strength of a checkout that failed to start.
+    // Stripe never got the buyer, so no seat may stay reserved for fifteen minutes on
+    // the strength of a checkout that failed to start — the single hold or the
+    // basket's, whichever this order placed.
     if (holdId) await releaseHold(holdId, 'abandoned');
+    await releaseCartHolds();
     return fail(error instanceof Error ? error.message : 'Stripe checkout failed');
   }
 }

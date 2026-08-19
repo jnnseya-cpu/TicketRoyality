@@ -126,6 +126,29 @@ export async function ping() {
 }
 
 /**
+ * TicketRoyality minor units → the units KODA charges in.
+ *
+ * Found live, expensively: the site quoted CDF 311,970.49 and KODA's hosted page
+ * demanded 31,197,049 CDF — one hundred times the price — because this platform keeps
+ * every amount in ISO minor units (CDF centimes) while KODA and the Congolese
+ * operators deal in whole francs; no telco moves a centime. USD is cents on both
+ * sides and passes through unchanged.
+ *
+ * CDF rounds DOWN. The buyer must never be asked for more than the page showed them —
+ * that direction is the drip-pricing line the whole fee engine is built around — so
+ * the platform absorbs the sub-franc fraction, which is under a hundredth of a US
+ * cent per order.
+ */
+export function toKodaAmount(currency: 'CDF' | 'USD', amountMinor: number): number {
+  return currency === 'CDF' ? Math.floor(amountMinor / 100) : Math.round(amountMinor);
+}
+
+/** The inverse, for webhook amounts: KODA's units → our ISO minor units. */
+export function fromKodaAmount(currency: string, kodaAmount: number): number {
+  return currency.toUpperCase() === 'CDF' ? Math.round(kodaAmount * 100) : Math.round(kodaAmount);
+}
+
+/**
  * Creates a payment intent and returns a hosted checkout URL.
  *
  * `idempotencyKey` should be our order reference: a retried request must never create

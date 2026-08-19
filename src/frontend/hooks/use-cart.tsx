@@ -46,7 +46,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       );
       if (index === -1) return [...current, item];
       const next = [...current];
-      next[index] = { ...next[index], quantity: next[index].quantity + item.quantity };
+      // A line with seats or a type mix REPLACES its predecessor rather than merging:
+      // "2 adults in A1, A2" plus "1 child in B5" is a re-choice, not an addition, and
+      // summing quantities would claim seats the buyer never picked. Plain lines keep
+      // the old behaviour of topping up the count.
+      next[index] =
+        item.seats?.length || item.mix?.length
+          ? item
+          : { ...next[index], quantity: next[index].quantity + item.quantity };
       return next;
     });
   }, []);
@@ -60,7 +67,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       quantity <= 0
         ? current.filter((i) => !(i.eventId === eventId && i.tierId === tierId))
         : current.map((i) =>
-            i.eventId === eventId && i.tierId === tierId ? { ...i, quantity } : i
+            i.eventId === eventId &&
+            i.tierId === tierId &&
+            // A seated or mixed line's quantity IS its seats/party — stepping it up
+            // would claim seats nobody chose. Re-choose on the event page instead.
+            !i.seats?.length &&
+            !i.mix?.length
+              ? { ...i, quantity }
+              : i
           )
     );
   }, []);

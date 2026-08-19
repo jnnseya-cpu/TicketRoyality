@@ -667,6 +667,57 @@ never reaches the tag. `next/image` remains on platform-controlled assets only.
 Not verifiable here against production logs; the fix removes both failure modes of the
 only throw-capable component on that page.
 
+### 19 August (evening) — P0: KODA demanded 100× the CDF price
+
+The site quoted CDF 311,970.49; KODA's hosted page demanded 31,197,049 CDF. This
+platform keeps every amount in ISO minor units (CDF centimes); KODA and the Congolese
+operators deal in **whole francs** — nobody moves a centime. `toKodaAmount` /
+`fromKodaAmount` in `backend/payments/koda.ts` are now the single crossing point: CDF
+floors to whole francs on the way out (the buyer must never be asked for more than the
+page showed; the sub-franc fraction we absorb is under a hundredth of a US cent) and
+multiplies back on webhook amounts, whose recording previously divided CDF by 100
+unconditionally. USD is cents on both sides and passes through unchanged.
+
+### 19 August (evening) — the basket takes every category: seats and mixes in one payment
+
+"Still impossible to buy more tickets in different categories as you can't add anything
+in the basket." Seated and mixed-type tiers were direct-checkout-only, so GA + VIP +
+Children could never share one order. Now:
+
+- Cart lines carry `seats` and `mix`. The buy box's Add-to-cart works on seated tiers
+  (once the seats are chosen) and typed tiers (once the party is chosen); a re-add of
+  the same tier REPLACES the line rather than summing quantities into seats nobody
+  picked. Cart page shows the seats and pins the quantity on such lines.
+- `/api/checkout`'s cart branch re-prices mixes through `resolveMix` (same authority
+  as the single path, same all-free-on-priced-tier guard), then **reserves every line
+  with its own hold** — seats locked atomically, "seat taken while you paid" refused
+  before the card with the seat named — and writes the priced basket to
+  `cart_orders/{id}`; only the id rides in Stripe metadata, because seats and mixes
+  cannot fit a 500-char metadata value and truncation is how a paid ticket silently
+  never exists. Any later failure releases every hold placed.
+- The webhook reads the order document and issues each line with its seats, mix and
+  hold (idempotent per line by `${stripeEventId}__{index}`), marks the document
+  issued, and still honours the inline `cart` encoding for sessions created before
+  this change.
+
+### 19 August (evening) — placements: mobile-money rail + dashboard prices; Gift Aid GBP-only
+
+- `/api/promotions/checkout` takes `rail`: card (Stripe, GBP) or momo (KODA, USD —
+  KODA moves USD/CDF only). The KODA webhook activates placements from the same
+  metadata pair, idempotent by provider event id. The promotions page offers both
+  buttons.
+- Placement prices are the superuser's: `config/placements` overrides the code
+  defaults, edited from the dashboard's new "Placement prices" card
+  (`/api/admin/placement-pricing`, requireAdmin), read by every surface through one
+  `placementPricing()` so the advertised and charged figures cannot drift. USD
+  defaults mirror the GBP figures until the owner sets real ones.
+- Gift Aid is a UK/HMRC scheme: the declaration form no longer renders outside GBP.
+  On a CDF page it could only ever fail — and did, live ("Gift Aid not added").
+
+Verified: typecheck, lint, production build, `test:pricing` 48/48, `test:fees` 37/37,
+`test:cart-metadata` 8/8. Not testable here: live KODA intents and Stripe webhook
+round-trips — the conversions and branches follow the tested unit rules above.
+
 ### 19 August — mobile money: the telecom 2% is already charged on top (verified, no change)
 
 "On top of our fees the telecom 2% fee to be added too" — checked against

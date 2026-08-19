@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 
 import { requireUser } from '@/backend/auth/require-user';
 import { createCheckoutSession, isStripeConfigured } from '@/backend/payments/stripe';
+import { createIntent, isKodaConfigured, toKodaAmount } from '@/backend/payments/koda';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
-import { placementById } from '@/shared/placements';
+import { placementPricing } from '@/backend/services/promotions';
 import { reportError } from '@/backend/observability/report-error';
 
 export const runtime = 'nodejs';
@@ -28,18 +29,24 @@ export async function POST(request: Request) {
   if (!caller.ok) {
     return NextResponse.json({ error: caller.error }, { status: caller.status });
   }
-  if (!isAdminConfigured() || !isStripeConfigured()) {
+  if (!isAdminConfigured()) {
     return NextResponse.json({ error: 'Payments are not configured.' }, { status: 503 });
   }
 
-  let body: { placementId?: unknown; eventId?: unknown };
+  let body: { placementId?: unknown; eventId?: unknown; rail?: unknown };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Expected a JSON body.' }, { status: 400 });
   }
 
-  const placement = placementById(String(body.placementId ?? ''));
+  // 'card' (Stripe, GBP) or 'momo' (KODA, USD) — the owner's requirement that both
+  // rails sell placements. Prices come from the dashboard-editable catalogue.
+  const rail = body.rail === 'momo' ? 'momo' : 'card';
+  const pricing = await placementPricing();
+  const placement = Object.prototype.hasOwnProperty.call(pricing, String(body.placementId ?? ''))
+    ? pricing[String(body.placementId) as keyof typeof pricing]
+    : null;
   const eventId = typeof body.eventId === 'string' ? body.eventId : '';
   if (!placement) {
     return NextResponse.json({ error: 'That placement does not exist.' }, { status: 400 });
@@ -81,6 +88,50 @@ export async function POST(request: Request) {
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
+
+  /*
+   * Mobile money — the KODA rail, in USD because KODA moves USD and CDF only. The
+   * webhook `/webhooks/koda` activates from the same metadata pair the Stripe branch
+   * carries, so both rails land in one `activatePlacement`.
+   */
+  if (rail === 'momo') {
+    if (!isKodaConfigured()) {
+      return NextResponse.json(
+        { error: 'Mobile money is temporarily unavailable — pay by card.' },
+        { status: 503 }
+      );
+    }
+    try {
+      const intent = await createIntent(
+        {
+          amount: toKodaAmount('USD', Math.round(placement.priceUsdMajor * 100)),
+          currency: 'USD',
+          operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
+          successUrl: `${siteUrl}/dashboard/organiser/promotions?placement=live`,
+          metadata: {
+            promoPlacement: placement.id,
+            promoEventId: eventId,
+            userId: caller.uid,
+          },
+        },
+        // One intent per placement+event+buyer at a time: a double-click reuses the
+        // panel instead of opening two. A later re-purchase (after expiry) is a new
+        // decision KODA sees as the same key — the daily suffix keeps renewals apart.
+        `promo_${placement.id}_${eventId}_${caller.uid}_${new Date().toISOString().slice(0, 10)}`
+      );
+      return NextResponse.json({ url: intent.checkout_url });
+    } catch (error) {
+      reportError(error, { scope: 'promotions/checkout-koda', uid: caller.uid });
+      return NextResponse.json(
+        { error: 'Mobile money could not be started — pay by card.' },
+        { status: 502 }
+      );
+    }
+  }
+
+  if (!isStripeConfigured()) {
+    return NextResponse.json({ error: 'Card payments are not configured.' }, { status: 503 });
+  }
 
   try {
     const url = await createCheckoutSession({

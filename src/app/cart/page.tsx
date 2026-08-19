@@ -144,6 +144,10 @@ export default function CartPage() {
       eventTitle: item.eventTitle,
       tierName: item.tierName,
       quantity: item.quantity,
+      // Chosen seats and the attendee-type mix. The server locks the seats inside a
+      // hold and re-prices every mix entry from the stored tier — carried, not trusted.
+      ...(item.seats?.length ? { seats: item.seats } : {}),
+      ...(item.mix?.length ? { mix: item.mix } : {}),
     }))
   );
 
@@ -177,27 +181,43 @@ export default function CartPage() {
                   </Link>
                   <p className="text-sm text-muted-foreground">{item.tierName}</p>
                   <p className="text-xs text-muted-foreground">{formatEventDate(item.eventDate)}</p>
+                  {item.seats && item.seats.length > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Seats: <span className="font-medium tabular-nums">{item.seats.join(', ')}</span>
+                    </p>
+                  )}
 
                   <div className="mt-3 flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => updateQuantity(item.eventId, item.tierId, item.quantity - 1)}
-                      aria-label="Decrease quantity"
-                    >
-                      <Minus className="h-3 w-3" />
-                    </Button>
-                    <span className="w-6 text-center text-sm tabular-nums">{item.quantity}</span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => updateQuantity(item.eventId, item.tierId, item.quantity + 1)}
-                      aria-label="Increase quantity"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
+                    {/* A seated or mixed line's count IS its seats/party — no steppers.
+                        Re-choose on the event page; the new choice replaces the line. */}
+                    {item.seats?.length || item.mix?.length ? (
+                      <span className="text-xs text-muted-foreground">
+                        {item.quantity} ticket{item.quantity === 1 ? '' : 's'} — change on the
+                        event page
+                      </span>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => updateQuantity(item.eventId, item.tierId, item.quantity - 1)}
+                          aria-label="Decrease quantity"
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="w-6 text-center text-sm tabular-nums">{item.quantity}</span>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => updateQuantity(item.eventId, item.tierId, item.quantity + 1)}
+                          aria-label="Increase quantity"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"

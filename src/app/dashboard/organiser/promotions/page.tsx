@@ -17,6 +17,7 @@ import {
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { useToast } from '@/frontend/hooks/use-toast';
+import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
 import { getEventsByOrganizer } from '@/shared/data/repositories';
 import { formatCurrency } from '@/shared/utils';
 import { PLACEMENTS, type PlacementDef } from '@/shared/placements';
@@ -46,6 +47,27 @@ function Promotions({ profile }: { profile: UserProfile }) {
   const { toast } = useToast();
   const [selected, setSelected] = React.useState<string>('');
   const [paying, setPaying] = React.useState<string | null>(null);
+  const methods = usePaymentMethods();
+
+  /*
+   * Prices from the server — the dashboard-editable catalogue — so what this page
+   * advertises is what the checkout charges. The static defaults render first and are
+   * replaced the moment the real numbers arrive.
+   */
+  const [catalogue, setCatalogue] = React.useState<PlacementDef[]>(Object.values(PLACEMENTS));
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('/api/placements')
+      .then((r) => r.json())
+      .then((data: { placements?: PlacementDef[] }) => {
+        if (!cancelled && data.placements?.length) setCatalogue(data.placements);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Stripe sends the buyer back with ?placement=live once they have paid.
   React.useEffect(() => {
@@ -60,13 +82,13 @@ function Promotions({ profile }: { profile: UserProfile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const buyPlacement = async (placement: PlacementDef) => {
-    setPaying(placement.id);
+  const buyPlacement = async (placement: PlacementDef, rail: 'card' | 'momo') => {
+    setPaying(`${placement.id}:${rail}`);
     try {
       const response = await authedFetch('/api/promotions/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ placementId: placement.id, eventId: selected }),
+        body: JSON.stringify({ placementId: placement.id, eventId: selected, rail }),
       });
       const body = (await response.json()) as { url?: string; error?: string };
       if (!response.ok || !body.url) {
@@ -184,7 +206,7 @@ function Promotions({ profile }: { profile: UserProfile }) {
       </Card>
 
       <div className="grid gap-5 md:grid-cols-3">
-        {Object.values(PLACEMENTS).map((placement) => {
+        {catalogue.map((placement) => {
           const Icon = PLACEMENT_ICONS[placement.id] ?? Megaphone;
           const active =
             placement.id === 'video-ad'
@@ -217,24 +239,42 @@ function Promotions({ profile }: { profile: UserProfile }) {
                     Already live for this event.
                   </p>
                 ) : (
-                  <Button
-                    variant="royal"
-                    className="w-full"
-                    disabled={
-                      paying !== null || !selectedEvent || selectedEvent.status !== 'published'
-                    }
-                    onClick={() => buyPlacement(placement)}
-                  >
-                    {paying === placement.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : !selectedEvent ? (
-                      'Choose an event above'
-                    ) : selectedEvent.status !== 'published' ? (
-                      'Publish the event first'
-                    ) : (
-                      `Pay ${formatCurrency(placement.priceMajor)} — go live`
+                  <>
+                    <Button
+                      variant="royal"
+                      className="w-full"
+                      disabled={
+                        paying !== null || !selectedEvent || selectedEvent.status !== 'published'
+                      }
+                      onClick={() => buyPlacement(placement, 'card')}
+                    >
+                      {paying === `${placement.id}:card` ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : !selectedEvent ? (
+                        'Choose an event above'
+                      ) : selectedEvent.status !== 'published' ? (
+                        'Publish the event first'
+                      ) : (
+                        `Pay ${formatCurrency(placement.priceMajor)} by card — go live`
+                      )}
+                    </Button>
+                    {/* The mobile-money rail, in USD because KODA moves USD and CDF
+                        only. Same activation, same webhook discipline as the card. */}
+                    {methods.koda && selectedEvent && selectedEvent.status === 'published' && (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        disabled={paying !== null}
+                        onClick={() => buyPlacement(placement, 'momo')}
+                      >
+                        {paying === `${placement.id}:momo` ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          `Pay ${formatCurrency(placement.priceUsdMajor, 'USD')} mobile money`
+                        )}
+                      </Button>
                     )}
-                  </Button>
+                  </>
                 )}
               </CardContent>
             </Card>

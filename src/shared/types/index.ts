@@ -783,4 +783,12 @@ export interface CartItem {
   price: number;
   currency: string;
   quantity: number;
+  /**
+   * Chosen seats, when the line is a reserved-seating tier. The seats are advisory
+   * until checkout, where the server locks them inside a hold — somebody may take
+   * them between adding and paying, and the checkout says so rather than guessing.
+   */
+  seats?: string[];
+  /** Attendee-type breakdown (Adult ×2, Child ×1). Server re-prices every entry. */
+  mix?: Array<{ typeId: string; quantity: number }>;
 }

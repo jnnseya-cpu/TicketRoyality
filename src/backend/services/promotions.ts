@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
-import { placementById } from '@/shared/placements';
+import { PLACEMENTS, placementById, type PlacementDef, type PlacementId } from '@/shared/placements';
 
 /**
  * Paid homepage and newsletter placements — bought self-serve, active on payment.
@@ -28,6 +28,49 @@ import { placementById } from '@/shared/placements';
  * A manual grant from the superuser dashboard sets `featured` with NO `featuredUntil`,
  * so the expiry cron deliberately never touches it: only paid time runs out.
  */
+
+/** Superuser price overrides, stored per placement in `config/placements`. */
+export interface PlacementPriceOverride {
+  priceMajor?: number;
+  priceUsdMajor?: number;
+}
+
+/**
+ * The catalogue with the superuser's dashboard prices applied.
+ *
+ * The code carries defaults so a fresh deployment sells at known prices; the stored
+ * document wins the moment the owner edits a number. Absent or unreadable config means
+ * the defaults — a pricing outage must never become a sales outage.
+ */
+export async function placementPricing(): Promise<Record<PlacementId, PlacementDef>> {
+  const effective = structuredClone(PLACEMENTS);
+  if (!isAdminConfigured()) return effective;
+
+  try {
+    const snap = await getAdminDb().collection('config').doc('placements').get();
+    const stored = (snap.data() ?? {}) as Partial<Record<PlacementId, PlacementPriceOverride>>;
+    for (const id of Object.keys(effective) as PlacementId[]) {
+      const override = stored[id];
+      if (!override) continue;
+      if (typeof override.priceMajor === 'number' && override.priceMajor > 0) {
+        effective[id].priceMajor = override.priceMajor;
+      }
+      if (typeof override.priceUsdMajor === 'number' && override.priceUsdMajor > 0) {
+        effective[id].priceUsdMajor = override.priceUsdMajor;
+      }
+    }
+  } catch {
+    // Defaults stand — see above.
+  }
+  return effective;
+}
+
+/** Store the superuser's prices. Caller must already be authenticated as admin. */
+export async function setPlacementPricing(
+  overrides: Partial<Record<PlacementId, PlacementPriceOverride>>
+): Promise<void> {
+  await getAdminDb().collection('config').doc('placements').set(overrides, { merge: true });
+}
 
 export interface PlacementActivation {
   providerEventId: string;

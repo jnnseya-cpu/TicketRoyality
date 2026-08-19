@@ -237,6 +237,7 @@ export function TicketBox({ event }: { event: Event }) {
 
   const handleAddToCart = () => {
     if (!tier) return;
+    const lineQuantity = hasTypes || isSeated ? effectiveQuantity : quantity;
     addItem({
       eventId: event.id,
       eventTitle: event.title,
@@ -244,15 +245,33 @@ export function TicketBox({ event }: { event: Event }) {
       imageUrl: event.imageUrl,
       tierId: tier.id,
       tierName: tier.name,
-      // The chosen amount travels with the cart line. The server re-resolves it against
-      // the stored tier at checkout, so this is a carrier, not an authority.
-      price: unitPrice,
+      // The amount travels with the cart line for display only. The server re-resolves
+      // every price against the stored tier at checkout — carrier, not authority. A
+      // mixed line carries the order average so the cart's subtotal maths still work.
+      price:
+        hasTypes && lineQuantity > 0
+          ? Math.round((lineTotal / lineQuantity) * 100) / 100
+          : unitPrice,
       currency: event.currency,
-      quantity,
+      quantity: lineQuantity,
+      // Seats and the type mix ride along so several categories — GA beside seated
+      // VIP beside Children — can live in ONE basket and be paid in one payment. The
+      // checkout locks the seats and re-prices the mix server-side.
+      ...(isSeated && orderedSeats.length > 0 ? { seats: orderedSeats } : {}),
+      ...(hasTypes
+        ? {
+            mix: mixEntries.map((entry) => ({
+              typeId: entry.type.id,
+              quantity: entry.count,
+            })),
+          }
+        : {}),
     });
     toast({
       title: 'Added to cart',
-      description: `${quantity} × ${tier.name} — ${event.title}`,
+      description: `${lineQuantity} × ${tier.name} — ${event.title}${
+        isSeated && orderedSeats.length > 0 ? ` (seats ${orderedSeats.join(', ')})` : ''
+      }`,
     });
   };
 
@@ -760,26 +779,40 @@ export function TicketBox({ event }: { event: Event }) {
         </div>
 
         {/*
-          A hidden tier is bought here or not at all. The cart spans several events and
-          carries no code, so a basket holding one would be refused at checkout — better
-          to say so now than after the buyer has assembled an order.
+          A hidden tier is bought here or not at all — the cart carries no access code,
+          so a basket holding one would be refused at checkout. Everything else can go
+          in the basket, seats and type mixes included: "you can't add anything in the
+          basket" was the live complaint when seated and mixed tiers were direct-only,
+          and it made buying two categories together impossible. The seats a basket
+          carries are locked server-side at checkout, not before — the buyer is told
+          if one was taken in the meantime.
         */}
-        {tier.visibility === 'hidden' || isSeated || hasTypes ? (
+        {tier.visibility === 'hidden' ? (
           <p className="text-center text-xs text-muted-foreground">
-            {isSeated
-              ? 'Reserved seating is bought directly, so the seats are held while you pay.'
-              : hasTypes
-                ? 'Mixed ticket types are bought directly — one payment, each person at their own price.'
-                : 'This ticket type is bought directly rather than through the cart.'}
+            This ticket type is bought directly rather than through the cart.
           </p>
-        ) : (
+        ) : isFree ? null : (
           <Button
-          variant="royal"
-          className="w-full"
-          onClick={handleAddToCart}
-          disabled={!selectedWindow.onSale || !loyaltyOk || soldOut}
-        >
-            <ShoppingCart className="h-4 w-4" /> {soldOut ? 'Sold out' : 'Add to cart'}
+            variant="royal"
+            className="w-full"
+            onClick={handleAddToCart}
+            disabled={
+              !selectedWindow.onSale ||
+              !loyaltyOk ||
+              soldOut ||
+              (isSeated && !seatsChosen) ||
+              (hasTypes && effectiveQuantity === 0) ||
+              Boolean(companionIssue)
+            }
+          >
+            <ShoppingCart className="h-4 w-4" />{' '}
+            {soldOut
+              ? 'Sold out'
+              : hasTypes && effectiveQuantity === 0
+                ? 'Choose your tickets above'
+                : isSeated && !seatsChosen
+                  ? `Choose ${effectiveQuantity - selectedSeats.length} more seat${effectiveQuantity - selectedSeats.length === 1 ? '' : 's'} to add`
+                  : 'Add to cart'}
           </Button>
         )}
 

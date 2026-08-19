@@ -214,6 +214,12 @@ export function readCheckoutSession(session: Stripe.Checkout.Session) {
      * than a parse error that loses the payment.
      */
     cart: decodeCart(session.metadata?.cart),
+    /**
+     * The basket's order document id — the successor to the inline `cart` encoding,
+     * because seats and attendee mixes do not fit a 500-character metadata value.
+     * The webhook reads `cart_orders/{id}` and issues each line.
+     */
+    cartOrderId: session.metadata?.cartOrderId || undefined,
     /** Set when this payment buys a homepage/newsletter placement, not tickets. */
     promoPlacement: session.metadata?.promoPlacement || undefined,
     promoEventId: session.metadata?.promoEventId || undefined,
