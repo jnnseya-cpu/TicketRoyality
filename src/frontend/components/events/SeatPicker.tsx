@@ -8,6 +8,7 @@ import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 import { Button } from '@/frontend/components/ui/button';
 import {
+  orphansCreated,
   seatPositions,
   sectionBounds,
   sectionRows,
@@ -151,6 +152,24 @@ export function SeatPicker({
 
   if (forThisTier.length === 0) return null;
 
+  /*
+   * The organiser's no-stranded-singles rule, said HERE — while the buyer is still
+   * choosing — with the same pure function the server enforces it with at hold time.
+   * Without this, the first anyone heard of the rule was a refusal after tapping Pay,
+   * which live testing reported as "you cannot pay for them". Advisory only: the
+   * server remains the authority, this is the courtesy of an early answer.
+   */
+  const allTaken = new Set([...taken, ...liveHeld]);
+  const orphanWarning = forThisTier
+    .filter((section) => section.preventOrphans)
+    .flatMap((section) =>
+      orphansCreated(
+        section,
+        allTaken,
+        selected.filter((label) => sectionSeats(section).some((seat) => seat.label === label))
+      )
+    );
+
   const toggle = (label: string, state: 'free' | 'taken' | 'held-back') => {
     if (state !== 'free') return;
     if (mine.has(label)) {
@@ -168,6 +187,16 @@ export function SeatPicker({
       <div className="mx-auto w-2/3 rounded-md bg-gradient-to-b from-primary/30 to-primary/5 py-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-primary">
         Stage
       </div>
+
+      {orphanWarning.length > 0 && (
+        <p className="flex items-center gap-2 rounded-md border border-amber-500/50 p-2 text-xs font-medium text-amber-600 dark:text-amber-500">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          This choice would leave seat{orphanWarning.length === 1 ? '' : 's'}{' '}
+          {orphanWarning.join(', ')} stranded on {orphanWarning.length === 1 ? 'its' : 'their'}{' '}
+          own, which this organiser does not allow. Add the neighbouring seat or choose a
+          different spot.
+        </p>
+      )}
 
       {failed && (
         <p className="flex items-center gap-2 rounded-md border border-destructive/40 p-2 text-xs text-destructive">
