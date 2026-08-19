@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -52,13 +51,18 @@ export default async function OrganiserDetailPage({
     <div>
       <OrganiserStructuredData organiser={organiser} />
       <div className="relative h-52 w-full overflow-hidden">
-        <Image
-          src={organiser.coverUrl || PLACEHOLDER_IMAGES.organiserCover}
+        {/*
+          Plain img, deliberately: the cover and logo are organiser-controlled URLs,
+          and `next/image` THROWS server-side on an empty src or a host outside the
+          config allowlist — which took this whole page down as "Application error: a
+          server-side exception" (digest 337954981). A broken picture must never cost
+          the page. Same decision as the homepage strip.
+        */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={organiser.coverUrl?.trim() || PLACEHOLDER_IMAGES.organiserCover}
           alt=""
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover"
+          className="absolute inset-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background to-background/30" />
       </div>
@@ -66,12 +70,11 @@ export default async function OrganiserDetailPage({
       <div className="container -mt-16 pb-16">
         <div className="flex flex-wrap items-end gap-5">
           <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-background bg-muted">
-            <Image
-              src={organiser.logoUrl || PLACEHOLDER_IMAGES.organiserLogo}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={organiser.logoUrl?.trim() || PLACEHOLDER_IMAGES.organiserLogo}
               alt={name}
-              fill
-              sizes="96px"
-              className="object-cover"
+              className="absolute inset-0 h-full w-full object-cover"
             />
           </div>
 

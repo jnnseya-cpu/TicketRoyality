@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ArrowRight, Globe } from 'lucide-react';
@@ -50,24 +49,26 @@ export default async function OrganisersPage() {
           {organisers.map((organiser) => (
             <Card key={organiser.uid} className="overflow-hidden transition-colors hover:border-primary/40">
               <div className="relative h-28 bg-muted">
-                <Image
-                  src={organiser.coverUrl || PLACEHOLDER_IMAGES.organiserCover}
+                {/* Plain img: organiser-controlled URLs crash next/image server-side
+                    on empty strings and unknown hosts — see the profile page. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={organiser.coverUrl?.trim() || PLACEHOLDER_IMAGES.organiserCover}
                   alt=""
-                  fill
-                  sizes="(max-width: 768px) 100vw, 33vw"
-                  className="object-cover"
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-card to-transparent" />
               </div>
 
               <CardContent className="-mt-8 space-y-3 p-5">
                 <div className="relative h-14 w-14 overflow-hidden rounded-full border-2 border-card bg-muted">
-                  <Image
-                    src={organiser.logoUrl || PLACEHOLDER_IMAGES.organiserLogo}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={organiser.logoUrl?.trim() || PLACEHOLDER_IMAGES.organiserLogo}
                     alt={organiser.companyName ?? organiser.fullName}
-                    fill
-                    sizes="56px"
-                    className="object-cover"
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover"
                   />
                 </div>
 

@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import { CalendarDays, MapPin, Radio, Video } from 'lucide-react';
 
@@ -7,6 +6,7 @@ import { Card, CardContent } from '@/frontend/components/ui/card';
 import { cn, formatEventDate } from '@/shared/utils';
 import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
 import { toMinor } from '@/shared/fees';
+import { eventImageSeed } from '@/shared/constants/placeholder-images';
 import type { Event } from '@/shared/types';
 
 function locationLabel(event: Event) {
@@ -18,6 +18,15 @@ function locationLabel(event: Event) {
 export function EventCard({ event, className }: { event: Event; className?: string }) {
   const isFree = event.price === 0;
   const isPast = new Date(event.date).getTime() < Date.now();
+  /*
+   * An organiser's image can be an empty string (event saved without one) or live on
+   * any host. Either one makes `next/image` THROW rather than render a broken picture,
+   * and on a server-rendered page — the organiser profile — that throw was the whole
+   * page: "Application error: a server-side exception has occurred". So the card uses
+   * a plain img with a guaranteed src, the same decision the homepage strip already
+   * made for the same reason.
+   */
+  const imageSrc = event.imageUrl?.trim() || eventImageSeed(event.id);
 
   return (
     <Link href={`/events/${event.id}`} className="group block h-full">
@@ -28,12 +37,12 @@ export function EventCard({ event, className }: { event: Event; className?: stri
         )}
       >
         <div className="relative aspect-[16/10] overflow-hidden bg-muted">
-          <Image
-            src={event.imageUrl}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageSrc}
             alt={event.title}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
           <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/70 to-transparent" />
           <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">

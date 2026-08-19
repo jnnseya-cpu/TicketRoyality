@@ -651,6 +651,33 @@ Verified: typecheck, lint, production build, `test:newsletter` 15/15,
 placement branch follows the same recordPaymentEvent/idempotency patterns as the
 tested paths.
 
+### 19 August — organiser page down in production (digest 337954981): the image crash class
+
+`/organisers/JPO7chOr8iNDW6iVxSyzYYFjql42` rendered "Application error: a server-side
+exception has occurred". Root cause class: `next/image` does not render a broken
+picture for a bad `src` — it **throws**, and on a server component the throw is the
+whole page. Two bad srcs exist in real data: an empty string (an event saved without a
+picture; media deletion writes `coverImageUrl: ''`) and a host outside
+`next.config.ts`'s allowlist (organiser-controlled URLs can be anything). The homepage
+strip had already met this and switched to a plain `img`; that decision is now applied
+everywhere organiser-controlled URLs are rendered: EventCard, the event page hero and
+sponsor logos, the organiser profile and directory covers/logos, and cart thumbnails —
+each with a guaranteed fallback (`eventImageSeed`/placeholders) so an empty string
+never reaches the tag. `next/image` remains on platform-controlled assets only.
+Not verifiable here against production logs; the fix removes both failure modes of the
+only throw-capable component on that page.
+
+### 19 August — mobile money: the telecom 2% is already charged on top (verified, no change)
+
+"On top of our fees the telecom 2% fee to be added too" — checked against
+`shared/constants/fees.ts` and the KODA checkout: the CD config carries
+`buyerRailSurchargePct: { bitripay_momo: 2, manual_momo: 2 }`, so a mobile-money buyer
+pays face + 3.99% + 49¢ (min 79¢) **+ 2% of face**, folded into the one displayed
+service fee; `economics.netProfitable` proves the corridor clears cost with it. A $10
+ticket by mobile money collects $11.09 — 89¢ platform fee + 20¢ rail surcharge. The
+sender-side transfer fee the telecom takes from the buyer's own wallet is between the
+buyer and their operator and never touches the platform's take.
+
 ## Seat-map engine — docs/23 gap analysis
 
 The full specification is `docs/23-seat-map-engine.md`. Phase 1 (geometry) is built.

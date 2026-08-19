@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -24,6 +23,7 @@ import { TicketBox } from '@/frontend/components/events/TicketBox';
 import { AuctionLots } from '@/frontend/components/giving/AuctionLots';
 import { GiftRegistry } from '@/frontend/components/giving/GiftRegistry';
 import { getEvents, getEventById } from '@/shared/data/repositories';
+import { eventImageSeed } from '@/shared/constants/placeholder-images';
 import { formatEventDate } from '@/shared/utils';
 
 export async function generateMetadata({
@@ -78,13 +78,22 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
       <EventStructuredData event={event} />
       {/* Hero */}
       <div className="relative h-[38vh] min-h-[280px] w-full overflow-hidden">
-        <Image
-          src={event.coverImageUrl || event.imageUrl}
+        {/*
+          Plain img, deliberately: the picture is an organiser-controlled URL, and
+          `next/image` THROWS server-side on an empty src or a host outside the config
+          allowlist — a broken picture must never take the event page down as a
+          server-side exception. Same decision as the homepage strip and organiser
+          profile, made after that exact crash in production.
+        */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={
+            event.coverImageUrl?.trim() ||
+            event.imageUrl?.trim() ||
+            eventImageSeed(event.id)
+          }
           alt={event.title}
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover"
+          className="absolute inset-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/10" />
         <div className="container relative flex h-full flex-col justify-end pb-8">
@@ -243,12 +252,14 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               <h2 className="mb-3 font-headline text-xl font-semibold">Sponsors</h2>
               <div className="flex flex-wrap items-center gap-6 rounded-lg border border-border bg-card/40 p-6">
                 {event.sponsors.map((sponsor) => {
+                  // Plain img for the same reason as the hero: an organiser-supplied
+                  // URL must never be able to crash the page.
                   const logo = (
-                    <Image
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
                       src={sponsor.logoUrl}
                       alt={sponsor.name}
-                      width={160}
-                      height={64}
+                      loading="lazy"
                       className="h-12 w-auto object-contain opacity-90 transition-opacity hover:opacity-100"
                     />
                   );

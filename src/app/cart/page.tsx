@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { CreditCard, Loader2, Minus, Plus, ShoppingCart, Trash2, Wallet } from 'lucide-react';
 
@@ -16,6 +15,7 @@ import { useToast } from '@/frontend/hooks/use-toast';
 import { findCouponByCode } from '@/shared/data/repositories';
 import { formatCurrency, formatEventDate } from '@/shared/utils';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
+import { eventImageSeed } from '@/shared/constants/placeholder-images';
 import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
 import type { Coupon } from '@/shared/types';
 
@@ -157,12 +157,14 @@ export default function CartPage() {
             <Card key={`${item.eventId}-${item.tierId}`}>
               <CardContent className="flex gap-4 p-4">
                 <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-md bg-muted">
-                  <Image
-                    src={item.imageUrl}
+                  {/* Plain img: an event picture is organiser-controlled and next/image
+                      throws on empty strings and unknown hosts — see EventCard. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.imageUrl?.trim() || eventImageSeed(item.eventId)}
                     alt={item.eventTitle}
-                    fill
-                    sizes="128px"
-                    className="object-cover"
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover"
                   />
                 </div>
 
