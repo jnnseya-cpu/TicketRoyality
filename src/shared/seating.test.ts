@@ -424,5 +424,19 @@ test('a section with no ticket type is warned as display only, by name', () => {
   assert.match(issues[0].message, /display only/i);
 });
 
+test('a section whose every seat is blocked or held back is an error, by name', () => {
+  // Live testing: "A1, A2, F14" pasted into Not-for-sale turned a 2-seat VIP section
+  // into zero buyable seats with no symptom but "I cannot add a seat".
+  const vip = section({
+    name: 'VIP',
+    rows: 1,
+    seatsPerRow: 2,
+    tierId: 'tier-1',
+    unavailableSeats: ['A1', 'A2', 'F14'],
+  });
+  const issues = validateLayout([vip], [{ id: 'tier-1', name: 'VIP', quantity: 2 }]);
+  assert.ok(issues.some((i) => i.severity === 'error' && /no seats left to sell/.test(i.message)));
+});
+
 console.log(`\n${passed}/${passed + failures.length} passed\n`);
 if (failures.length > 0) process.exit(1);

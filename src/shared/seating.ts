@@ -595,6 +595,28 @@ export function validateLayout(
     }
   }
 
+  /*
+   * A bookable section where every seat is blocked or held back sells nothing — and
+   * in live testing that state was created by pasting the field's example text
+   * ("A1, A2, F14") into "Not for sale", turning a 2-seat VIP section into zero
+   * buyable seats with no visible symptom except "I cannot add a seat".
+   */
+  for (const section of sections) {
+    if (!section.tierId) continue;
+    const out = new Set([
+      ...(section.unavailableSeats ?? []),
+      ...(section.accessibleSeats ?? []),
+    ]);
+    const seats = sectionSeats(section);
+    if (seats.length > 0 && seats.every((seat) => out.has(seat.label))) {
+      issues.push({
+        severity: 'error',
+        sectionIds: [section.id],
+        message: `${section.name || 'A section'} has no seats left to sell — every seat is in "Not for sale" or "Held for access".`,
+      });
+    }
+  }
+
   /* Duplicate labels, within and across sections. */
   const owners = new Map<string, string[]>();
   for (const section of sections) {
