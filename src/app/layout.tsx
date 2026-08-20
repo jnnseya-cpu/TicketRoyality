@@ -76,9 +76,18 @@ export const viewport: Viewport = {
   // anything but. With it the page owns every pixel, and `env(safe-area-inset-*)` in
   // globals.css is what keeps content clear of the notch and the home indicator.
   viewportFit: 'cover',
-  // Deliberately not `maximumScale: 1` / `userScalable: false`. Locking zoom is the
-  // usual way to make a web app feel native and it takes pinch-zoom away from anyone
-  // who needs it to read — including someone squinting at a QR code in a dark venue.
+  /*
+   * `maximumScale: 1` suppresses the browser's AUTOMATIC zoom-on-focus — the bug that
+   * twice left live testers with a phone view zoomed in and cropped ("the PWA does
+   * not fit the screen") after tapping a form control. It does NOT take deliberate
+   * zoom away from people who need it: iOS Safari (since 10) and Android Chrome both
+   * ignore this cap for user pinch gestures and accessibility zoom; only the
+   * automatic focus zoom respects it. `userScalable` is deliberately left alone.
+   * Belt on top of braces: every focusable control is also ≥16px on mobile
+   * (ui/input, ui/textarea, ui/select, and the seat-type select), which is what
+   * stops the auto-zoom being wanted in the first place.
+   */
+  maximumScale: 1,
   themeColor: [
     { media: '(prefers-color-scheme: dark)', color: '#0B0B0F' },
     { media: '(prefers-color-scheme: light)', color: '#fbfaf7' },
