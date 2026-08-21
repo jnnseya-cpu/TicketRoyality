@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { suggestSeats, takenSeats } from '@/backend/services/seats';
+import { releaseExpiredHoldsForEvent } from '@/backend/services/holds';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const quantity = Number(query.get('quantity') ?? 0);
 
   try {
+    /*
+     * Self-heal before answering: give back this event's lapsed holds so the map the
+     * buyer is about to see — and the `held` counters behind the tier list — reflect
+     * reality even when the scheduled sweep was never created. Opening the seat map
+     * is the moment a stranded seat matters; it is also the cheapest moment to fix it.
+     */
+    await releaseExpiredHoldsForEvent(id);
+
     const taken = await takenSeats(id);
 
     const suggestion =

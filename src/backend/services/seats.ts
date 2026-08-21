@@ -49,9 +49,23 @@ export async function takenSeats(eventId: string): Promise<string[]> {
       const seat = doc.data()?.seat;
       if (typeof seat === 'string' && seat.trim()) taken.add(seat.trim().toUpperCase());
     }
+    /*
+     * A lock past its hold's window is a ghost: the checkout it belonged to is dead,
+     * and only a sweep nobody may have scheduled would delete the document. Honouring
+     * the expiry AT READ TIME is what stops an abandoned Pay click keeping a seat
+     * "unavailable" forever. Locks from before the stamp existed fall back to
+     * creation time plus the standard checkout window.
+     */
+    const nowIso = new Date().toISOString();
+    const legacyCutoff = new Date(Date.now() - 16 * 60 * 1000).toISOString();
     for (const doc of locks.docs) {
-      const seat = doc.data()?.seat;
-      if (typeof seat === 'string' && seat.trim()) taken.add(seat.trim().toUpperCase());
+      const data = doc.data() as { seat?: string; expiresAt?: string; createdAt?: string };
+      const seat = data?.seat;
+      if (typeof seat !== 'string' || !seat.trim()) continue;
+      if (data.expiresAt ? data.expiresAt < nowIso : (data.createdAt ?? '') < legacyCutoff) {
+        continue;
+      }
+      taken.add(seat.trim().toUpperCase());
     }
 
     return [...taken].sort();

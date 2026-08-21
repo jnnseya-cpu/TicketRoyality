@@ -78,7 +78,26 @@ export function SeatPicker({
     const unsubscribe = onSnapshot(
       query(collection(db, 'seat_locks'), where('eventId', '==', eventId)),
       (snap) => {
-        setLiveHeld(new Set(snap.docs.map((d) => String(d.data().seat ?? '').toUpperCase())));
+        /*
+         * A lock past its hold's window is a dead checkout, not a taken seat. The
+         * server honours the same rule (takenSeats) and gives the inventory back on
+         * the next read; filtering here keeps the live map from greying a seat the
+         * sweep has not tidied yet. Locks without a stamp age out on creation time.
+         */
+        const now = new Date().toISOString();
+        const legacyCutoff = new Date(Date.now() - 16 * 60 * 1000).toISOString();
+        setLiveHeld(
+          new Set(
+            snap.docs
+              .filter((d) => {
+                const data = d.data() as { expiresAt?: string; createdAt?: string };
+                return data.expiresAt
+                  ? data.expiresAt >= now
+                  : (data.createdAt ?? '') >= legacyCutoff;
+              })
+              .map((d) => String(d.data().seat ?? '').toUpperCase())
+          )
+        );
       },
       // A failed stream degrades to the fetched snapshot — the checkout still decides.
       () => undefined

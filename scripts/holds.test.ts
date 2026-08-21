@@ -244,6 +244,33 @@ async function run() {
     assert.equal((await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['F12'])).ok, true);
   });
 
+  await test('a lapsed hold heals itself on the next purchase attempt, no sweep needed', async () => {
+    /*
+     * The production failure this pins: the sweep lives behind a Cloud Scheduler job
+     * that go-live has to create by hand, and when it does not exist an abandoned
+     * checkout kept its seats "unavailable" forever. placeHold now gives back this
+     * event's lapsed holds before trying, so the last seat frees the moment the next
+     * buyer wants it — expireHolds() is deliberately NOT called here.
+     */
+    await clearSeatLocks();
+    await seedTier(1);
+    const hold = await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['G1']);
+    if (!hold.ok) throw new Error('setup failed');
+
+    // Tier is now fully held: a second buyer is refused while the checkout lives.
+    assert.equal((await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['G2'])).ok, false);
+
+    await db
+      .collection('checkout_holds')
+      .doc(hold.holdId)
+      .update({ expiresAt: new Date(Date.now() - 60_000).toISOString() });
+
+    // The same request now succeeds — the lapsed hold was healed in-line, and the
+    // abandoned seat itself is choosable again.
+    const retry = await holds.placeHold(EVENT, 'tier-1', 1, undefined, ['G1']);
+    assert.equal(retry.ok, true);
+  });
+
   await test('a sold seat reads as taken, and a refunded one goes back on sale', async () => {
     /*
      * The reason availability is derived rather than recorded. Nothing deletes a "seat is

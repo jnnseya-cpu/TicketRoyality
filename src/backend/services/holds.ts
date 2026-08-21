@@ -102,6 +102,18 @@ export async function placeHold(
     return { ok: false, reason: 'unavailable', error: 'Checkout is unavailable.' };
   }
 
+  /*
+   * Self-healing first: give back anything on THIS event whose window has lapsed.
+   *
+   * The minute-sweep is the tidy path, but it lives behind a Cloud Scheduler job that
+   * has to be created by hand at go-live — and when it is not (live testing found
+   * seats staying "unavailable" forever after an abandoned Pay click), nothing ever
+   * returned the inventory. Availability must never depend on an external scheduler
+   * existing: the moment somebody tries to buy is exactly the moment a ghost hold
+   * should die.
+   */
+  await releaseExpiredHoldsForEvent(eventId);
+
   const db = getAdminDb();
   const eventRef = db.collection('events').doc(eventId);
   const holdRef = db.collection('checkout_holds').doc();
@@ -210,12 +222,17 @@ export async function placeHold(
        * moment too early. Inside the same transaction as the tier count, so a held seat
        * always has held inventory behind it.
        */
+      const expiresAt = new Date(Date.now() + Math.max(60_000, ttlMs)).toISOString();
+
       for (const seat of seats) {
         tx.create(db.collection(SEAT_LOCKS).doc(seatLockId(eventId, seat)), {
           eventId,
           seat: seat.trim().toUpperCase(),
           holdId: holdRef.id,
           createdAt: new Date().toISOString(),
+          // The lock dies with its hold. Readers honour this even when the sweep that
+          // deletes the document has not run — see takenSeats and the picker stream.
+          expiresAt,
         });
       }
 
@@ -227,7 +244,7 @@ export async function placeHold(
         eventId,
         tierId,
         quantity,
-        expiresAt: new Date(Date.now() + Math.max(60_000, ttlMs)).toISOString(),
+        expiresAt,
         ...(seats.length > 0 ? { seats: seats.map((s) => s.trim().toUpperCase()) } : {}),
       } satisfies Hold);
 
@@ -347,6 +364,43 @@ export async function clearConsumedSeatLocks(limit = 200): Promise<number> {
     return cleared;
   } catch (error) {
     reportError(error, { scope: 'holds.clearSeatLocks' });
+    return 0;
+  }
+}
+
+/**
+ * The per-event self-heal: releases this event's lapsed holds right now.
+ *
+ * Called from the two hot paths — placing a new hold, and loading the seat map — so a
+ * seat abandoned mid-checkout returns to sale the moment anyone next looks, whether or
+ * not the scheduled sweep exists. Bounded and per-event, so the cost lands only on
+ * events someone is actually buying into.
+ */
+export async function releaseExpiredHoldsForEvent(
+  eventId: string,
+  now = new Date(),
+  limit = 50
+): Promise<number> {
+  if (!isAdminConfigured() || !eventId) return 0;
+
+  try {
+    const snap = await getAdminDb()
+      .collection('checkout_holds')
+      .where('eventId', '==', eventId)
+      .limit(limit)
+      .get();
+
+    const cutoff = now.toISOString();
+    let released = 0;
+    for (const doc of snap.docs) {
+      const hold = doc.data() as Hold;
+      if (hold.releasedAt || !hold.expiresAt || hold.expiresAt >= cutoff) continue;
+      if (await releaseHold(doc.id, 'expired')) released += 1;
+    }
+    return released;
+  } catch (error) {
+    // Healing must never block a sale; the transaction's own checks still stand.
+    reportError(error, { scope: 'holds.selfHeal', eventId });
     return 0;
   }
 }

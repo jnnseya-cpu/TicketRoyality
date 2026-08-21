@@ -834,6 +834,29 @@ Verified: app typecheck, functions build, lint, production build, `test:delivery
 10/10 (exercises the new email), `test:fees` 37/37, headless viewport probe on five
 routes.
 
+### 19 August (night) — P0: an abandoned checkout stranded its seats forever
+
+"Click on a ticket but didn't buy — it becomes unavailable." Root cause: holds and
+seat locks were only ever given back by the minute-sweep, and the sweep lives behind a
+Cloud Scheduler job that go-live has to create BY HAND — in a project where it was
+never created, nothing on the platform ever returned abandoned inventory. Correctness
+now no longer depends on a scheduler existing:
+
+- **Expiry is honoured at read time.** Seat locks carry `expiresAt` (stamped from
+  their hold's window); `takenSeats` and the seat picker's live stream both skip
+  lapsed locks, with a creation-time fallback for locks from before the stamp.
+- **Hot paths self-heal.** `releaseExpiredHoldsForEvent()` runs at the top of
+  `placeHold` and on every seat-map read, so a ghost hold dies at exactly the moment
+  the seat next matters. Pinned by test: a fully-held tier accepts the next buyer the
+  moment the old hold lapses, with the sweep deliberately not called (holds suite,
+  22/22).
+- The scheduled sweep remains the tidy path and should still be created (DEPLOY.md's
+  `gcloud scheduler jobs create http` command against `/api/cron/release-holds` with
+  the CRON_SECRET header) — it also drives webhook delivery, auction closes and
+  booking expiry, which have presumably been equally unserved. **That job not
+  existing would also explain placements never expiring and outbound webhooks never
+  delivering — create it.**
+
 ### 19 August — mobile money: the telecom 2% is already charged on top (verified, no change)
 
 "On top of our fees the telecom 2% fee to be added too" — checked against
