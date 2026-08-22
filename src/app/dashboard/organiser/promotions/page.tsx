@@ -16,6 +16,7 @@ import {
 } from '@/frontend/components/ui/select';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
+import { track } from '@/frontend/lib/analytics';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
 import { getEventsByOrganizer } from '@/shared/data/repositories';
@@ -71,7 +72,15 @@ function Promotions({ profile }: { profile: UserProfile }) {
 
   // Stripe sends the buyer back with ?placement=live once they have paid.
   React.useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('placement') === 'live') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('placement') === 'live') {
+      const amt = Number(params.get('amt'));
+      track('purchase', {
+        id: `placement_${Date.now()}`,
+        value: Number.isFinite(amt) && amt > 0 ? amt : undefined,
+        currency: params.get('cur') || undefined,
+        category: 'placement',
+      });
       toast({
         title: 'Placement live',
         description:
@@ -84,6 +93,13 @@ function Promotions({ profile }: { profile: UserProfile }) {
 
   const buyPlacement = async (placement: PlacementDef, rail: 'card' | 'momo') => {
     setPaying(`${placement.id}:${rail}`);
+    track('buy_placement', {
+      id: placement.id,
+      name: placement.title,
+      value: rail === 'momo' ? placement.priceUsdMajor : placement.priceMajor,
+      currency: rail === 'momo' ? 'USD' : 'GBP',
+      category: 'placement',
+    });
     try {
       const response = await authedFetch('/api/promotions/checkout', {
         method: 'POST',

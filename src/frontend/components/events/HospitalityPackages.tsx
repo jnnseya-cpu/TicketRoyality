@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/fro
 import { useAuth } from '@/frontend/hooks/use-auth';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
+import { track } from '@/frontend/lib/analytics';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { formatCurrency } from '@/shared/utils';
 import type { Event } from '@/shared/types';
@@ -39,6 +40,12 @@ export function HospitalityPackages({ event }: { event: Event }) {
       router.push(`/login?next=/events/${event.id}`);
       return;
     }
+    track('reserve_table', {
+      id: event.id,
+      name: event.title,
+      currency: event.currency,
+      category: 'hospitality',
+    });
 
     setBusyId(packageId);
     try {

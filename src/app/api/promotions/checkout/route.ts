@@ -107,7 +107,7 @@ export async function POST(request: Request) {
           amount: toKodaAmount('USD', Math.round(placement.priceUsdMajor * 100)),
           currency: 'USD',
           operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
-          successUrl: `${siteUrl}/dashboard/organiser/promotions?placement=live`,
+          successUrl: `${siteUrl}/dashboard/organiser/promotions?placement=live&amt=${placement.priceUsdMajor}&cur=USD`,
           metadata: {
             promoPlacement: placement.id,
             promoEventId: eventId,
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
           currency: placement.currency,
         },
       ],
-      successUrl: `${siteUrl}/dashboard/organiser/promotions?placement=live`,
+      successUrl: `${siteUrl}/dashboard/organiser/promotions?placement=live&amt=${placement.priceMajor}&cur=GBP`,
       cancelUrl: `${siteUrl}/dashboard/organiser/promotions`,
       metadata: {
         userId: caller.uid,

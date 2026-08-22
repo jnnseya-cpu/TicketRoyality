@@ -16,6 +16,7 @@ import { findCouponByCode } from '@/shared/data/repositories';
 import { formatCurrency, formatEventDate } from '@/shared/utils';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { eventImageSeed } from '@/shared/constants/placeholder-images';
+import { track } from '@/frontend/lib/analytics';
 import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
 import type { Coupon } from '@/shared/types';
 
@@ -304,7 +305,18 @@ export default function CartPage() {
               )}
             </div>
 
-            <form action="/api/checkout" method="POST">
+            <form
+              action="/api/checkout"
+              method="POST"
+              onSubmit={() =>
+                track('begin_checkout', {
+                  value: toMajor(quote.buyerTotalMinor),
+                  currency,
+                  quantity: items.reduce((sum, item) => sum + item.quantity, 0),
+                  category: 'stripe',
+                })
+              }
+            >
               <input type="hidden" name="items" value={stripePayload} />
               <input type="hidden" name="userId" value={user?.uid ?? ''} />
               {/* The code, not the discount. The server looks it up and decides. */}
@@ -320,7 +332,18 @@ export default function CartPage() {
               USD/CDF only, because that is all KODA moves.
             */}
             {methods.koda && isMomoCurrency && (
-              <form action="/api/checkout" method="POST">
+              <form
+                action="/api/checkout"
+                method="POST"
+                onSubmit={() =>
+                  track('begin_checkout', {
+                    value: toMajor(quote.buyerTotalMinor),
+                    currency,
+                    quantity: items.reduce((sum, item) => sum + item.quantity, 0),
+                    category: 'mobile-money',
+                  })
+                }
+              >
                 <input type="hidden" name="items" value={stripePayload} />
                 <input type="hidden" name="userId" value={user?.uid ?? ''} />
                 <input type="hidden" name="couponCode" value={coupon?.code ?? ''} />

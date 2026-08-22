@@ -9,6 +9,7 @@ import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import { useAuth } from '@/frontend/hooks/use-auth';
 import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
+import { track } from '@/frontend/lib/analytics';
 import { formatCurrency } from '@/shared/utils';
 import type { SeasonPass } from '@/shared/types';
 
@@ -94,7 +95,19 @@ export function SeasonPassOffer({
               {user ? (
                 <div className="space-y-2 pt-1">
                   {/* Plain form POSTs keep the redirect inside the click gesture. */}
-                  <form action="/api/checkout" method="POST">
+                  <form
+                    action="/api/checkout"
+                    method="POST"
+                    onSubmit={() =>
+                      track('begin_checkout', {
+                        id: pass.id,
+                        name: pass.name,
+                        value: pass.price,
+                        currency: pass.currency,
+                        category: 'season-pass',
+                      })
+                    }
+                  >
                     <input type="hidden" name="passId" value={pass.id} />
                     <input type="hidden" name="userId" value={user.uid} />
                     <input type="hidden" name="currency" value={pass.currency} />
@@ -103,7 +116,19 @@ export function SeasonPassOffer({
                     </Button>
                   </form>
                   {momoOk && (
-                    <form action="/api/checkout" method="POST">
+                    <form
+                      action="/api/checkout"
+                      method="POST"
+                      onSubmit={() =>
+                        track('begin_checkout', {
+                          id: pass.id,
+                          name: pass.name,
+                          value: pass.price,
+                          currency: pass.currency,
+                          category: 'season-pass-momo',
+                        })
+                      }
+                    >
                       <input type="hidden" name="passId" value={pass.id} />
                       <input type="hidden" name="userId" value={user.uid} />
                       <input type="hidden" name="currency" value={pass.currency} />

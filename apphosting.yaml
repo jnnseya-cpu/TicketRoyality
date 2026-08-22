@@ -85,6 +85,25 @@ env:
       - BUILD
       - RUNTIME
 
+  # ── Advertising / analytics tags (owner-authorised; Meta is a vendor the owner
+  #    added by direction on 20 Aug 2026) ─────────────────────────────────────
+  #
+  # Empty values mean the tags simply do not load — no scripts, no consent banner.
+  # Set the Pixel ID from Meta Events Manager and the G-XXXX measurement id from
+  # Google Analytics, then roll out. They are public by nature: every site ships
+  # its pixel ids in the page source.
+  - variable: NEXT_PUBLIC_META_PIXEL_ID
+    value: ""
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_GA_MEASUREMENT_ID
+    value: ""
+    availability:
+      - BUILD
+      - RUNTIME
+
   # ── Server-only secrets ────────────────────────────────────────────────────
   #
   # RUNTIME only, always. A secret marked BUILD is inlined into the build and can

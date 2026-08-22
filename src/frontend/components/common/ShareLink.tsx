@@ -5,6 +5,7 @@ import { Check, Share2 } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
 import { useToast } from '@/frontend/hooks/use-toast';
+import { track } from '@/frontend/lib/analytics';
 
 /**
  * One share button for any link the organiser hands to somebody else — a private
@@ -34,6 +35,7 @@ export function ShareLink({
 
   const share = async () => {
     const url = `${window.location.origin}${path}`;
+    track('share', { name: title ?? label, method: 'link' });
 
     if (navigator.share) {
       try {

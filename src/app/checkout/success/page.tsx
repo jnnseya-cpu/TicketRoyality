@@ -4,15 +4,23 @@ import { CheckCircle2 } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import { TrackPurchase } from '@/frontend/components/common/TrackPurchase';
 
 export const metadata: Metadata = { title: 'Payment complete' };
 
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ session_id?: string; provider?: string }>;
+  searchParams: Promise<{
+    session_id?: string;
+    provider?: string;
+    amt?: string;
+    cur?: string;
+  }>;
 }) {
-  const { session_id: sessionId, provider } = await searchParams;
+  const { session_id: sessionId, provider, amt, cur } = await searchParams;
+  // Analytics only — never displayed, never trusted for anything with consequences.
+  const amount = Number(amt);
 
   /*
    * A free claim is not a payment, and telling somebody "Payment received … via free"
@@ -23,6 +31,12 @@ export default async function CheckoutSuccessPage({
 
   return (
     <div className="container flex min-h-[60vh] max-w-lg items-center py-12">
+      <TrackPurchase
+        reference={sessionId}
+        amount={Number.isFinite(amount) && amount >= 0 ? amount : undefined}
+        currency={cur || undefined}
+        category={provider || 'tickets'}
+      />
       <Card className="w-full border-success/40">
         <CardHeader className="items-center text-center">
           <CheckCircle2 className="h-10 w-10 text-success" />

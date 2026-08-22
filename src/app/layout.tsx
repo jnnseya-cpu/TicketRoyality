@@ -8,6 +8,7 @@ import { AppleSplashLinks } from '@/frontend/components/common/AppleSplashLinks'
 import { SplashScreen } from '@/frontend/components/common/SplashScreen';
 import { InstallPrompt } from '@/frontend/components/common/InstallPrompt';
 import { ServiceWorker } from '@/frontend/components/common/ServiceWorker';
+import { Analytics } from '@/frontend/components/common/Analytics';
 import { ThemeProvider } from '@/frontend/components/common/ThemeProvider';
 import { Toaster } from '@/frontend/components/ui/toaster';
 import { AuthProvider } from '@/frontend/hooks/use-auth';
@@ -114,6 +115,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Toaster />
               <InstallPrompt />
               <ServiceWorker />
+              {/* Meta Pixel + Google Tag, consent-gated. See the component. */}
+              <Analytics />
             </CartProvider>
           </AuthProvider>
         </ThemeProvider>

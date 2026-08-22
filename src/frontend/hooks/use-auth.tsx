@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import { withAttestation } from '@/frontend/lib/attest';
+import { track } from '@/frontend/lib/analytics';
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -137,6 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setUserProfile(profile);
+    track('login', { method: 'password' });
     return profile;
   }, []);
 
@@ -200,6 +202,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       await createUserProfile(newProfile);
       setUserProfile(newProfile);
+      // A completed registration is the platform's core conversion after purchases.
+      track('sign_up', { method: 'password', category: userType });
       return newProfile;
     },
     []

@@ -4,7 +4,7 @@ import { requireUser } from '@/backend/auth/require-user';
 import { createIntent, isKodaConfigured, KodaError, toKodaAmount } from '@/backend/payments/koda';
 import { placeHold, releaseHold } from '@/backend/services/holds';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
-import { computeOrderFees, toMinor } from '@/shared/fees';
+import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { resolveLinePrice, resolveMix, tierSaleWindow, type MixEntry } from '@/shared/pricing';
 import type { TicketTier } from '@/shared/types';
 
@@ -141,7 +141,8 @@ export async function POST(request: Request) {
         amount: toKodaAmount(currency, quote.buyerTotalMinor + donationMinor),
         currency,
         operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
-        successUrl: `${siteUrl}/checkout/success?provider=mobile-money`,
+        // amt/cur feed the success page's conversion pixels only — never authority.
+        successUrl: `${siteUrl}/checkout/success?provider=mobile-money&amt=${toMajor(quote.buyerTotalMinor + donationMinor)}&cur=${encodeURIComponent(currency)}`,
         // Echoed back on the webhook, which issues from it. Strings only.
         metadata: {
           eventId,

@@ -20,6 +20,7 @@ import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { resolveLinePrice, tierSaleWindow, companionRuleBroken } from '@/shared/pricing';
 import { meetsTier } from '@/shared/loyalty-tiers';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
+import { track } from '@/frontend/lib/analytics';
 import { Input } from '@/frontend/components/ui/input';
 import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
 import type { Event, Membership } from '@/shared/types';
@@ -282,6 +283,14 @@ export function TicketBox({ event }: { event: Event }) {
         isSeated && orderedSeats.length > 0 ? ` (seats ${orderedSeats.join(', ')})` : ''
       }`,
     });
+    track('add_to_cart', {
+      id: event.id,
+      name: event.title,
+      value: hasTypes ? lineTotal : unitPrice * lineQuantity,
+      currency: event.currency,
+      quantity: lineQuantity,
+      category: tier.name,
+    });
   };
 
   const [kodaLoading, setKodaLoading] = React.useState(false);
@@ -295,6 +304,14 @@ export function TicketBox({ event }: { event: Event }) {
   const handleKoda = async () => {
     if (!tier) return;
     setKodaLoading(true);
+    track('begin_checkout', {
+      id: event.id,
+      name: event.title,
+      value: toMajor(quote.buyerTotalMinor + donationMinor),
+      currency: event.currency,
+      quantity: effectiveQuantity,
+      category: 'mobile-money',
+    });
     try {
       const response = await authedFetch('/api/koda-checkout', {
         method: 'POST',
@@ -874,7 +891,20 @@ export function TicketBox({ event }: { event: Event }) {
         )}
 
         {isFree && !misconfiguredFree && selectedWindow.onSale && loyaltyOk && donationMinor === 0 && (
-          <form action="/api/checkout" method="POST">
+          <form
+            action="/api/checkout"
+            method="POST"
+            onSubmit={() =>
+              track('begin_checkout', {
+                id: event.id,
+                name: event.title,
+                value: 0,
+                currency: event.currency,
+                quantity: effectiveQuantity,
+                category: 'free',
+              })
+            }
+          >
             <input type="hidden" name="name" value={`${event.title} — ${tier.name}`} />
             <input type="hidden" name="amount" value={0} />
             <input type="hidden" name="quantity" value={effectiveQuantity} />
@@ -932,7 +962,20 @@ export function TicketBox({ event }: { event: Event }) {
               A plain form POST keeps the Stripe redirect inside the user's click
               gesture. An async fetch + window.location assignment gets blocked.
             */}
-            <form action="/api/checkout" method="POST">
+            <form
+              action="/api/checkout"
+              method="POST"
+              onSubmit={() =>
+                track('begin_checkout', {
+                  id: event.id,
+                  name: event.title,
+                  value: toMajor(quote.buyerTotalMinor + donationMinor),
+                  currency: event.currency,
+                  quantity: effectiveQuantity,
+                  category: 'stripe',
+                })
+              }
+            >
               <input type="hidden" name="name" value={`${event.title} — ${tier.name}`} />
               {/* Carried, not trusted: the route re-resolves it against the stored tier
                   and ignores it outright unless that tier is pay-what-you-want. */}

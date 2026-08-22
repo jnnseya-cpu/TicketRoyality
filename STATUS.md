@@ -857,6 +857,35 @@ now no longer depends on a scheduler existing:
   existing would also explain placements never expiring and outbound webhooks never
   delivering — create it.**
 
+### 20 August — Meta Pixel + Google Tag across the platform (owner order)
+
+The owner directed both tags "in everything in this OS" — which adds **Meta as a
+vendor** to CLAUDE.md §1's list, by the owner's own authority (the escalation rule
+exists to stop agents adding vendors, not the owner).
+
+- One tracker (`frontend/lib/analytics.ts`): every surface fires ONE semantic event;
+  the module translates to Meta standard events (ViewContent, AddToCart,
+  InitiateCheckout, Purchase, CompleteRegistration, Search, Share) and GA4
+  recommended events (view_item, add_to_cart, begin_checkout, purchase, sign_up …)
+  so both vendors' conversion tooling works without custom definitions. No surface
+  talks to `fbq`/`gtag` directly.
+- Loading is double-gated (`common/Analytics.tsx`): each tag loads only when its ID
+  is configured (`NEXT_PUBLIC_META_PIXEL_ID`, `NEXT_PUBLIC_GA_MEASUREMENT_ID`,
+  declared empty in apphosting.yaml — **the owner sets the real values**) AND the
+  visitor accepted the new consent bar. This platform sells into the UK/EU, where a
+  pre-consent ad pixel is the textbook PECR violation; a decline is remembered and
+  honoured, and page views fire into both tags on every client-side navigation.
+- Wired: event page views; add-to-cart; begin-checkout on every rail (Stripe, mobile
+  money, free, cart both rails, season passes both rails, placements both rails);
+  hospitality reservations; sign-up and login; shares. **Purchases fire on the
+  success pages with real value and currency** — the checkout routes append
+  `amt`/`cur` (analytics-only, never authority) to their success redirects on every
+  rail, deduplicated by payment reference.
+
+Verified: typecheck, lint, production build. Not testable here: the pixels
+themselves — they need the owner's IDs set and a live visit; until the IDs exist the
+site ships zero tracking bytes.
+
 ### 19 August — mobile money: the telecom 2% is already charged on top (verified, no change)
 
 "On top of our fees the telecom 2% fee to be added too" — checked against

@@ -21,6 +21,7 @@ import { RichText } from '@/frontend/components/common/RichText';
 import { SimilarEvents } from '@/frontend/components/events/SimilarEvents';
 import { TicketBox } from '@/frontend/components/events/TicketBox';
 import { SeasonPassOffer } from '@/frontend/components/events/SeasonPassOffer';
+import { TrackView } from '@/frontend/components/common/TrackView';
 import { AuctionLots } from '@/frontend/components/giving/AuctionLots';
 import { GiftRegistry } from '@/frontend/components/giving/GiftRegistry';
 import { getEvents, getEventById } from '@/shared/data/repositories';
@@ -77,6 +78,13 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   return (
     <article>
       <EventStructuredData event={event} />
+      <TrackView
+        id={event.id}
+        name={event.title}
+        value={event.price}
+        currency={event.currency}
+        category={event.category}
+      />
       {/* Hero */}
       <div className="relative h-[38vh] min-h-[280px] w-full overflow-hidden">
         {/*

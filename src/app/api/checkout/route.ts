@@ -647,7 +647,10 @@ export async function POST(request: Request) {
         });
       }
 
-      return NextResponse.redirect(`${siteUrl}/checkout/success?provider=free`, { status: 303 });
+      return NextResponse.redirect(
+        `${siteUrl}/checkout/success?provider=free&amt=0&cur=${encodeURIComponent(currency)}`,
+        { status: 303 }
+      );
     } catch (error) {
       if (holdId) await releaseHold(holdId, 'abandoned');
       return fail(error instanceof Error ? error.message : 'Could not claim the tickets');
@@ -696,7 +699,7 @@ export async function POST(request: Request) {
           amount: toKodaAmount(currency as 'USD' | 'CDF', registryMinor),
           currency: currency as 'USD' | 'CDF',
           operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
-          successUrl: `${siteUrl}/checkout/success?provider=mobile-money`,
+          successUrl: `${siteUrl}/checkout/success?provider=mobile-money&amt=${toMajor(registryMinor)}&cur=${encodeURIComponent(currency)}`,
           metadata: {
             registryItemId,
             registryMessage: String(form.get('registryMessage') ?? '').slice(0, 200),
@@ -743,7 +746,7 @@ export async function POST(request: Request) {
           amount: toKodaAmount(currency as 'USD' | 'CDF', momoQuote.buyerTotalMinor),
           currency: currency as 'USD' | 'CDF',
           operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
-          successUrl: `${siteUrl}/checkout/success?provider=mobile-money`,
+          successUrl: `${siteUrl}/checkout/success?provider=mobile-money&amt=${toMajor(momoQuote.buyerTotalMinor)}&cur=${encodeURIComponent(currency)}`,
           metadata: {
             passId: passIdValue,
             userId: buyerId,
@@ -868,7 +871,7 @@ export async function POST(request: Request) {
             ),
             currency: currency.toUpperCase() as 'USD' | 'CDF',
             operators: ['mpesa_cd', 'airtel_cd', 'orange_cd', 'africell_cd'],
-            successUrl: `${siteUrl}/checkout/success?provider=mobile-money`,
+            successUrl: `${siteUrl}/checkout/success?provider=mobile-money&amt=${toMajor(momoQuote.buyerTotalMinor)}&cur=${encodeURIComponent(currency)}`,
             metadata: {
               cartOrderId,
               userId: buyerId,
@@ -899,7 +902,11 @@ export async function POST(request: Request) {
   try {
     const url = await createCheckoutSession({
       lines,
-      successUrl: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      // amt/cur are for the success page's conversion pixels only — analytics, never
+      // authority. The charged amount is decided by the lines above.
+      successUrl: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}&amt=${toMajor(
+        quote.buyerTotalMinor + donationMinor + registryMinor
+      )}&cur=${encodeURIComponent(currency)}`,
       cancelUrl: `${siteUrl}/checkout/cancel`,
       // Carried through to the webhook, which is what actually issues the tickets.
       metadata: {
