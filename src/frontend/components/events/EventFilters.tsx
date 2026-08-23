@@ -88,7 +88,9 @@ export function EventFilters({
           </SelectContent>
         </Select>
 
-        <div className="flex gap-1 rounded-md border border-border p-1">
+        {/* flex-wrap: three labelled buttons outgrow a phone viewport under large
+            accessibility font scales; wrapping beats pushing Map off the edge. */}
+        <div className="flex flex-wrap gap-1 rounded-md border border-border p-1">
           <Button
             type="button"
             variant={view === 'grid' ? 'secondary' : 'ghost'}

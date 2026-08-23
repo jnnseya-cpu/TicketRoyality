@@ -1,6 +1,6 @@
 # Status — what is actually built
 
-**Last verified: 18 August 2026, against the code on `claude/optimistic-heisenberg-0n2w42`.**
+**Last verified: 23 August 2026, against the code on `claude/optimistic-heisenberg-0n2w42`.**
 
 Operating rules for changing this codebase are in `/CLAUDE.md`.
 
@@ -885,6 +885,48 @@ exists to stop agents adding vendors, not the owner).
 Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
+
+### 22 August — blog view counts and an SEO score in the event editor
+
+Recorded here late — the code shipped in the two commits before this note, which
+broke §0's same-commit rule; the record is corrected rather than left missing.
+
+- **View counts** (`article_views/{slug}` + `/api/blog/views` + `ArticleViews`):
+  the blog pages are prerendered, so the count is read and bumped from the browser.
+  POST only accepts published slugs (no junk documents via curl), increments are
+  atomic (`FieldValue.increment`), one count per browser session per article, and
+  the index page's thirty cards share ONE bulk fetch. Counts render on the article
+  meta row and on every index card.
+- **SEO score** (`shared/seo-score.ts`, 6/6 tests): nine weighted checks — title
+  length, description depth, image, category, venue, coordinates, future date,
+  tiers, public listing — graded live in the event form as the organiser types,
+  each failing check naming its fix. Pure shared module; the form only displays.
+
+### 23 August — "not well fit on a phone" — the real culprit was font scaling
+
+Fresh screenshots showed every page ~15% oversized with the right edge cut off —
+*after* the earlier focus-zoom suppression (`maximumScale: 1` in the viewport
+export, commit 9316a39, also recorded late here). Reproduced in a headless probe by
+scaling the root font size the way **Android's "Text size" accessibility setting**
+does: every control on this site is sized in rem, so the whole layout widens while
+the viewport does not, and the global `overflow-x: clip` guard cuts the excess off
+the right edge — the half-visible menu button in the screenshots.
+
+- **Header** (the one row on every page): the brand link is now the shrinkable
+  member (`min-w-0 shrink` + truncating wordmark) and the controls cluster is
+  `shrink-0` — at large font scales the wordmark truncates and the cart/theme/menu
+  buttons stay on screen.
+- **Event cards**: `1fr` grid tracks grow to their item's min-content, which pushed
+  every card past the viewport at 150%. `min-w-0` on the card's root link keeps the
+  track at the available width; the card's `overflow-hidden` absorbs the rest.
+- **/events view toggle** (List/Calendar/Map) and the homepage "Browse everything"
+  header row now wrap instead of pushing off-screen.
+
+Verified with a Playwright probe at 412px across `/`, `/events`, `/cart`,
+`/organisers`, `/giving`, `/promotions` and an event page at 100% / 130% / 150%
+root font scale: zero horizontal overflow anywhere. Not testable here: the owner's
+actual handset — if the overscale persists after this rollout, the remaining
+suspects are a per-site Chrome zoom setting or a stale installed-PWA shell.
 
 ### 19 August — mobile money: the telecom 2% is already charged on top (verified, no change)
 

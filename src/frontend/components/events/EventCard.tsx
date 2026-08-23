@@ -29,7 +29,11 @@ export function EventCard({ event, className }: { event: Event; className?: stri
   const imageSrc = event.imageUrl?.trim() || eventImageSeed(event.id);
 
   return (
-    <Link href={`/events/${event.id}`} className="group block h-full">
+    // min-w-0: the card sits in 1fr grid tracks, and a track grows to its item's
+    // min-content — under large accessibility font scales that pushed every card
+    // past a phone viewport. Waiving the automatic minimum keeps the track at the
+    // available width; the card's own overflow-hidden absorbs the difference.
+    <Link href={`/events/${event.id}`} className="group block h-full min-w-0">
       <Card
         className={cn(
           'flex h-full flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5',

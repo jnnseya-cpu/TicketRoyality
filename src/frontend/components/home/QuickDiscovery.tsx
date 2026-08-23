@@ -73,7 +73,9 @@ export function QuickDiscovery({ events }: { events: Event[] }) {
 
   return (
     <section className="container py-14">
-      <div className="mb-6 flex items-end justify-between gap-4">
+      {/* flex-wrap: under large accessibility font scales this pair outgrows a
+          phone viewport; wrapping beats clipping the link off the edge. */}
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
             Right now

@@ -66,9 +66,17 @@ export function Header() {
       className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/80 backdrop-blur-xl"
     >
       <div className="container flex h-16 items-center gap-4">
-        <Link href="/" className="flex items-center gap-2">
-          <Logo />
-          <Wordmark />
+        {/*
+          The brand is the one thing here that may shrink. Every control in this bar
+          is sized in rem, so Android's text-size accessibility setting (which scales
+          the root font) widens the whole row; without a shrinkable member the row
+          outgrows the viewport and the clip guard cuts the menu button off the
+          right edge. The wordmark truncating under large font scales is the
+          graceful version of that trade.
+        */}
+        <Link href="/" className="flex min-w-0 shrink items-center gap-2">
+          <Logo className="shrink-0" />
+          <Wordmark className="min-w-0 truncate" />
         </Link>
 
         <nav className="ml-6 hidden items-center gap-1 md:flex">
@@ -86,7 +94,7 @@ export function Header() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <Link href="/cart" className="relative" aria-label="Shopping cart">
             <Button variant="ghost" size="icon">
               <ShoppingCart className="h-4 w-4" />
