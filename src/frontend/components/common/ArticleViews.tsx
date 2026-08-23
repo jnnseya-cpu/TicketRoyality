@@ -13,11 +13,37 @@ import { Eye } from 'lucide-react';
  * silence, and a brand-new article genuinely at zero still shows it honestly once
  * the answer arrives.
  */
-export function ArticleViews({ slug }: { slug: string }) {
+/** One shared fetch of every count, for index pages full of cards. */
+let allCounts: Promise<Record<string, number>> | null = null;
+function fetchAllCounts(): Promise<Record<string, number>> {
+  allCounts ??= fetch('/api/blog/views', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : { all: {} }))
+    .then((data: { all?: Record<string, number> }) => data.all ?? {})
+    .catch(() => ({}));
+  return allCounts;
+}
+
+export function ArticleViews({
+  slug,
+  mode = 'count-and-record',
+}: {
+  slug: string;
+  /** 'count' displays without recording a view — for index cards. */
+  mode?: 'count-and-record' | 'count';
+}) {
   const [views, setViews] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
+
+    if (mode === 'count') {
+      fetchAllCounts().then((all) => {
+        if (!cancelled) setViews(all[slug] ?? 0);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
 
     const key = `tr:viewed:${slug}`;
     let alreadyCounted = false;
@@ -47,7 +73,7 @@ export function ArticleViews({ slug }: { slug: string }) {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, mode]);
 
   if (views === null) return null;
 

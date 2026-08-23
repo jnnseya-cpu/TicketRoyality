@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { CalendarIcon, Loader2, MapPin, PlusCircle, Sparkles, Trash2 } from 'lucide-react';
+import { AlertCircle, CalendarIcon, Check, Loader2, MapPin, PlusCircle, Sparkles, Trash2 } from 'lucide-react';
 
 import { Button } from '@/frontend/components/ui/button';
 import { Calendar } from '@/frontend/components/ui/calendar';
@@ -43,6 +43,7 @@ import { Switch } from '@/frontend/components/ui/switch';
 import { describeError } from '@/shared/errors';
 import { cn } from '@/shared/utils';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
+import { scoreEventListing } from '@/shared/seo-score';
 import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { createEvent, updateEvent } from '@/shared/data/repositories';
@@ -3209,6 +3210,77 @@ export function CreateEventForm({
                 </FormItem>
               )}
             />
+          </CardContent>
+        </Card>
+
+        {/*
+          The SEO score — how this listing will perform in search, live as it is
+          typed. Every check maps to a real ranking or rich-result requirement
+          (shared/seo-score.ts), and each failing one says exactly what to change.
+        */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between text-base">
+              <span>SEO score</span>
+              {(() => {
+                const seo = scoreEventListing({
+                  title: form.watch('title'),
+                  description: form.watch('description'),
+                  imageUrl: form.watch('imageUrl'),
+                  category: form.watch('category'),
+                  location: form.watch('location'),
+                  hasCoordinates: Boolean(form.watch('lat') && form.watch('lng')),
+                  date: form.watch('date')?.toISOString?.(),
+                  hasTiers: (form.watch('ticketTiers') ?? []).length > 0,
+                  listing: form.watch('unlisted') ? 'unlisted' : 'public',
+                });
+                return (
+                  <span
+                    className={
+                      seo.score >= 70
+                        ? 'text-success'
+                        : seo.score >= 45
+                          ? 'text-amber-500'
+                          : 'text-destructive'
+                    }
+                  >
+                    {seo.score}/100 — {seo.grade}
+                  </span>
+                );
+              })()}
+            </CardTitle>
+            <CardDescription>
+              How this listing performs in Google — the score rises as the gaps below are
+              closed. A complete listing is eligible for the events carousel with price,
+              date and venue shown directly in search results.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            {scoreEventListing({
+              title: form.watch('title'),
+              description: form.watch('description'),
+              imageUrl: form.watch('imageUrl'),
+              category: form.watch('category'),
+              location: form.watch('location'),
+              hasCoordinates: Boolean(form.watch('lat') && form.watch('lng')),
+              date: form.watch('date')?.toISOString?.(),
+              hasTiers: (form.watch('ticketTiers') ?? []).length > 0,
+              listing: form.watch('unlisted') ? 'unlisted' : 'public',
+            }).checks.map((check) => (
+              <div key={check.label} className="flex items-start gap-2 text-sm">
+                {check.ok ? (
+                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
+                ) : (
+                  <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                )}
+                <span className={check.ok ? 'text-muted-foreground' : ''}>
+                  <span className="font-medium">{check.label}</span>
+                  {!check.ok && (
+                    <span className="block text-xs text-muted-foreground">{check.advice}</span>
+                  )}
+                </span>
+              </div>
+            ))}
           </CardContent>
         </Card>
 

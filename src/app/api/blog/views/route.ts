@@ -22,6 +22,26 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: Request) {
   const slug = new URL(request.url).searchParams.get('slug') ?? '';
+
+  /*
+   * No slug: every published article's count in one response, for the index page —
+   * thirty cards must not mean thirty requests. Bounded by the article catalogue.
+   */
+  if (!slug) {
+    if (!isAdminConfigured()) return NextResponse.json({ all: {} });
+    try {
+      const known = publishedSlugs();
+      const snap = await getAdminDb().collection('article_views').get();
+      const all: Record<string, number> = {};
+      for (const doc of snap.docs) {
+        if (known.has(doc.id)) all[doc.id] = Number(doc.data()?.count ?? 0);
+      }
+      return NextResponse.json({ all }, { headers: { 'Cache-Control': 'no-store' } });
+    } catch {
+      return NextResponse.json({ all: {} });
+    }
+  }
+
   if (!publishedSlugs().has(slug)) {
     return NextResponse.json({ error: 'No such article.' }, { status: 404 });
   }

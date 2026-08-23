@@ -5,6 +5,7 @@ import { ArrowRight, BookOpen, Clock } from 'lucide-react';
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent } from '@/frontend/components/ui/card';
+import { ArticleViews } from '@/frontend/components/common/ArticleViews';
 import { articlesInCluster, publishedArticles, publishedClusters } from '@/shared/content/articles';
 import { siteUrl } from '@/shared/site';
 
@@ -149,8 +150,12 @@ export default function BlogPage() {
                             {article.excerpt}
                           </span>
                         </span>
-                        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" /> {article.readMinutes}m
+                        <span className="flex shrink-0 flex-col items-end gap-1 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> {article.readMinutes}m
+                          </span>
+                          {/* One shared fetch serves every card — see ArticleViews. */}
+                          <ArticleViews slug={article.slug} mode="count" />
                         </span>
                       </Link>
                     </li>
