@@ -5,6 +5,7 @@ import { ArrowLeft, Clock } from 'lucide-react';
 
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
+import { ArticleViews } from '@/frontend/components/common/ArticleViews';
 import { ArticleLinks } from '@/frontend/components/seo/ArticleLinks';
 import { RichText } from '@/frontend/components/seo/RichText';
 import { ProductLinks, RelatedArticles } from '@/frontend/components/seo/ArticleFooterLinks';
@@ -190,6 +191,8 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           <Clock className="h-3.5 w-3.5" /> {article.readMinutes} min read
         </span>
         <span>{article.author}</span>
+        {/* Client-side: the page is prerendered, the count is live. */}
+        <ArticleViews slug={article.slug} />
       </div>
 
       <div className="mt-8 space-y-5">
