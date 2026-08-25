@@ -451,6 +451,7 @@ export async function POST(request: Request) {
                   quantity: basket.reduce((sum, item) => sum + item.quantity, 0),
                   faceMinor: checkout.faceMinor,
                   providerRef: checkout.paymentIntentId,
+                  buyerEmail: checkout.customerEmail ?? '',
                 });
               } else if (organizerId) {
                 console.warn('[stripe] cart spans organisers — attribution skipped', {
@@ -574,6 +575,7 @@ export async function POST(request: Request) {
                 // ticket was worth, not on the service fee the buyer paid us.
                 faceMinor: checkout.faceMinor,
                 providerRef: checkout.paymentIntentId,
+                buyerEmail: checkout.customerEmail ?? '',
               });
             }
           } catch (error) {

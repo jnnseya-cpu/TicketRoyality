@@ -70,11 +70,25 @@ service cloud.firestore {
 
       // A new profile may only be created by its owner, must claim its own uid, and
       // must not self-assign an elevated role or an approved organiser status.
+      //
+      // It also must not self-mint AI credit. The registration client writes the wallet
+      // with the one-time welcome bonus (100 ACU), and `update` already forbids touching
+      // `wallet` afterwards — but `create` did not, so a crafted first write could set
+      // `wallet.balanceAcu` to any figure and (once the ACU spend path is wired) that is
+      // directly spendable platform money, and breaks the balance==ledger reconciliation.
+      // So a created wallet is pinned to the welcome default: no more than the bonus
+      // everyone gets, and nothing pre-spent or pre-purchased. WELCOME_BONUS_ACU = 100
+      // (shared/constants/billing.ts); rules cannot import, so the literal is mirrored.
       allow create: if isSelf(uid)
                     && request.resource.data.uid == uid
                     && request.resource.data.userType in ['customer', 'organiser']
                     && (request.resource.data.userType != 'organiser'
-                        || request.resource.data.status == 'pending');
+                        || request.resource.data.status == 'pending')
+                    && (!('wallet' in request.resource.data)
+                        || (request.resource.data.wallet.balanceAcu <= 100
+                            && request.resource.data.wallet.lifetimeGrantedAcu <= 100
+                            && request.resource.data.wallet.lifetimePurchasedAcu == 0
+                            && request.resource.data.wallet.lifetimeSpentAcu == 0));
 
       allow update: if isSuperuser()
                     || (isSelf(uid) && noPrivilegedFields());

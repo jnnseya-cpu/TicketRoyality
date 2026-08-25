@@ -216,6 +216,15 @@ export async function redeemAtDoor(
        * A wallet that could not compute a code — no Web Crypto, insecure context — sends
        * none, and falls back to the signature that was already verified above. A ticket
        * that renders nothing is a person at a door with no way in.
+       *
+       * NOTE (audit, 25 Aug): gating on `payload.c` means a static/omitted-`c` QR skips
+       * rotation and passes on the signature alone, so a forwarded screenshot does not
+       * expire the way rotation intends. This is NOT a double-entry or free-entry hole:
+       * redemption is single-use (an already-scanned ticket is refused below), so the
+       * worst case online is that the wrong copy of ONE ticket enters once — a dispute,
+       * not a platform loss. Closing it fully means re-signing the QR on transfer (so an
+       * old holder's code dies) rather than making `c` mandatory, which would strand
+       * every no-Web-Crypto wallet and printed ticket at the door. Tracked in STATUS.
        */
       if (ticket.rotationSeed && payload.c) {
         const now = rotationWindow();

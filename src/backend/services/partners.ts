@@ -198,7 +198,7 @@ export async function recordClick(code: string): Promise<void> {
 
 export type AttributionResult =
   | { ok: true; commissionMinor: number }
-  | { ok: false; reason: 'no-link' | 'inactive' | 'wrong-event' | 'allocation-spent' | 'duplicate' | 'unavailable' };
+  | { ok: false; reason: 'no-link' | 'inactive' | 'wrong-event' | 'allocation-spent' | 'duplicate' | 'self-referral' | 'unavailable' };
 
 /**
  * Record an attributed sale, once.
@@ -215,6 +215,8 @@ export async function recordAttribution(input: {
   quantity: number;
   faceMinor: number;
   providerRef?: string;
+  /** The buyer's email, so a partner buying through their own link earns nothing. */
+  buyerEmail?: string;
 }): Promise<AttributionResult> {
   if (!isAdminConfigured()) return { ok: false, reason: 'unavailable' };
 
@@ -232,6 +234,22 @@ export async function recordAttribution(input: {
 
       const link = linkSnap.data() as PartnerLink;
       if (!link.active) return { ok: false, reason: 'inactive' };
+
+      /*
+       * Self-referral: a partner buying through their own link. Commission comes out of
+       * the organiser's face-value payout, so a partner who clicks their own tracked link
+       * and buys their own tickets is manufacturing a discount the organiser never agreed
+       * to — up to the 50% cap, on every order. The buyer's email matching the link's
+       * partner email is the signal; a colluding second account with a different email is
+       * outside what an email guard can see, and is noted in STATUS as the residual.
+       */
+      if (
+        input.buyerEmail &&
+        link.partnerEmail &&
+        input.buyerEmail.trim().toLowerCase() === link.partnerEmail.trim().toLowerCase()
+      ) {
+        return { ok: false, reason: 'self-referral' };
+      }
 
       // A link scoped to one event earns on that event only. Without this a partner
       // given a link for a small show earns on the stadium date as well.

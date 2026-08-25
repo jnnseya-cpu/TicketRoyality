@@ -131,6 +131,51 @@ async function run() {
     assert.equal(after.commissionMinor, 1_000);
   });
 
+  await test('a partner buying through their own link earns nothing', async () => {
+    /*
+     * Self-referral: commission comes out of the organiser's face-value payout, so a
+     * partner who clicks their own tracked link and buys their own tickets would
+     * manufacture a discount the organiser never agreed to — up to the 50% cap, on
+     * every order. The buyer email matching the link's partner email is the signal.
+     */
+    await clear();
+    await make({ commissionPercent: 10 }); // partnerEmail: sarah@example.com
+
+    const result = await partners.recordAttribution({
+      providerEventId: 'evt_self',
+      code: 'SARAH10',
+      eventId: EVENT,
+      organizerId: ORGANISER,
+      quantity: 2,
+      faceMinor: 10_000,
+      buyerEmail: 'Sarah@Example.com', // same person, different case
+    });
+
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.reason, 'self-referral');
+
+    const after = await link('SARAH10');
+    assert.equal(after.commissionMinor, 0, 'no commission accrues to a self-referral');
+    assert.equal(after.sales, 0);
+  });
+
+  await test('a genuine buyer through the link still earns', async () => {
+    // The guard must not refuse a real third-party buyer.
+    await clear();
+    await make({ commissionPercent: 10 });
+    const result = await partners.recordAttribution({
+      providerEventId: 'evt_third',
+      code: 'SARAH10',
+      eventId: EVENT,
+      organizerId: ORGANISER,
+      quantity: 1,
+      faceMinor: 10_000,
+      buyerEmail: 'someone-else@example.com',
+    });
+    assert.equal(result.ok, true);
+    if (result.ok) assert.equal(result.commissionMinor, 1_000);
+  });
+
   await test('a redelivered webhook does not pay the partner twice', async () => {
     /*
      * The one that costs real money. Stripe redelivers; without idempotency the partner's

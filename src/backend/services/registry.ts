@@ -128,6 +128,13 @@ export async function recordContribution(input: {
     return { ok: false, reason: 'unavailable', error: 'The registry is unavailable.' };
   }
 
+  // Defence in depth: a non-positive amount would slip past the `> remaining` test below
+  // and DECREASE the running total. Both callers already clamp to a positive figure, so
+  // this should be unreachable — which is exactly why it is cheap to make certain of.
+  if (!Number.isFinite(input.amountMinor) || input.amountMinor <= 0) {
+    return { ok: false, reason: 'too-much', error: 'That contribution amount is not valid.' };
+  }
+
   const db = getAdminDb();
   const itemRef = db.collection(ITEMS).doc(input.itemId);
   const contributionRef = db.collection(CONTRIBUTIONS).doc(input.providerEventId);

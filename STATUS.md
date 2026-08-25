@@ -886,6 +886,77 @@ Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
 
+### 25 August — money-side audit, pass 2: refunds, upgrades, transfers, referral, farming
+
+A second, deeper adversarial sweep — four parallel audits over every value-creating path
+not covered by pass 1: refunds and paid upgrades, ticket/pass transfer and redemption,
+partner self-referral, hospitality balances, auctions, and every user-supplied number.
+Each finding was re-verified against the code before any change. Hospitality, the mix
+engine, pay-what-you-want, coupons, quantity clamps, negative-amount guards and the
+upgrade *pricing* all came back sound. Six genuine issues were fixed; the rest are
+recorded below with the reason they are documented rather than patched.
+
+**FIXED — upgrade→refund inventory drift → oversell (functions/issuance.ts).** A ticket
+upgraded after issuance (seat-swap) moves the sold counter onto its new tier, but
+`refundTickets` decremented the *marker's* original tier — double-subtracting the old
+tier (which then under-reads and lets the organiser oversell past capacity) and stranding
+a phantom sale on the new one. Refunds now reverse each ticket's *current* tier, read from
+the ticket, which also handles a mixed-tier order correctly.
+
+**FIXED — refund of consumed admission on post-doors cancellation (cancellation.ts).**
+`cancelEvent` refunded every issued order regardless of whether its tickets were already
+scanned in; the ticket side skips redeemed tickets but the money side did not, so an
+organiser cancelling after the event began handed full refunds to people who had walked
+in. A fully-attended order (every ticket redeemed) is now skipped on the money side too.
+
+**FIXED — partner self-referral commission (partners.ts + stripe-webhook).** Commission
+comes out of the organiser's face-value payout, so a partner buying through their own
+tracked link manufactured a discount up to the 50% cap on every order. Attribution now
+refuses when the buyer's email matches the link's partner email. Residual: a colluding
+second account with a different email is outside an email guard's sight — noted, not
+solved, because structurally solving it needs identity beyond an email on the link.
+
+**FIXED — self-minted AI wallet at signup (firestore.rules).** `update` forbade touching
+`wallet`, but `create` did not, so the very first profile write could set `balanceAcu` to
+any figure — spendable platform money the moment the ACU spend path is wired, and a broken
+balance==ledger reconciliation before then. The create rule now pins a new wallet to the
+welcome default (≤100 ACU, nothing pre-purchased or pre-spent). Pinned by two new
+`test:rules` cases (49/49).
+
+**FIXED — pass settlement stranded fixtures on a mid-loop failure (season-passes.ts).**
+The pass-level purchase record was written *before* the per-fixture issuance loop, so a
+transient failure part-way left a record that short-circuited every redelivery — the
+unissued fixtures were never retried and the holder was silently shorted. Fixtures (each
+idempotent by its own id) now run first; the record, which gates only the non-idempotent
+pass counter, is written last, so a redelivery completes the set. New `test:passes` case
+pins the recovery (17/17).
+
+**FIXED — registry contribution non-negative guard (registry.ts).** Defence in depth: a
+non-positive amount would have slipped past the over-target check and decreased the raised
+total. Both callers already clamp positive; the service now refuses it too.
+
+**Documented, not patched (with reasons):**
+- **Rotating-QR fallback (redeem.ts, offline.ts).** A static/`c`-omitted QR skips rotation
+  and passes on the signature alone, so a forwarded screenshot does not expire the way
+  rotation intends. This is NOT a double-entry or free-entry hole: redemption is
+  single-use, so online the worst case is the wrong copy of ONE ticket entering once — a
+  dispute, not a platform loss (true offline double-entry is the separately-tracked
+  cross-door gap). Making `c` mandatory was tried and reverted: it would strand every
+  no-Web-Crypto wallet and printed ticket at the door — a P0 the codebase deliberately
+  chose to avoid. The correct fix is re-signing the QR on transfer so an old holder's
+  code dies; left as an owner decision rather than shipped as a door-refusal.
+- **Auctions have no winner-charge path.** `markLotPaid` is test-only; nothing collects
+  the winning bid, so an auction currently settles the lot with payment entirely
+  off-platform. This is feature-incompleteness, not a live-path loophole. When built it
+  must go through the `payment_events` idempotency discipline, not a raw update.
+- **Season-pass availability is a non-atomic check (TOCTOU).** Passes place no
+  cross-fixture hold, so under concurrency more can be sold than one fixture can seat →
+  the per-fixture oversell guard then forces a refund. Closing it needs a multi-fixture
+  hold transaction — a real build, recorded rather than half-done.
+- **bitripay-checkout trusts a client amount and is unauthenticated.** No Bitripay webhook
+  exists, so nothing issues from it and there is no goods-for-less path today; it should
+  re-price server-side and require a token before ever being wired to issuance.
+
 ### 25 August — money-side adversarial audit: two real leaks closed
 
 A deep pass over every path that moves money — Stripe and KODA checkout and webhooks,

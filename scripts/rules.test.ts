@@ -162,9 +162,10 @@ async function main() {
     companyName: 'Newcomer Live',
     address: { line1: '2 High St', city: 'London', postcode: 'E1 6AN', country: 'United Kingdom' },
     createdAt: '2026-08-18T00:00:00.000Z',
-    // Minted client-side by createUserProfile(). `noPrivilegedFields()` guards these on
-    // update, not on create — a new account must be able to arrive holding its welcome
-    // credit, or nobody can register at all.
+    // Minted client-side by createUserProfile(). A new account must be able to arrive
+    // holding its welcome credit — but the create rule now pins the amount to the welcome
+    // default (100 ACU), so it can hold the bonus everyone gets and not a self-chosen
+    // fortune. `update` forbids touching `wallet` at all after that.
     wallet: {
       balanceAcu: 100,
       lifetimeGrantedAcu: 100,
@@ -202,6 +203,49 @@ async function main() {
     const db = env.authenticatedContext(uid).firestore();
     await assertFails(
       setDoc(doc(db, 'users', uid), signupPayload({ uid, userType: 'superuser' }))
+    );
+  });
+
+  await test('a new user cannot self-mint an inflated AI wallet at creation', async () => {
+    // The hole this closes: `update` forbade touching `wallet`, but `create` did not, so
+    // the very first write could set any balance. Once ACU spend is wired that is
+    // spendable platform money. The create rule now caps it at the welcome default.
+    const uid = 'new-rich';
+    const db = env.authenticatedContext(uid).firestore();
+    await assertFails(
+      setDoc(
+        doc(db, 'users', uid),
+        signupPayload({
+          uid,
+          wallet: {
+            balanceAcu: 10_000_000,
+            lifetimeGrantedAcu: 10_000_000,
+            lifetimePurchasedAcu: 0,
+            lifetimeSpentAcu: 0,
+            lastUpdatedAt: '2026-08-18T00:00:00.000Z',
+          },
+        })
+      )
+    );
+  });
+
+  await test('a new user cannot fake pre-purchased or pre-spent credit', async () => {
+    const uid = 'new-fake';
+    const db = env.authenticatedContext(uid).firestore();
+    await assertFails(
+      setDoc(
+        doc(db, 'users', uid),
+        signupPayload({
+          uid,
+          wallet: {
+            balanceAcu: 100,
+            lifetimeGrantedAcu: 100,
+            lifetimePurchasedAcu: 5_000, // pretending to have topped up
+            lifetimeSpentAcu: 0,
+            lastUpdatedAt: '2026-08-18T00:00:00.000Z',
+          },
+        })
+      )
     );
   });
 

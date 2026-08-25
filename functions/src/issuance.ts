@@ -296,6 +296,15 @@ export async function refundTickets(
     // transaction because these documents are about to be mutated — fetching them
     // afterwards would describe the post-refund state, not what was reversed.
     const refundedTickets: TicketDoc[] = [];
+    // Reversals counted per CURRENT tier, taken from each ticket — NOT the marker's
+    // single `tierId`. A ticket upgraded after issuance (seat-swap.ts) has already moved
+    // the sold counter onto its new tier; decrementing the marker's original tier here
+    // would subtract from a tier the upgrade already reduced (its count then under-reads,
+    // and the organiser can oversell past capacity) while the new tier keeps a phantom
+    // sale forever. Grouping by the ticket's live tierId reverses exactly the tier each
+    // ticket now occupies, and correctly handles a mixed-tier order too. Falls back to
+    // the marker tier for any ticket issued before tierId was stamped on the document.
+    const perTier: Record<string, number> = {};
     for (const snap of ticketSnaps) {
       if (!snap.exists) continue;
       const ticket = snap.data() as TicketDoc;
@@ -303,20 +312,24 @@ export async function refundTickets(
       tx.update(snap.ref, { status: 'refunded', refundedAt: new Date().toISOString() });
       refundedTickets.push(ticket);
       reversible += 1;
+      const tierId = ticket.tierId ?? data.tierId ?? '';
+      if (tierId) perTier[tierId] = (perTier[tierId] ?? 0) + 1;
     }
 
-    if (eventSnap?.exists && data.tierId && reversible > 0) {
+    if (eventSnap?.exists && reversible > 0 && Object.keys(perTier).length > 0) {
       const event = eventSnap.data() as EventDoc;
       const tiers = Array.isArray(event.ticketTiers) ? event.ticketTiers : [];
-      const index = tiers.findIndex((t) => t.id === data.tierId);
-
-      if (index !== -1) {
-        const next = [...tiers];
+      const next = [...tiers];
+      let changed = false;
+      for (const [tierId, count] of Object.entries(perTier)) {
+        const index = next.findIndex((t) => t.id === tierId);
+        if (index === -1) continue;
         // Clamped at zero. If the counter is already wrong, a refund must not make it
         // negative and start handing out inventory that does not exist.
-        next[index] = { ...next[index], sold: Math.max(0, (next[index].sold ?? 0) - reversible) };
-        tx.update(eventSnap.ref, { ticketTiers: next });
+        next[index] = { ...next[index], sold: Math.max(0, (next[index].sold ?? 0) - count) };
+        changed = true;
       }
+      if (changed) tx.update(eventSnap.ref, { ticketTiers: next });
     }
 
     tx.update(markerRef, { refundedAt: new Date().toISOString(), refundReason: reason });

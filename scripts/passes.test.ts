@@ -152,16 +152,19 @@ async function run() {
   await test('a redelivered webhook does not issue a second set', async () => {
     /*
      * One payment, N tickets — so a replay that slipped through would issue N more, not
-     * one. Guarded twice over: the purchase record and each issuance's own id.
+     * one. The redelivery re-runs the idempotent fixtures (minting nothing new) and the
+     * pass counter is gated by the purchase record, so it is bumped once, not per delivery.
      */
     const passId = await seed();
-    await passes.settlePassPurchase({
+    const first = await passes.settlePassPurchase({
       providerEventId: 'evt_dup',
       passId,
       userId: USER,
       attendeeName: 'Ada',
       attendeeEmail: 'ada@example.com',
     });
+    assert.equal(first.ok, true);
+
     const replay = await passes.settlePassPurchase({
       providerEventId: 'evt_dup',
       passId,
@@ -170,9 +173,44 @@ async function run() {
       attendeeEmail: 'ada@example.com',
     });
 
-    assert.equal(replay.ok, false);
-    if (!replay.ok) assert.equal(replay.reason, 'duplicate');
+    assert.equal(replay.ok, true);
+    if (replay.ok) assert.equal(replay.issued, 0, 'a redelivery mints no new issuance');
     assert.equal((await db.collection('payment_events').get()).size, FIXTURES.length);
+    const sold = (await db.collection('season_passes').doc(passId).get()).data()?.sold;
+    assert.equal(sold, 1, 'the pass counter is bumped once, not per delivery');
+  });
+
+  await test('a part-settled pass is COMPLETED on redelivery, never stranded', async () => {
+    /*
+     * The stranding bug this pins: the pass-level purchase record used to be written
+     * BEFORE the fixture loop, so if the loop threw part-way, the record it left behind
+     * short-circuited every redelivery — the unrecorded fixtures were never issued and the
+     * holder was silently shorted. Simulate a first delivery that managed only fixture-1
+     * (its payment_event) AND wrote the pass-level record, then redeliver: all fixtures
+     * must end recorded, because the fixtures now run before the gate.
+     */
+    const passId = await seed();
+    await db
+      .collection('payment_events')
+      .doc(`evt_partial__${FIXTURES[0]}`)
+      .set({ eventId: FIXTURES[0], intent: 'issue', status: 'issued' });
+    await db.collection('season_pass_purchases').doc('evt_partial').set({ passId, partial: true });
+
+    const outcome = await passes.settlePassPurchase({
+      providerEventId: 'evt_partial',
+      passId,
+      userId: USER,
+      attendeeName: 'Ada',
+      attendeeEmail: 'ada@example.com',
+    });
+
+    assert.equal(outcome.ok, true);
+    const recorded = await db.collection('payment_events').get();
+    assert.equal(recorded.size, FIXTURES.length, 'every fixture is recorded after recovery');
+    for (const id of FIXTURES) {
+      const doc = await db.collection('payment_events').doc(`evt_partial__${id}`).get();
+      assert.ok(doc.exists, `fixture ${id} was completed on redelivery`);
+    }
   });
 
   await test('the price is spread across the fixtures, not loaded onto one', async () => {

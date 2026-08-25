@@ -153,27 +153,23 @@ export async function settlePassPurchase(input: {
 
   const purchaseRef = db.collection(PURCHASES).doc(input.providerEventId);
 
-  try {
-    // The purchase record is the idempotency gate for the *pass* itself — the counter
-    // must not move twice on a redelivery even though each issuance is separately safe.
-    await purchaseRef.create({
-      passId: input.passId,
-      organizerId: pass.organizerId,
-      userId: input.userId,
-      email: input.attendeeEmail,
-      eventIds: pass.eventIds,
-      createdAt: new Date().toISOString(),
-    });
-  } catch (error) {
-    if ((error as { code?: number }).code === 6) return { ok: false, reason: 'duplicate' };
-    reportError(error, { scope: 'passes.settle', passId: input.passId });
-    return { ok: false, reason: 'unavailable' };
-  }
-
   // The price is spread evenly across the fixtures so a refund of one night reverses a
   // sensible share, rather than one ticket carrying the whole pass and the rest zero.
   const perEvent = pass.eventIds.length > 0 ? pass.price / pass.eventIds.length : 0;
 
+  /*
+   * Fixtures FIRST — each `recordPaymentEvent` is idempotent by `${id}__${eventId}`.
+   *
+   * The pass-level record used to be created before this loop as a whole-pass
+   * idempotency gate, but that was actively harmful: if the loop threw part-way (a
+   * transient Firestore error on fixture k) the webhook 500s and the provider
+   * redelivers — and on redelivery the pass-level `create` failed with ALREADY_EXISTS
+   * and short-circuited BEFORE the loop, so fixtures k…N were never recorded, never
+   * issued, and never retried. The holder paid the full pass and silently received a
+   * partial set of tickets. Running the idempotent fixtures first means a redelivery
+   * re-runs and COMPLETES the set; the only non-idempotent action — the counter — is
+   * gated separately below, after the fixtures are safely in.
+   */
   let issued = 0;
   for (const eventId of pass.eventIds) {
     const outcome = await recordPaymentEvent({
@@ -194,11 +190,27 @@ export async function settlePassPurchase(input: {
     if (outcome === 'recorded') issued += 1;
   }
 
+  /*
+   * The pass counter, gated by the purchase record written LAST. On the first complete
+   * settlement this creates the record and bumps `sold` once; a redelivery finds the
+   * record present (code 6) and skips the bump — the fixtures above are ensured either
+   * way, so a duplicate delivery is a success, not a short-circuit.
+   */
   try {
+    await purchaseRef.create({
+      passId: input.passId,
+      organizerId: pass.organizerId,
+      userId: input.userId,
+      email: input.attendeeEmail,
+      eventIds: pass.eventIds,
+      createdAt: new Date().toISOString(),
+    });
     const { FieldValue } = await import('firebase-admin/firestore');
     await db.collection(PASSES).doc(input.passId).update({ sold: FieldValue.increment(1) });
   } catch (error) {
-    reportError(error, { scope: 'passes.count', passId: input.passId });
+    if ((error as { code?: number }).code !== 6) {
+      reportError(error, { scope: 'passes.count', passId: input.passId });
+    }
   }
 
   return { ok: true, issued };
