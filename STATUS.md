@@ -886,6 +886,24 @@ Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
 
+### 25 August — header fit (signed-in) and forcing the fix through the PWA cache
+
+A "still not fit" report with a signed-in header: the earlier shrink/truncate fix was
+measured signed-OUT (three icons), but a signed-in phone shows a FOURTH icon — the
+notification bell — and that extra ~44px is what pushed the menu button off the edge.
+Two changes:
+
+- The **theme toggle moves off the phone top bar into the menu sheet**, so a signed-in
+  mobile header is cart + bell + menu, with a wide fit margin. Probed with the bell
+  present at 320/360/393px and 120% text: the menu button stays on screen and the
+  wordmark no longer even needs to truncate at 360px. Inline theme toggle returns from
+  `md` up; the gap tightens to `gap-1` on mobile.
+- **Service-worker `CACHE_VERSION` bumped v1 → v2.** The header lives in the client
+  bundle, and although documents are network-first, bumping the version guarantees every
+  installed app drops its old caches on the next activation — so the fix reaches a phone
+  that had the old shell instead of waiting on it. Confirmed the header fix is already on
+  `origin/main`; a device still showing the clip is serving the pre-rollout/cached build.
+
 ### 25 August — money-side audit, pass 2: refunds, upgrades, transfers, referral, farming
 
 A second, deeper adversarial sweep — four parallel audits over every value-creating path

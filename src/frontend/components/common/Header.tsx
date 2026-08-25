@@ -94,7 +94,9 @@ export function Header() {
           ))}
         </nav>
 
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        {/* Tighter gaps on a phone: this cluster is shrink-0, so every pixel it saves is a
+            pixel the brand keeps before it has to truncate. */}
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           <Link href="/cart" className="relative" aria-label="Shopping cart">
             <Button variant="ghost" size="icon">
               <ShoppingCart className="h-4 w-4" />
@@ -109,7 +111,12 @@ export function Header() {
           {/* Only renders for a signed-in user — see NotificationBell. */}
           <NotificationBell />
 
-          <ThemeToggle />
+          {/* Theme toggle is a nicety, not a primary action — kept off the phone top bar
+              (it lives in the menu sheet below) so a signed-in header of cart + bell +
+              menu never outgrows a narrow screen. Shown inline from md up. */}
+          <span className="hidden md:inline-flex">
+            <ThemeToggle />
+          </span>
 
           <div className="hidden md:flex md:items-center md:gap-2">
             {loading ? (
@@ -186,10 +193,14 @@ export function Header() {
             </SheetTrigger>
             <SheetContent side="right" className="w-80">
               <SheetHeader>
-                <SheetTitle className="flex items-center gap-2">
-                  <Logo className="h-5 w-5" />
-                  Menu
-                </SheetTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <SheetTitle className="flex items-center gap-2">
+                    <Logo className="h-5 w-5" />
+                    Menu
+                  </SheetTitle>
+                  {/* The theme toggle lives here on mobile — off the cramped top bar. */}
+                  <ThemeToggle />
+                </div>
                 <SheetDescription>Browse events, manage your account and tickets.</SheetDescription>
               </SheetHeader>
 
