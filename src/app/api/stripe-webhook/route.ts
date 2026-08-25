@@ -16,6 +16,7 @@ import { recordDonation } from '@/backend/services/donations';
 import { recordContribution } from '@/backend/services/registry';
 import { queueEvent } from '@/backend/services/webhooks';
 import { settlePassPurchase } from '@/backend/services/season-passes';
+import { settleCartOrderRedemption } from '@/backend/services/coupons';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
 
@@ -402,14 +403,12 @@ export async function POST(request: Request) {
             }
           }
 
-          // The order document's state, for the operations view. Best-effort: the
-          // payment events above are the record that matters.
-          if (checkout.cartOrderId && isAdminConfigured()) {
-            await getAdminDb()
-              .collection('cart_orders')
-              .doc(checkout.cartOrderId)
-              .update({ status: 'issued', issuedAt: new Date().toISOString() })
-              .catch(() => {});
+          // Flip the order to issued and, in the same transaction, count the one coupon
+          // redemption it carried — exactly once, guarded by the status transition, so a
+          // redelivery cannot advance the usage count again. Best-effort: the payment
+          // events above are the record that matters.
+          if (checkout.cartOrderId) {
+            await settleCartOrderRedemption(checkout.cartOrderId);
           }
 
           // `order.completed` per line, so each organiser hears about their own sale

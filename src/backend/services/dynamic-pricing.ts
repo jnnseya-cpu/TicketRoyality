@@ -3,6 +3,7 @@ import 'server-only';
 import { runTask } from '@/backend/ai/gateway';
 import { DynamicPricingInputSchema } from '@/backend/ai/schemas';
 import { dynamicPricingTask } from '@/backend/ai/tasks';
+import { reserveAiCall, recordAiSpend } from '@/backend/services/ai-usage';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import type { PriceSuggestion, TicketTier } from '@/shared/types';
 
@@ -25,7 +26,7 @@ const DAY = 24 * 60 * 60 * 1000;
 
 export type ReviewResult =
   | { ok: true; summary: string; suggestions: PriceSuggestion[] }
-  | { ok: false; status: 400 | 403 | 404 | 503; error: string };
+  | { ok: false; status: 400 | 403 | 404 | 429 | 503; error: string };
 
 export type ApplyResult =
   | { ok: true; tierId: string; price: number }
@@ -146,8 +147,26 @@ export async function reviewPricing(eventId: string, uid: string): Promise<Revie
     };
   }
 
+  // Count this against the organiser's shared daily AI allowance before the paid call.
+  // Ownership is already proven, but "your own event" is not a licence to spend the
+  // platform's provider budget without limit by re-reviewing on a loop.
+  const reservation = await reserveAiCall(uid);
+  if (!reservation.ok) {
+    return {
+      ok: false,
+      status: reservation.reason === 'over_cap' ? 429 : 503,
+      error:
+        reservation.reason === 'over_cap'
+          ? 'Daily AI limit reached. Try again tomorrow.'
+          : 'AI is temporarily unavailable — try again shortly.',
+    };
+  }
+
   try {
     const result = await runTask(dynamicPricingTask, input.data);
+
+    // Record the real provider cost against the caller; internal, never returned.
+    await recordAiSpend(uid, result.billing);
 
     const byId = new Map(tiers.map((tier) => [tier.id, tier]));
     const suggestions: PriceSuggestion[] = result.output.suggestions.flatMap((s) => {

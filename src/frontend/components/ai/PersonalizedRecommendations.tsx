@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/al
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { EventCard, EventCardSkeleton } from '@/frontend/components/events/EventCard';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { getEvents } from '@/shared/data/repositories';
 import type { Event } from '@/shared/types';
 
@@ -41,7 +42,9 @@ export function PersonalizedRecommendations({
     }
 
     try {
-      const response = await fetch('/api/ai', {
+      // Signed-in users get the model (capped per account); signed-out visitors send no
+      // token, get a 401, and fall through to the interest-matched ranking below.
+      const response = await authedFetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -19,6 +19,7 @@ import {
 } from '@/frontend/components/ui/select';
 import { Textarea } from '@/frontend/components/ui/textarea';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { acuToUsd } from '@/shared/constants/billing';
 import type { UserProfile } from '@/shared/types';
@@ -54,7 +55,7 @@ function AiStudio({ profile }: { profile: UserProfile }) {
     setError(null);
     setResult(null);
     try {
-      const response = await fetch('/api/ai', {
+      const response = await authedFetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task: 'ad-copy', input: form }),

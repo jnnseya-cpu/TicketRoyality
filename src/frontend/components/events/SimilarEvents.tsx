@@ -3,6 +3,7 @@
 import * as React from 'react';
 
 import { EventCard, EventCardSkeleton } from '@/frontend/components/events/EventCard';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { getEvents } from '@/shared/data/repositories';
 import type { Event } from '@/shared/types';
 
@@ -40,7 +41,10 @@ export function SimilarEvents({ current, max = 3 }: { current: Event; max?: numb
       });
 
       try {
-        const response = await fetch('/api/ai', {
+        // authedFetch attaches the signed-in user's token; /api/ai requires it and caps
+        // usage per account. A signed-out visitor sends no token, gets a 401, and drops
+        // to the heuristic below — the AI providers are never billed for anonymous views.
+        const response = await authedFetch('/api/ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

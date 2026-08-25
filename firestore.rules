@@ -185,6 +185,18 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    /* ai_usage — per-user daily AI call cap + spend, server-write-only    */
+    /* ---------------------------------------------------------------- */
+
+    match /ai_usage/{docId} {
+      // A superuser may inspect what accounts are spending on AI. A user cannot read
+      // their own doc: it encodes provider cost, from which the margin is trivially
+      // recovered. And no client may write — a client that could edit this would reset
+      // its own quota and mint free access to paid inference. All writes are Admin SDK.
+      allow get, list: if isSuperuser();
+      allow create, update, delete: if false;
+    }
+
     /* ---------------------------------------------------------------- */
     /* payment_events — webhook intake, read by the issuance function    */
     /* ---------------------------------------------------------------- */

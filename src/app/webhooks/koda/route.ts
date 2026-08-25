@@ -8,6 +8,7 @@ import { recordBookingPayment } from '@/backend/services/hospitality';
 import { recordContribution } from '@/backend/services/registry';
 import { recordDonation } from '@/backend/services/donations';
 import { settlePassPurchase } from '@/backend/services/season-passes';
+import { settleCartOrderRedemption } from '@/backend/services/coupons';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -278,11 +279,9 @@ export async function POST(request: Request) {
           }
         }
 
-        await getAdminDb()
-          .collection('cart_orders')
-          .doc(meta.cartOrderId)
-          .update({ status: 'issued', issuedAt: new Date().toISOString() })
-          .catch(() => {});
+        // Flip to issued and count the one coupon redemption it carried, transactionally
+        // and exactly once — the same settlement the Stripe rail uses.
+        await settleCartOrderRedemption(meta.cartOrderId);
 
         return NextResponse.json({ received: true, items: order.lines.length });
       }

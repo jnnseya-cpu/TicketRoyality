@@ -5,8 +5,20 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Single entry point for every AI task. The client never talks to a model provider
- * directly — this route is where the request is validated, where the provider fallback
- * chain runs, and where cost is measured and ACU is billed.
+ * directly — this route is where the caller is verified, the request is validated, the
+ * provider fallback chain runs, and the call is metered.
+ *
+ * ## Every call is authenticated and capped
+ *
+ * These providers cost real money per call. The route used to take a task and run the
+ * chain with no proof of who was asking and no ceiling — an open, unmetered proxy to paid
+ * inference that anyone could drive with `curl`, and that the similar-events block fired
+ * once per anonymous page view automatically. So now: a verified Firebase user is
+ * required (anonymous callers fall back to the non-AI heuristics their components already
+ * carry), and every call is counted against a hard per-user daily cap BEFORE any provider
+ * is contacted (`reserveAiCall`), with the real cost recorded after (`recordAiSpend`).
+ * The full ACU wallet debit (docs/13 debt D2) will layer on top of this floor; the floor
+ * has to exist with or without it.
  *
  * Billing contract (see src/shared/constants/billing.ts):
  *   userCharge = providerCost x 4, converted to ACU at 1 ACU = $0.01, rounded up.
@@ -16,6 +28,15 @@ export const dynamic = 'force-dynamic';
  * differ in price by a factor of forty.
  */
 export async function POST(request: Request) {
+  // Verify who is calling before spending a cent of provider budget. Fails closed with
+  // 401/503; the components that call this for anonymous visitors catch the non-200 and
+  // render their built-in heuristic instead, so the page still works signed-out.
+  const { requireUser } = await import('@/backend/auth/require-user');
+  const caller = await requireUser(request);
+  if (!caller.ok) {
+    return NextResponse.json({ error: caller.error }, { status: caller.status });
+  }
+
   // Imported lazily so a missing or invalid API key cannot break unrelated routes at
   // build time.
   const { configuredProviders } = await import('@/backend/ai/providers');
@@ -55,6 +76,24 @@ export async function POST(request: Request) {
     );
   }
 
+  // Count this call against the caller's daily allowance BEFORE contacting any provider,
+  // so a runaway or malicious caller cannot spend past the cap. Refused calls never reach
+  // a model.
+  const { reserveAiCall, recordAiSpend } = await import('@/backend/services/ai-usage');
+  const reservation = await reserveAiCall(caller.uid);
+  if (!reservation.ok) {
+    if (reservation.reason === 'over_cap') {
+      return NextResponse.json(
+        { error: 'Daily AI limit reached. Please try again tomorrow.' },
+        { status: 429 }
+      );
+    }
+    return NextResponse.json(
+      { error: 'AI is temporarily unavailable. Please try again shortly.' },
+      { status: 503 }
+    );
+  }
+
   const { runTask, NoProviderAvailableError } = await import('@/backend/ai/gateway');
 
   try {
@@ -62,6 +101,11 @@ export async function POST(request: Request) {
     // task has its own input/output pair, so the lookup is widened deliberately here.
     const task = TASKS[payload.task] as Parameters<typeof runTask>[0];
     const result = await runTask(task, parsedInput.data as never);
+
+    // Record the real cost of the answered call. Best-effort — the caller already has
+    // their answer — and internal: result.billing carries the provider cost and margin,
+    // which recordAiSpend keeps in the client-denied usage document, never in the response.
+    await recordAiSpend(caller.uid, result.billing);
 
     // Which vendor answered, what it cost us and the markup are all internal. They are
     // logged for the fallback-visibility reason below, not returned: a client that can

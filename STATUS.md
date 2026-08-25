@@ -886,6 +886,68 @@ Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
 
+### 25 August — money-side adversarial audit: two real leaks closed
+
+A deep pass over every path that moves money — Stripe and KODA checkout and webhooks,
+the fee engine, the ACU top-up/billing model, coupons, season passes, upgrades,
+refunds, holds — looking specifically for anything a user could use to make the
+platform worse off. Most of the model held up under it; two genuine leaks did not,
+and both are now closed with tests.
+
+**LEAK 1 (severe) — `/api/ai` was an open, unmetered proxy to paid inference.** The
+route fronts three paid model providers (Anthropic, Google, OpenAI). It verified
+nothing about the caller, checked no balance, and debited nothing — the comment said
+"cost is measured and billed", and the ACU ledger that would bill it throws
+(`post()`, unwired, docs/13 debt D2). So anyone with `curl` could spend the platform's
+provider budget without limit, and the similar-events block fired one paid call per
+anonymous event-page view **automatically** — meaning ordinary traffic, the exact
+traffic a launch campaign buys, was an uncapped bill.
+
+Closed by a floor that must exist with or without the ACU wallet:
+- **Auth required.** `/api/ai` now runs `requireUser` first and fails closed. The
+  components that fired it for anonymous visitors (`SimilarEvents`,
+  `PersonalizedRecommendations`, ticket recommendations) now use `authedFetch` and
+  already degrade to their built-in heuristics on a 401 — so signed-out visitors get
+  the same page, and the providers are never billed for an anonymous view.
+- **Hard per-user daily cap**, counted BEFORE any provider is contacted
+  (`ai-usage.ts`, `AI_DAILY_CALL_CAP = 60`), refusing the over-cap call with a 429. A
+  datastore fault fails closed, not open.
+- **Real spend recorded** per account per day (provider cost + marked-up charge), in a
+  collection denied to every client in `firestore.rules` — so "measured and billed" is
+  now true (a genuine usage ledger the ACU wallet can reconcile against when D2 lands).
+- The AI dynamic-pricing review (`reviewPricing`) is metered through the same allowance
+  — ownership was proven, but "your own event" was not a licence to loop paid reviews.
+- Pinned by `test:ai-usage` (4/4, emulator): counts advance, the over-cap call is
+  refused and not counted, one account's cap does not touch another's, spend sums.
+
+**LEAK 2 (moderate) — coupon usage limits were decorative.** `applyCoupon` refuses a
+code once `usageCount >= usageLimit`, but nothing incremented `usageCount` — it was
+written 0 at creation, read at checkout, and never moved. A single-use "100% off" code,
+or "50% off, first 100", worked an unlimited number of times. Coupons only reach the
+basket path, so redemption is now settled off the paid `cart_orders` document
+(`settleCartOrderRedemption`): the increment rides the pending → issued transition
+inside one transaction, so it counts exactly once per paid order and a redelivered
+webhook cannot advance it again. Wired into both the Stripe and KODA cart webhooks.
+Pinned by `test:coupons` (4/4, emulator). One residual, noted in code: two genuinely
+simultaneous last-use checkouts can both settle, so a limit can be exceeded by the
+number of concurrent buyers — bounded and tiny, where it was previously unbounded.
+
+**Checked and found SOUND (no change):** the single-event and cart checkout re-price
+every line from Firestore and ignore the posted amount (a £250 ticket cannot be bought
+for a penny); pay-what-you-want accepts a buyer amount only above the organiser's floor
+and only on a tier actually marked `choose`; the service fee is computed server-side and
+never taken from the form; both webhooks verify HMAC/Stripe signatures over the raw body
+and are idempotent by document id (a replayed or forged settlement issues nothing); the
+KODA minor-units bridge never asks for more than the page showed; the mobile-money 2%
+is charged on top, not absorbed; donations and registry gifts are excluded from the fee
+base deliberately; the welcome email/route is claim-guarded and cannot be used as an
+open relay; the ACU ledger denies all client writes and refuses to go negative.
+
+**Owner-side, unchanged by this pass (recorded for wiring):** the ACU wallet itself
+(top-up → balance → per-call debit, docs/13 D2) is still designed-not-wired; the daily
+cap above is the interim ceiling. When the wallet is wired it layers on top of this
+floor and reads the spend records this pass started writing.
+
 ### 22 August — blog view counts and an SEO score in the event editor
 
 Recorded here late — the code shipped in the two commits before this note, which

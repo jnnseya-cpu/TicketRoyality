@@ -105,6 +105,9 @@ export async function POST(request: Request) {
     seats: string[];
     mix: MixEntry[];
   }> = [];
+  /* The coupon actually applied, if any — carried onto the order document so its single
+     redemption is counted when the order is paid (the usage limit's enforcement half). */
+  let appliedCouponId = '';
 
   // `items` is a JSON array for cart checkout; single-event checkout sends flat fields.
   const rawItems = form.get('items');
@@ -293,9 +296,12 @@ export async function POST(request: Request) {
         const subtotal = lines.reduce((t, l) => t + l.amount * l.quantity, 0);
         const check = applyCoupon(subtotal, coupon);
 
-        if (check.valid && check.discount > 0 && subtotal > 0) {
+        if (check.valid && check.discount > 0 && subtotal > 0 && coupon) {
           const factor = check.total / subtotal;
           for (const line of lines) line.amount = Math.round(line.amount * factor * 100) / 100;
+          // Remember which coupon was actually applied so its one redemption can be
+          // counted when the order is paid — the enforcement half of the usage limit.
+          appliedCouponId = coupon.id;
         }
       } catch {
         // A coupon that cannot be read is simply not applied. Failing the whole checkout
@@ -815,6 +821,8 @@ export async function POST(request: Request) {
           currency,
           createdAt: new Date().toISOString(),
           status: 'pending',
+          // Settled once when the order is paid — see settleCartOrderRedemption.
+          ...(appliedCouponId ? { couponId: appliedCouponId } : {}),
           lines: cartRefs.map((ref, index) => ({
             eventId: ref.eventId,
             tierId: ref.tierId,

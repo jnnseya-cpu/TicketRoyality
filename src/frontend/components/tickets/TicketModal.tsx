@@ -176,7 +176,7 @@ export function TicketModal({
       });
 
       try {
-        const response = await fetch('/api/ai', {
+        const response = await authedFetch('/api/ai', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
