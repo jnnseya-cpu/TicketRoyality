@@ -162,11 +162,47 @@ export async function readSubscription(subscriptionId: string) {
 /**
  * Verifies a webhook signature and returns the parsed event.
  * Throws on any tampering — the caller must respond 400 and must not process it.
+ *
+ * ## Why more than one secret
+ *
+ * A Stripe account can carry several endpoints pointing at THIS same URL — a common,
+ * confusing state when one project's account also serves others, or when an endpoint is
+ * re-created and the old one lingers. Each endpoint has its OWN signing secret, but the
+ * deployment holds one env var, so every delivery from the endpoint whose secret is NOT
+ * the deployed one fails signature verification — Stripe shows that endpoint at a 100%
+ * error rate and no ticket is ever issued from it, even though the URL and the code are
+ * fine. That was diagnosed live: two endpoints on the same URL, one at 0% and the real
+ * one at 100%.
+ *
+ * So `STRIPE_WEBHOOK_SECRET` may be a comma-separated list of `whsec_…` secrets. Each is
+ * tried in turn and the event is accepted if ANY matches — which lets the owner keep
+ * (or migrate between) endpoints without a delivery outage. It is still a real signature
+ * check against real secrets: an unsigned or forged payload matches none and throws.
  */
 export function verifyWebhook(rawBody: string, signature: string): Stripe.Event {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) throw new Error('STRIPE_WEBHOOK_SECRET is not set.');
-  return client().webhooks.constructEvent(rawBody, signature, secret);
+  const raw = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!raw) throw new Error('STRIPE_WEBHOOK_SECRET is not set.');
+
+  const secrets = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (secrets.length === 0) throw new Error('STRIPE_WEBHOOK_SECRET is empty.');
+
+  const stripe = client();
+  let lastError: unknown;
+  for (const secret of secrets) {
+    try {
+      return stripe.webhooks.constructEvent(rawBody, signature, secret);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  // None matched. Surface the last Stripe error so the 400 the caller returns still names
+  // a real signature failure rather than a generic one.
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('Webhook signature verification failed against every configured secret.');
 }
 
 /** Normalises a completed checkout into the fields ticket issuance needs. */

@@ -60,6 +60,17 @@ export async function POST(request: Request) {
   try {
     event = verifyWebhook(await request.text(), signature);
   } catch (error) {
+    // Logged, not silent: a 100% error rate on one Stripe endpoint is almost always the
+    // deployed STRIPE_WEBHOOK_SECRET not matching THAT endpoint's signing secret (several
+    // endpoints can point at this one URL). This line makes that visible in Cloud Logging
+    // — how many secrets are configured, and that every one of them was tried and failed —
+    // so the fix (add the failing endpoint's whsec_… to the comma-separated env var) is
+    // obvious rather than guessed at.
+    const configured = (process.env.STRIPE_WEBHOOK_SECRET ?? '').split(',').filter(Boolean).length;
+    console.error('[stripe] webhook signature rejected', {
+      configuredSecrets: configured,
+      reason: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Signature verification failed' },
       { status: 400 }
