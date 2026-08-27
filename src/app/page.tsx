@@ -452,7 +452,8 @@ export default async function HomePage() {
       {/* Final CTA                                                          */}
       {/* ------------------------------------------------------------------ */}
       <section className="relative overflow-hidden border-t border-border/60">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,hsl(var(--primary)/0.16),transparent_65%)]" />
+        {/* A faint ruled ledger grid rather than a gold radial glow — flat register. */}
+        <div className="absolute inset-0 grid-backdrop opacity-40" />
         <div className="container relative py-20 text-center">
           <Sparkles className="mx-auto mb-5 h-8 w-8 text-primary" />
           <h2 className="mx-auto max-w-3xl font-headline text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">

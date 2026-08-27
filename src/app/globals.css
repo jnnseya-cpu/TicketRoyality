@@ -3,86 +3,95 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * Brand: "The Programme" — an editorial print identity. Ink on warm paper, foil
+   * antique gold as the anchor, one curtain bordeaux as the accent. Deliberately NOT
+   * the cool green-accented dashboard of the sibling systems, and deliberately not a
+   * generated look: flat ink, no gradient meshes, no glow, hairline rules.
+   *
+   * The one hard rule the palette enforces: no green anywhere, not even for "success"
+   * — the family's shared accent is retired, so positive/live states read gold.
+   */
   :root {
-    /* Light theme — champagne on ivory */
-    --background: 40 33% 98%;
-    --foreground: 0 0% 8%;
+    /* Light — Paper (the default, printed register) */
+    --background: 43 43% 90%; /* bone */
+    --foreground: 33 22% 8%; /* ink */
 
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 8%;
+    --card: 40 44% 94%; /* a cleaner sheet on the warm ground */
+    --card-foreground: 33 22% 8%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
+    --popover: 40 44% 94%;
+    --popover-foreground: 33 22% 8%;
 
-    --primary: 38 92% 42%;
-    --primary-foreground: 40 33% 98%;
+    --primary: 40 60% 38%; /* antique foil gold — the anchor */
+    --primary-foreground: 43 43% 95%;
 
-    --secondary: 40 20% 94%;
-    --secondary-foreground: 0 0% 12%;
+    --secondary: 42 37% 86%;
+    --secondary-foreground: 37 17% 20%;
 
-    --muted: 40 20% 94%;
-    --muted-foreground: 0 0% 42%;
+    --muted: 42 37% 86%;
+    --muted-foreground: 39 12% 46%; /* taupe */
 
-    --accent: 38 92% 42%;
-    --accent-foreground: 40 33% 98%;
+    --accent: 352 56% 27%; /* curtain bordeaux — the one accent */
+    --accent-foreground: 43 43% 95%;
 
-    --destructive: 0 72% 45%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 60% 42%;
+    --destructive-foreground: 43 43% 95%;
 
-    --success: 142 65% 32%;
-    --success-foreground: 0 0% 98%;
+    --success: 40 60% 38%; /* no green: positive reads gold */
+    --success-foreground: 43 43% 95%;
 
-    --border: 40 15% 88%;
-    --input: 40 15% 88%;
-    --ring: 38 92% 42%;
+    --border: 42 27% 72%; /* warm hairline rule */
+    --input: 42 27% 72%;
+    --ring: 40 60% 38%;
 
-    --chart-1: 38 92% 50%;
-    --chart-2: 190 80% 42%;
-    --chart-3: 265 60% 58%;
-    --chart-4: 12 76% 55%;
-    --chart-5: 142 65% 38%;
+    --chart-1: 40 60% 42%;
+    --chart-2: 352 56% 38%;
+    --chart-3: 39 12% 50%;
+    --chart-4: 37 17% 28%;
+    --chart-5: 42 53% 55%;
 
-    --radius: 0.6rem;
+    --radius: 0.2rem; /* squared, editorial — not rounded-lg everywhere */
   }
 
   .dark {
-    /* Dark theme — the default "royal" look: deep charcoal + gold */
-    --background: 0 0% 4%;
-    --foreground: 45 20% 96%;
+    /* Dark — Ink (the same programme, reversed onto black) */
+    --background: 36 29% 7%; /* ink */
+    --foreground: 43 43% 90%; /* bone */
 
-    --card: 0 0% 7%;
-    --card-foreground: 45 20% 96%;
+    --card: 36 31% 10%;
+    --card-foreground: 43 43% 90%;
 
-    --popover: 0 0% 7%;
-    --popover-foreground: 45 20% 96%;
+    --popover: 36 31% 10%;
+    --popover-foreground: 43 43% 90%;
 
-    --primary: 38 92% 50%;
-    --primary-foreground: 0 0% 6%;
+    --primary: 42 53% 50%; /* brighter foil on ink */
+    --primary-foreground: 36 29% 8%;
 
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 45 20% 96%;
+    --secondary: 36 21% 14%;
+    --secondary-foreground: 43 43% 90%;
 
-    --muted: 0 0% 12%;
-    --muted-foreground: 40 8% 64%;
+    --muted: 36 21% 14%;
+    --muted-foreground: 41 20% 65%;
 
-    --accent: 38 92% 50%;
-    --accent-foreground: 0 0% 6%;
+    --accent: 354 53% 46%; /* bordeaux, lifted for the dark ground */
+    --accent-foreground: 43 43% 94%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 66% 52%;
+    --destructive-foreground: 43 43% 94%;
 
-    --success: 142 70% 45%;
-    --success-foreground: 0 0% 6%;
+    --success: 42 53% 50%;
+    --success-foreground: 36 29% 8%;
 
-    --border: 40 6% 16%;
-    --input: 40 6% 16%;
-    --ring: 38 92% 50%;
+    --border: 36 21% 19%;
+    --input: 36 21% 19%;
+    --ring: 42 53% 50%;
 
-    --chart-1: 38 92% 50%;
-    --chart-2: 190 85% 55%;
-    --chart-3: 265 70% 68%;
-    --chart-4: 12 80% 62%;
-    --chart-5: 142 70% 48%;
+    --chart-1: 42 53% 52%;
+    --chart-2: 354 53% 50%;
+    --chart-3: 41 20% 60%;
+    --chart-4: 41 20% 40%;
+    --chart-5: 42 53% 66%;
   }
 }
 
@@ -123,29 +132,31 @@
   h2,
   h3,
   h4 {
-    @apply font-headline tracking-tight;
+    /* Bodoni Moda is a display Didone — give headings a touch of weight so small
+       ones (card titles, h4) hold on the page rather than turning spindly. */
+    @apply font-headline font-medium tracking-tight;
   }
 }
 
 @layer components {
-  /* Gold gradient text used for headline accents */
+  /*
+   * "The Programme" retires the three generated-look tells these utilities carried —
+   * gradient text, frosted glass and a gold glow. The class names stay (dozens of
+   * components reference them) but each now resolves to the flat, printed treatment,
+   * so the whole app changes register without touching those files.
+   */
+
+  /* Was a moving gold gradient; now flat foil — a stamped colour, not a lit one. */
   .text-royal {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(
-      100deg,
-      hsl(var(--primary)) 0%,
-      hsl(45 100% 72%) 45%,
-      hsl(var(--primary)) 100%
-    );
-    background-size: 200% auto;
+    color: hsl(var(--primary));
   }
 
-  /* Frosted panel used across dashboards / feature cards */
+  /* Was frosted glass; now an opaque sheet divided by a hairline rule. */
   .glass {
-    @apply border border-border/70 bg-card/70 backdrop-blur-xl;
+    @apply border border-border bg-card;
   }
 
-  /* Faint neural/technical grid backdrop */
+  /* A faint ruled grid — hairlines, the register of a ledger page. */
   .grid-backdrop {
     background-image:
       linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px),
@@ -154,10 +165,9 @@
     mask-image: radial-gradient(ellipse at center, black 10%, transparent 75%);
   }
 
+  /* Was a soft glow; now a flat foil edge — one hairline of gold, no blur. */
   .gold-ring {
-    box-shadow:
-      0 0 0 1px hsl(var(--primary) / 0.35),
-      0 12px 48px -12px hsl(var(--primary) / 0.35);
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.55);
   }
 }
 

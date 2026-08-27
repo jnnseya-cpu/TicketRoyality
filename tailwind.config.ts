@@ -26,8 +26,10 @@ const config: Config = {
     },
     extend: {
       fontFamily: {
-        headline: ['var(--font-space-grotesk)', 'ui-sans-serif', 'system-ui'],
-        body: ['var(--font-inter)', 'ui-sans-serif', 'system-ui'],
+        // "The Programme": a Didone display, a text serif for reading, a mono for marks.
+        headline: ['var(--font-display)', 'Georgia', 'Times New Roman', 'serif'],
+        body: ['var(--font-body)', 'Georgia', 'Times New Roman', 'serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: {
         border: 'hsl(var(--border))',

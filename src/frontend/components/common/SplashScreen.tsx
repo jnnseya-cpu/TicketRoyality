@@ -35,10 +35,11 @@ export function SplashScreen() {
         leaving ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      <div className="absolute inset-0 grid-backdrop opacity-40" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,hsl(var(--primary)/0.18),transparent_60%)]" />
+      {/* A faint ruled ledger grid — no radial glow. "The Programme" raises the
+          curtain on flat ink and paper, not a lit gradient. */}
+      <div className="absolute inset-0 grid-backdrop opacity-30" />
       <div className="relative flex flex-col items-center gap-4 animate-splash-in">
-        <Logo className="h-16 w-16 drop-shadow-[0_0_28px_hsl(var(--primary)/0.6)]" />
+        <Logo className="h-16 w-16" />
         <p className="font-headline text-3xl font-bold tracking-tight">
           Ticket<span className="text-royal">Royality</span>
         </p>

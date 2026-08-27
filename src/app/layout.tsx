@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Space_Grotesk } from 'next/font/google';
+import { Bodoni_Moda, Newsreader, Space_Mono } from 'next/font/google';
 
 import './globals.css';
 import { Header } from '@/frontend/components/common/Header';
@@ -16,10 +16,27 @@ import { CartProvider } from '@/frontend/hooks/use-cart';
 import { SiteStructuredData } from '@/frontend/components/seo/StructuredData';
 import { siteUrl } from '@/shared/site';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
-const spaceGrotesk = Space_Grotesk({
+/*
+ * "The Programme" type system. A high-contrast Didone for display, a warm text serif
+ * for reading, and a monospace for the technical marks a ticket carries — no geometric
+ * sans anywhere, which is half of why the app no longer reads as generated.
+ */
+const bodoni = Bodoni_Moda({
   subsets: ['latin'],
-  variable: '--font-space-grotesk',
+  variable: '--font-display',
+  display: 'swap',
+  style: ['normal', 'italic'],
+});
+const newsreader = Newsreader({
+  subsets: ['latin'],
+  variable: '--font-body',
+  display: 'swap',
+  style: ['normal', 'italic'],
+});
+const spaceMono = Space_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono',
+  weight: ['400', '700'],
   display: 'swap',
 });
 
@@ -90,8 +107,9 @@ export const viewport: Viewport = {
    */
   maximumScale: 1,
   themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#0B0B0F' },
-    { media: '(prefers-color-scheme: light)', color: '#fbfaf7' },
+    // Match "The Programme" grounds: warm ink in dark, bone paper in light.
+    { media: '(prefers-color-scheme: dark)', color: '#17130D' },
+    { media: '(prefers-color-scheme: light)', color: '#F0EADB' },
   ],
 };
 
@@ -99,7 +117,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     // suppressHydrationWarning: next-themes writes the class before React hydrates,
     // and browser extensions (password managers) inject attributes into form controls.
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${spaceGrotesk.variable}`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${bodoni.variable} ${newsreader.variable} ${spaceMono.variable}`}
+    >
       <body suppressHydrationWarning className="min-h-viewport bg-background">
         <SiteStructuredData />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>

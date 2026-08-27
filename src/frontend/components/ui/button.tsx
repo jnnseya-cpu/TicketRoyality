@@ -10,8 +10,11 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm',
+        // "The Programme": a stamped foil, not a lit gradient. Flat antique gold, no
+        // amber sweep and no glow — the hero CTA reads as struck ink, and hover deepens
+        // the foil rather than brightening it.
         royal:
-          'bg-gradient-to-r from-primary via-amber-300 to-primary text-primary-foreground font-semibold shadow-lg hover:brightness-110',
+          'bg-primary text-primary-foreground font-semibold shadow-sm hover:bg-primary/90',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         outline:
           'border border-border bg-transparent hover:bg-accent/10 hover:text-accent-foreground',

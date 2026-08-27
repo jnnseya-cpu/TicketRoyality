@@ -1,9 +1,12 @@
+<!-- Favicon crest. Warm-ink ground and antique foil gold to match "The Programme":
+     at 32px a fully-engraved hairline would vanish, so the crown keeps its mass while
+     the ground and gold move off the old cool-black + amber onto ink + foil. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#0B0B0F"/>
+  <rect width="32" height="32" rx="7" fill="#17130D"/>
   <g transform="translate(2.5 2.5) scale(0.84)">
-    <path d="M4 6.5 8.5 11 16 4l7.5 7L28 6.5V13H4V6.5Z" fill="#F5A524"/>
+    <path d="M4 6.5 8.5 11 16 4l7.5 7L28 6.5V13H4V6.5Z" fill="#C39B3C"/>
     <path d="M4 15.5h24a2.5 2.5 0 0 0 0 5V26a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5.5a2.5 2.5 0 0 0 0-5Z"
-          fill="none" stroke="#F5A524" stroke-width="2" stroke-linejoin="round"/>
-    <path d="M13 19v6" stroke="#F5A524" stroke-width="2" stroke-linecap="round" stroke-dasharray="1.5 3"/>
+          fill="none" stroke="#C39B3C" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M13 19v6" stroke="#C39B3C" stroke-width="2" stroke-linecap="round" stroke-dasharray="1.5 3"/>
   </g>
 </svg>

@@ -1,6 +1,6 @@
 # Status — what is actually built
 
-**Last verified: 23 August 2026, against the code on `claude/optimistic-heisenberg-0n2w42`.**
+**Last verified: 27 August 2026, against the code on `claude/optimistic-heisenberg-0n2w42`.**
 
 Operating rules for changing this codebase are in `/CLAUDE.md`.
 
@@ -885,6 +885,52 @@ exists to stop agents adding vendors, not the owner).
 Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
+
+### 27 August — "The Programme": the brand moves off the generated look (owner request)
+
+"Rebrand this OS to be very premium and cinematic … and it must not look like
+[the sibling systems] … and need to look less and less like an AI-generated OS." The
+diagnosis mattered more than the palette: the *generated* look is a specific set of
+tells — a dark-glass surface, gold **gradient** text and buttons, a soft gold **glow**,
+frosted panels, a geometric sans, everything rounded and centred. The first proposal
+had them all, which is why it read as generated. The fix was to change **register**,
+not hue: an editorial print identity — ink on warm paper, one antique **foil** gold and
+one curtain **bordeaux**, flat colour, hairline rules, squared corners, a Didone
+display face. Nothing in the vendor table changes; fonts are libraries, not accounts.
+
+Built, at the token layer so the whole app turns at once without touching component
+files:
+
+- **Palette** (`globals.css`): light **Paper** (`--background` bone `43 43% 90%`,
+  `--foreground` ink, `--primary` antique foil `40 60% 38%`, `--accent` bordeaux
+  `352 56% 27%`) and dark **Ink** (warm near-black `36 29% 7%`, foil lifted to
+  `42 53% 50%`). **No green anywhere** — the family's shared accent is retired, so even
+  `--success` reads gold, which is the single rule that most separates this from the
+  sibling dashboards. `--radius` drops to `0.2rem` (squared, not rounded-everywhere).
+- **Type** (`layout.tsx`, `tailwind.config.ts`): `Bodoni_Moda` display, `Newsreader`
+  text serif, `Space_Mono` for the technical marks — all via `next/font`, fetched at
+  build time. No geometric sans, which is half the reason it no longer reads as
+  generated. Headings carry a touch of weight so small ones hold.
+- **The three tells, retired in place** (`globals.css`): `.text-royal` was a moving
+  gold gradient → flat foil; `.glass` was frosted `backdrop-blur` → an opaque sheet on
+  a hairline rule; `.gold-ring` was a soft glow → one flat foil edge. The class names
+  stay, so dozens of components change register untouched. The **`royal` button**
+  variant loses its `via-amber-300` gradient sweep and `shadow-lg` glow for a flat
+  stamped foil; the homepage's final-CTA gold **radial glow** and the splash's
+  `drop-shadow` glow + radial both become the faint ruled ledger grid.
+- **Mark** (`Logo.tsx`): the crowned-ticket crest is redrawn as fine **engraved line**
+  (all stroke, no fill) — the register of a banknote, valuable without a glow; the
+  wordmark sets "Ticket" in ink and "Royality" in bordeaux italic. The favicon
+  (`icon.svg`), which needs mass at 32px, keeps a filled crown but moves off the old
+  cool-black + amber onto warm ink + foil. `manifest.ts` and the light/dark
+  `themeColor` follow the new grounds (`#17130D` ink, `#F0EADB` bone).
+
+Verified: typecheck, lint, production build (fonts fetched, standalone served),
+and Playwright captures of `/` and `/events` in both themes — flat foil CTAs, no
+gradient text, no glow, bordeaux wordmark, no green. Not changed: any business logic,
+route, or copy; this is a skin over the existing token contract. The `amber-*` classes
+that remain are semantic **caution** text (seat warnings, form validation, auction
+"outbid") — a functional colour, not the brand gold, and deliberately left.
 
 ### 25 August — header fit (signed-in) and forcing the fix through the PWA cache
 

@@ -25,8 +25,9 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: '/',
     display: 'standalone',
     orientation: 'portrait-primary',
-    background_color: '#0B0B0F',
-    theme_color: '#0B0B0F',
+    // "The Programme" dark ground — warm ink (hsl 36 29% 7%), not the old cool black.
+    background_color: '#17130D',
+    theme_color: '#17130D',
     categories: ['events', 'entertainment', 'lifestyle'],
     lang: 'en-GB',
     dir: 'ltr',
