@@ -20,7 +20,7 @@
  * Bump CACHE_VERSION to invalidate everything at once.
  */
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `tr-static-${CACHE_VERSION}`;
 const PAGE_CACHE = `tr-pages-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline';

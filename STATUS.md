@@ -932,6 +932,13 @@ route, or copy; this is a skin over the existing token contract. The `amber-*` c
 that remain are semantic **caution** text (seat warnings, form validation, auction
 "outbid") — a functional colour, not the brand gold, and deliberately left.
 
+Follow-up the same day: the service worker `CACHE_VERSION` was bumped `v2 → v3`
+(`public/sw.js`). The rebrand is CSS and fonts inside the app shell, which the SW
+caches; without a version bump a returning visitor — and every **installed** PWA —
+keeps serving the old-look shell until the SW happens to update. The bump invalidates
+`tr-static-*` / `tr-pages-*` on activation, so the new look reaches cached clients on
+their next visit rather than only new ones.
+
 ### 25 August — header fit (signed-in) and forcing the fix through the PWA cache
 
 A "still not fit" report with a signed-in header: the earlier shrink/truncate fix was
