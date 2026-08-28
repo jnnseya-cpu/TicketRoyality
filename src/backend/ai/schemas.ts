@@ -5,12 +5,15 @@ import { z } from 'zod';
  * export async functions — exporting a schema object from a flow file is a build error.
  */
 
+// Length caps on every free-text field. The 60-call/day cap bounds how OFTEN the model
+// runs; these bound how BIG each call is, so a farmed account cannot turn 60 calls into
+// a megabyte-prompt bill during a Gemini outage that fails over to the metered vendors.
 export const AdCopyInputSchema = z.object({
-  eventName: z.string(),
-  eventDescription: z.string(),
-  targetAudience: z.string(),
+  eventName: z.string().max(200),
+  eventDescription: z.string().max(4_000),
+  targetAudience: z.string().max(500),
   channel: z.enum(['facebook', 'instagram', 'twitter', 'email']),
-  tone: z.string().optional(),
+  tone: z.string().max(100).optional(),
 });
 export type AdCopyInput = z.infer<typeof AdCopyInputSchema>;
 
@@ -23,17 +26,19 @@ export const AdCopyOutputSchema = z.object({
 export type AdCopyOutput = z.infer<typeof AdCopyOutputSchema>;
 
 const EventSummarySchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  category: z.string(),
-  location: z.string(),
-  date: z.string(),
+  id: z.string().max(100),
+  title: z.string().max(300),
+  category: z.string().max(120),
+  location: z.string().max(200),
+  date: z.string().max(40),
 });
 
 export const RecommendationInputSchema = z.object({
-  interests: z.string(),
+  interests: z.string().max(1_000),
   max: z.number().min(1).max(12),
-  events: z.array(EventSummarySchema),
+  // Cap the candidate set: recommendation ranks among a supplied list, and an unbounded
+  // array is the other half of the denial-of-wallet vector the field caps close.
+  events: z.array(EventSummarySchema).max(300),
 });
 export type RecommendationInput = z.infer<typeof RecommendationInputSchema>;
 
@@ -46,7 +51,7 @@ export type RecommendationOutput = z.infer<typeof RecommendationOutputSchema>;
 export const SimilarEventsInputSchema = z.object({
   currentEvent: EventSummarySchema,
   max: z.number().min(1).max(8),
-  candidates: z.array(EventSummarySchema),
+  candidates: z.array(EventSummarySchema).max(300),
 });
 export type SimilarEventsInput = z.infer<typeof SimilarEventsInputSchema>;
 

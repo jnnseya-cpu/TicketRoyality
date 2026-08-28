@@ -133,13 +133,24 @@ export async function createEndpoint(input: {
    */
   if (parsed.protocol !== 'https:') return { ok: false, error: 'Webhook URLs must be https.' };
 
-  const host = parsed.hostname.toLowerCase();
+  // Strip the brackets URL keeps around IPv6 literals so the checks below see the address.
+  const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   const blocked =
     host === 'localhost' ||
     host.endsWith('.localhost') ||
     host === '169.254.169.254' ||
     /^(10\.|127\.|0\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host) ||
-    host.endsWith('.internal');
+    host.endsWith('.internal') ||
+    // IPv6 loopback (::1) and link-local (fe80::/10, incl. the metadata address), plus
+    // IPv4-mapped forms like ::ffff:169.254.169.254 / ::ffff:127.0.0.1 that slip past the
+    // dotted-quad test above.
+    host === '::1' ||
+    host === '::' ||
+    /^fe80:/.test(host) ||
+    /^::ffff:(10\.|127\.|0\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host) ||
+    // A bare integer or hex host (e.g. https://2130706433 = 127.0.0.1) is never a real
+    // public webhook target and is a classic denylist bypass — refuse it outright.
+    /^(0x[0-9a-f]+|\d+)$/.test(host);
 
   if (blocked) return { ok: false, error: 'That address is not reachable from the internet.' };
 
@@ -303,6 +314,12 @@ export async function deliverDue(limit = 50): Promise<{ sent: number; failed: nu
           body,
           // A receiver that hangs must not hold a cron slot open indefinitely.
           signal: AbortSignal.timeout(10_000),
+          // Never follow a redirect. The URL was denylist-checked at registration, but a
+          // public https endpoint can still 302 to `localhost`/metadata AFTER the fact —
+          // following it would turn every delivery into a request-forgery hop. `manual`
+          // makes fetch return an opaque non-ok response, so a redirecting endpoint is
+          // treated as a failed delivery and retried, never chased inward.
+          redirect: 'manual',
         });
 
         const attempts = (delivery.attempts ?? 0) + 1;

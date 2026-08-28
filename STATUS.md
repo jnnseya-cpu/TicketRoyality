@@ -886,6 +886,44 @@ Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
 
+### 28 August — launch hard-reality audit: two fixes shipped, the rest recorded
+
+A full adversarial launch audit (payments, authz/tenant isolation, API/cron, AI safety,
+privacy, build, deps) run against `f4588ef`. The automated suite passed end-to-end —
+**674 assertions, 0 failures**, including the 12 real-transaction issuance tests
+(replay-idempotency, concurrency non-oversell, double-refund and redeemed-ticket
+protection). No P0/P1 was found in code; authz is default-deny with server-side role
+checks and a correctly hashed/scoped public API. Two fixes were safe to make and verify
+here and were made:
+
+- **AI denial-of-wallet within the daily cap** (`src/backend/ai/schemas.ts`): `ad-copy`,
+  `recommend` and `similar` accepted unbounded free-text / arrays, so the 60-call/day cap
+  bounded call *count* but not *spend* — a farmed account could send megabyte prompts that
+  fail over to the metered vendors during a Gemini outage. Added `.max()` length caps on
+  every free-text field and `.max(300)` on the candidate arrays, matching the pattern the
+  drafting tasks already used.
+- **SSRF in outbound webhook delivery** (`src/backend/services/webhooks.ts`): the scheduled
+  delivery `fetch` followed redirects, so a registered public https endpoint could 302 to
+  `localhost`/metadata after passing the registration denylist; the denylist also missed
+  IPv6 loopback/link-local, IPv4-mapped and integer/hex-encoded hosts. Added
+  `redirect: 'manual'` (a redirecting endpoint is now a failed delivery, never chased
+  inward) and hardened the denylist. DNS-rebinding remains a residual (needs resolve-time
+  pinning) and is recorded, not closed.
+
+Recorded, NOT yet fixed (need live verification or wider tracing than this environment
+allows): (1) **the profitability console overstates GMV / double-counts fee revenue** —
+single-price ticket records store buyer-total as face (`functions/src/issuance.ts:98`,
+`profitability.ts:125`); a reporting-accuracy P2, no customer is mischarged. (2) **checkout
+trusts a client `userId` for the members'-presale gate** (`api/checkout/route.ts:372`) — an
+early-access escalation P3, price stays server-authoritative; the fix must preserve guest
+checkout, so it needs the live client verified first. (3) **`bitripay-checkout` is
+unauthenticated and client-priced** — dormant (503, no creds, no webhook) but must be
+re-priced + token-gated before BitriPay is ever enabled. (4) **no CSP header**; (5) **12
+transitive dependency vulns** (4 high) under `firebase-admin`/`google-cloud`.
+
+Standing above all of it: the App Hosting rollout is **not serving new builds** — the
+release/rollback path is the top launch blocker regardless of code quality.
+
 ### 27 August — "The Programme": the brand moves off the generated look (owner request)
 
 "Rebrand this OS to be very premium and cinematic … and it must not look like
