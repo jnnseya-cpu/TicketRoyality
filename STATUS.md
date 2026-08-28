@@ -910,6 +910,25 @@ No other line in the file is non-standard; runConfig and the remaining 23 env en
 validate. Verified here by YAML parse + schema-shape check; the authoritative proof is
 the next rollout, which is the owner's to watch.
 
+### 28 August — the next rollout blocker: Node runtime pinned to a decommissioned version
+
+With the apphosting.yaml format fixed, the rollout got further and hit the next wall:
+"Node 24 has been decommissioned and is no longer available." Two causes, one in code
+and one in the console:
+
+- Code: the root `package.json` had `engines.node: ">=20"`, an open range App Hosting
+  resolved to the highest runtime it offered — Node 24. Now that 24 is gone the range
+  can no longer resolve to it. Pinned to `"22"` — current LTS, matching `functions/`
+  (already `22`) and the local/emulator runtime the build and test evidence came from.
+- Console (owner-only): App Hosting's "Automatic base image updates" runtime selector is
+  set to **Node 24**. It must be changed to **Node 22** (or left unspecified to opt out).
+
+Blocking both: the console also returned "Write access to project 'ticketroyality' was
+denied: please check billing account associated and retry." App Hosting runs on Cloud
+Run and requires an active billing account (Blaze); if billing has lapsed or the card
+failed, every write — deploys and settings changes alike — is denied. This is the owner's
+to resolve in Google Cloud billing and likely gates everything else.
+
 ### 28 August — launch hard-reality audit: two fixes shipped, the rest recorded
 
 A full adversarial launch audit (payments, authz/tenant isolation, API/cron, AI safety,
