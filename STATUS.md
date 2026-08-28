@@ -886,6 +886,25 @@ Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
 
+### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
+
+Swept the public surfaces for horizontal overflow at 320–768px across two font scales
+(100% and Android's ~130%) — 0 overflow everywhere once styles are applied. Two real
+hardenings added on top of the existing guarantees (`overflow-x: clip` backstop, safe-area
+insets, `dvh` sizing, rem-safe shrinking header, `overflow-x-auto` on every table):
+
+- `ui/tabs.tsx` `TabsList` gains `max-w-full overflow-x-auto` (scrollbar hidden), so a tab
+  bar wider than a narrow phone — three tabs, big counts, enlarged text — scrolls inside
+  itself instead of clipping the last tab. Identical when it already fits.
+- `globals.css` adds `iframe` to the `max-width: 100%` rule, so the new YouTube embed and
+  the map embed can never push a page wider than the screen.
+
+Honest limit: the local Playwright probe against the standalone server is unreliable for
+this — it intermittently screenshots pages before their CSS applies (an unstyled header,
+which then falsely reads as overflow), and there are no real iOS/Android devices here. So
+"fits every real device" is verified structurally, not on-device; the deployed site on a
+real phone is the authoritative check and remains the owner's to confirm.
+
 ### 28 August — security rules now deploy themselves on merge to main
 
 The recurring trap this project keeps hitting: App Hosting deploys the app but **never the

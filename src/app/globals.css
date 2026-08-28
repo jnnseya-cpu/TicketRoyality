@@ -125,7 +125,8 @@
    */
   img,
   video,
-  canvas {
+  canvas,
+  iframe {
     max-width: 100%;
   }
   h1,

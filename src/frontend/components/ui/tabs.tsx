@@ -13,7 +13,13 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      'inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground',
+      // `max-w-full overflow-x-auto` (and no visible scrollbar) so a tab bar that is wider
+      // than a narrow phone — three tabs, big counts, or Android's enlarged text — scrolls
+      // sideways inside itself instead of clipping the last tab or pushing the page wide.
+      // `justify-center` is dropped, not replaced: an inline-flex bar is already sized to its
+      // content, so it looked identical when it fits and only fought the scroll when it did
+      // not. Tabs stay on one row (`whitespace-nowrap` on each trigger).
+      'inline-flex h-10 max-w-full items-center overflow-x-auto rounded-md bg-muted p-1 text-muted-foreground no-scrollbar',
       className
     )}
     {...props}
