@@ -73,10 +73,30 @@ function rethrowAsPermissionError(
 /* Events                                                                     */
 /* -------------------------------------------------------------------------- */
 
-export async function getEvents(options?: { featuredOnly?: boolean; max?: number }): Promise<Event[]> {
+export async function getEvents(options?: {
+  featuredOnly?: boolean;
+  max?: number;
+  /**
+   * Public lists show only what is still to come. A finished event drops off the
+   * homepage, browse, search, map, recommendations and the sitemap — but stays reachable
+   * by its own URL (`getEventById`, unfiltered) so a ticket-holder's link never dies, and
+   * stays in the organiser's own list (`getEventsByOrganizer`, unfiltered) so they keep
+   * their history. Pass `includePast` for a surface that genuinely needs the archive.
+   *
+   * "Past" is measured from the start of today, not the minute, so an event stays listed
+   * all through its own day rather than vanishing the moment it begins.
+   */
+  includePast?: boolean;
+}): Promise<Event[]> {
+  // Start of the current day; events before it are finished.
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  const cutoffIso = cutoff.toISOString();
+
   if (!isFirebaseConfigured) {
     let events = [...DEMO_EVENTS];
     if (options?.featuredOnly) events = events.filter((e) => e.featured);
+    if (!options?.includePast) events = events.filter((e) => e.date >= cutoffIso);
     events.sort((a, b) => a.date.localeCompare(b.date));
     return options?.max ? events.slice(0, options.max) : events;
   }
@@ -85,6 +105,11 @@ export async function getEvents(options?: { featuredOnly?: boolean; max?: number
     const constraints = [
       where('status', '==', 'published'),
       ...(options?.featuredOnly ? [where('featured', '==', true)] : []),
+      // Filtered in the query, not after it, so `max` still returns a full page of
+      // upcoming events instead of a page mostly emptied by finished ones. `date` is a
+      // stored ISO string, so a lexical `>=` is a chronological one, and the range shares
+      // the existing (status[, featured], date) index the orderBy already needs.
+      ...(options?.includePast ? [] : [where('date', '>=', cutoffIso)]),
       orderBy('date', 'asc'),
       // Over-fetched slightly when a max is set, because unlisted events are dropped
       // below and a page asking for 6 should still get 6.

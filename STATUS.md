@@ -886,6 +886,24 @@ Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
 
+### 28 August — past events drop off the public frontend, stay in the organiser's list
+
+Owner request: a finished event should disappear from the public site but remain in the
+organiser's own list. Done at the one choke point — `getEvents()` in
+`shared/data/repositories.ts`, the single function every public list already flows
+through (homepage, browse, search, map, calendar, recommendations, similar events, the
+spotlight strip, sitemap). It now filters to events from the start of today onward
+(measured from the start of the day, so an event stays listed through its own day rather
+than vanishing the minute it starts), via a `where('date','>=', …)` in the query itself
+so a `max` page still fills with upcoming events instead of being emptied by finished
+ones; the range reuses the existing `(status[, featured], date)` index. An `includePast`
+option is available for any surface that wants the archive.
+
+Deliberately untouched: `getEventById()` (direct event URLs still open, so a
+ticket-holder's link never dies) and `getEventsByOrganizer()` (the organiser dashboard
+keeps its full history, past events included). Verified: typecheck, lint, production
+build green.
+
 ### 28 August — paid video ads made real (owner request)
 
 "Still no paid video ads section on the landing page." It was a half-built feature: the
