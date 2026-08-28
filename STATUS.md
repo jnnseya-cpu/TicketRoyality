@@ -910,6 +910,12 @@ upload-to-Storage (owner's choice):
 write) and needs no `firestore.rules` change (the events rule guards `featured`, not
 arbitrary fields). Verified: typecheck, lint, production build green.
 
+Also wired into the **placement purchase flow** (`dashboard/organiser/promotions`): the
+Spotlight card now shows the `VideoAdPicker` for the selected event, so buying the £249
+placement and attaching the clip are one step — it saves to the event immediately and
+plays only once the payment sets `spotlight`. The catalogue copy that still read "Video
+slots are not built" (`shared/placements.ts`) is corrected to describe the real video.
+
 ### 28 August — THE reason nothing deployed for six days: an invalid apphosting.yaml
 
 App Hosting rejected every rollout from 22 August onward with "Invalid apphosting.yaml

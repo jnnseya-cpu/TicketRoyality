@@ -19,7 +19,9 @@ import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { track } from '@/frontend/lib/analytics';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { usePaymentMethods } from '@/frontend/hooks/use-payment-methods';
-import { getEventsByOrganizer } from '@/shared/data/repositories';
+import { VideoAdPicker } from '@/frontend/components/media/VideoAdPicker';
+import { getEventsByOrganizer, updateEvent } from '@/shared/data/repositories';
+import { describeError } from '@/shared/errors';
 import { formatCurrency } from '@/shared/utils';
 import { PLACEMENTS, type PlacementDef } from '@/shared/placements';
 import type { Event, UserProfile } from '@/shared/types';
@@ -149,6 +151,29 @@ function Promotions({ profile }: { profile: UserProfile }) {
 
   const selectedEvent = events.find((e) => e.id === selected);
 
+  /*
+   * The promo video is stored on the event, so it can be attached the moment the
+   * organiser buys the Spotlight — no separate trip to the event editor. It persists
+   * immediately (the organiser owns the event; `storage.rules` and the events rule both
+   * allow the write), and only ever *plays* once the placement sets `spotlight`. So a
+   * video uploaded here waits, invisible, until the payment it belongs to lands.
+   */
+  const saveVideo = async (url: string) => {
+    if (!selectedEvent) return;
+    try {
+      await updateEvent(selectedEvent.id, { videoAdUrl: url });
+      setEvents((prev) =>
+        prev.map((e) => (e.id === selectedEvent.id ? { ...e, videoAdUrl: url } : e))
+      );
+      toast({
+        title: url ? 'Video saved' : 'Video removed',
+        description: `${selectedEvent.title} — it plays once your Spotlight is live.`,
+      });
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Could not save video', description: describeError(error) });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -238,6 +263,19 @@ function Promotions({ profile }: { profile: UserProfile }) {
                 <CardDescription>{placement.description}</CardDescription>
               </CardHeader>
               <CardContent className="mt-auto space-y-3">
+                {/* The Spotlight is the one placement that carries a video. Offer the
+                    upload right here so buying it and attaching the clip are one step;
+                    it saves to the event immediately and plays once the payment lands. */}
+                {placement.id === 'video-ad' && selectedEvent && selectedEvent.status === 'published' && (
+                  <div className="rounded-md border border-border p-3">
+                    <p className="mb-2 text-xs font-medium">Promo video for {selectedEvent.title}</p>
+                    <VideoAdPicker
+                      organiserId={profile.uid}
+                      value={selectedEvent.videoAdUrl}
+                      onChange={saveVideo}
+                    />
+                  </div>
+                )}
                 <div className="flex items-baseline gap-2">
                   <span className="font-headline text-2xl font-bold text-primary">
                     {formatCurrency(placement.priceMajor)}
