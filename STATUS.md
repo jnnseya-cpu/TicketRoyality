@@ -959,6 +959,15 @@ placement and attaching the clip are one step — it saves to the event immediat
 plays only once the payment sets `spotlight`. The catalogue copy that still read "Video
 slots are not built" (`shared/placements.ts`) is corrected to describe the real video.
 
+**Paste-a-link, including YouTube (owner request).** A video no longer has to be uploaded:
+the picker takes a YouTube link or a direct `.mp4`/`.webm` URL as well as a file, and
+`shared/video.ts` (`parseVideoAd`) classifies whatever `videoAdUrl` holds so the homepage
+plays it right — a `<video>` for an uploaded/pasted file, a chrome-less muted-autoplay
+`youtube-nocookie` `<iframe>` for YouTube (with `pointer-events-none` so the card's link
+still works), the cover image when there is neither. YouTube is an embed, not a new vendor
+account, and it needs **no Storage rule and no deploy**, so it is the path that works the
+moment this ships — the upload route still needs the storage rule live.
+
 ### 28 August — THE reason nothing deployed for six days: an invalid apphosting.yaml
 
 App Hosting rejected every rollout from 22 August onward with "Invalid apphosting.yaml

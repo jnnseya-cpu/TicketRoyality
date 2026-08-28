@@ -16,6 +16,7 @@ import {
 } from '@/frontend/components/ui/carousel';
 import { formatCurrency } from '@/shared/utils';
 import { leadPrice } from '@/shared/pricing';
+import { parseVideoAd } from '@/shared/video';
 import type { Event } from '@/shared/types';
 
 /**
@@ -75,18 +76,39 @@ export default function VideoAds({ events }: { events: Event[] }) {
           <CarouselContent>
             {promoted.map((event) => {
               const from = leadPrice(event);
+              const ad = parseVideoAd(event.videoAdUrl);
 
               return (
                 <CarouselItem key={event.id} className="md:basis-2/3 lg:basis-1/2">
                   <Link href={`/events/${event.id}`}>
                     <Card className="group relative aspect-video overflow-hidden border-primary/20">
-                      {event.videoAdUrl ? (
-                        // The paid promo video: muted + autoplay + loop is the only
-                        // combination browsers allow to start on its own, and playsInline
-                        // stops iOS taking it fullscreen. The cover image is the poster, so
-                        // the card never flashes empty while the video buffers.
+                      {ad?.kind === 'youtube' ? (
+                        // A YouTube ad. `pointer-events-none` is the whole trick: the iframe
+                        // would otherwise swallow the click, so the card's <Link> to the
+                        // event stops working — with it off, the video plays but every click
+                        // falls through to the link. The cover image sits behind as a poster
+                        // so there is no black flash before YouTube loads.
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={event.imageUrl}
+                            alt=""
+                            className="absolute inset-0 h-full w-full object-cover"
+                          />
+                          <iframe
+                            src={ad.embedUrl}
+                            title={event.title}
+                            loading="lazy"
+                            allow="autoplay; encrypted-media; picture-in-picture"
+                            className="pointer-events-none absolute inset-0 h-full w-full"
+                          />
+                        </>
+                      ) : ad?.kind === 'file' ? (
+                        // An uploaded or pasted video file: muted + autoplay + loop is the
+                        // only combination browsers allow to start on its own, and
+                        // playsInline stops iOS taking it fullscreen. Cover image as poster.
                         <video
-                          src={event.videoAdUrl}
+                          src={ad.url}
                           poster={event.imageUrl}
                           muted
                           autoPlay

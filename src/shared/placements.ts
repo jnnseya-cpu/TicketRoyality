@@ -41,7 +41,7 @@ export const PLACEMENTS: Record<PlacementId, PlacementDef> = {
     id: 'video-ad',
     title: 'Homepage spotlight',
     description:
-      'Your event in the rotating spotlight strip on the homepage. Upload a short video and it plays there muted and looping; without one, your cover image shows. Links straight to your event.',
+      'Your event in the rotating spotlight strip on the homepage. Add a short video — a YouTube link or an uploaded clip — and it plays there muted and looping; without one, your cover image shows. Links straight to your event.',
     priceMajor: 249,
     currency: 'GBP',
     priceUsdMajor: 249,
