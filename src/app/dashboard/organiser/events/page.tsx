@@ -122,6 +122,85 @@ function OrganiserEvents({ profile }: { profile: UserProfile }) {
   const revenueFor = (eventId: string) =>
     tickets.filter((t) => t.eventId === eventId).reduce((sum, t) => sum + t.price, 0);
 
+  /*
+   * "Past" here means exactly what it means on the public site — measured from the start
+   * of today (see `getEvents` in repositories.ts), so an event on its own day still counts
+   * as upcoming in both places and never lands in one list on the site and the other here.
+   * These are the same events either way: the public frontend hides the past ones, this
+   * dashboard keeps every one and simply files them under the Past tab.
+   */
+  const startOfToday = React.useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+  const isPastEvent = React.useCallback(
+    (event: Event) => new Date(event.date) < startOfToday,
+    [startOfToday]
+  );
+  const upcoming = React.useMemo(() => filtered.filter((e) => !isPastEvent(e)), [filtered, isPastEvent]);
+  const past = React.useMemo(() => filtered.filter((e) => isPastEvent(e)), [filtered, isPastEvent]);
+
+  const eventTable = (list: Event[], { archived }: { archived: boolean }) => (
+    <Card>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Event</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead className="text-right">Sold</TableHead>
+              <TableHead className="text-right">Revenue</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {list.map((event) => (
+              <TableRow key={event.id}>
+                <TableCell className="font-medium">{event.title}</TableCell>
+                <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                  {formatEventDate(event.date)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{soldFor(event.id)}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatCurrency(revenueFor(event.id), event.currency)}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={archived ? 'secondary' : 'success'}>
+                    {archived ? 'Past' : event.status}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="ghost" asChild>
+                      <Link href={`/events/${event.id}`}>View</Link>
+                    </Button>
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href={`/dashboard/organiser/events/${event.id}/edit`}>Edit</Link>
+                    </Button>
+                    {/* The door scanner is only useful before the event; a finished one
+                        gets View and Edit (records, reports, duplication) but no Check-in. */}
+                    {!archived && <CheckInLinkDialog event={event} />}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+
+  const emptyCard = (message: string) => (
+    <Card>
+      <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+        <CalendarDays className="h-8 w-8 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">{message}</p>
+      </CardContent>
+    </Card>
+  );
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
@@ -151,75 +230,31 @@ function OrganiserEvents({ profile }: { profile: UserProfile }) {
         />
       </div>
 
-      <Tabs defaultValue="list">
+      <Tabs defaultValue="upcoming">
         <TabsList>
-          <TabsTrigger value="list">List</TabsTrigger>
+          <TabsTrigger value="upcoming">Upcoming ({upcoming.length})</TabsTrigger>
+          <TabsTrigger value="past">Past ({past.length})</TabsTrigger>
           <TabsTrigger value="calendar">Calendar</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="list">
-          {filtered.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-                <CalendarDays className="h-8 w-8 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">No events match that search.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Event</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Sold</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((event) => {
-                      const isPast = new Date(event.date).getTime() < Date.now();
-                      return (
-                        <TableRow key={event.id}>
-                          <TableCell className="font-medium">{event.title}</TableCell>
-                          <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                            {formatEventDate(event.date)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {soldFor(event.id)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatCurrency(revenueFor(event.id), event.currency)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={isPast ? 'secondary' : 'success'}>
-                              {isPast ? 'Past' : event.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex justify-end gap-2">
-                              <Button size="sm" variant="ghost" asChild>
-                                <Link href={`/events/${event.id}`}>View</Link>
-                              </Button>
-                              <Button size="sm" variant="outline" asChild>
-                                <Link href={`/dashboard/organiser/events/${event.id}/edit`}>
-                                  Edit
-                                </Link>
-                              </Button>
-                              <CheckInLinkDialog event={event} />
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+        <TabsContent value="upcoming">
+          {upcoming.length === 0
+            ? emptyCard(
+                search
+                  ? 'No upcoming events match that search.'
+                  : 'No upcoming events. Create one, or check the Past tab for your archive.'
+              )
+            : eventTable(upcoming, { archived: false })}
+        </TabsContent>
+
+        <TabsContent value="past">
+          {past.length === 0
+            ? emptyCard(
+                search
+                  ? 'No past events match that search.'
+                  : 'No past events yet — finished events are filed here automatically.'
+              )
+            : eventTable(past, { archived: true })}
         </TabsContent>
 
         <TabsContent value="calendar">

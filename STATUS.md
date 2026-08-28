@@ -886,6 +886,31 @@ Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
 
+### 28 August — security rules now deploy themselves on merge to main
+
+The recurring trap this project keeps hitting: App Hosting deploys the app but **never the
+security rules**, so a `firestore.rules`/`storage.rules` change is live in the repo, green
+in CI, and yet unenforced in production until someone runs `firebase deploy --only …` by
+hand. The old `rules.yml` only *tested* rules; nothing deployed them. New workflow
+`.github/workflows/deploy-rules.yml` runs the rules tests then deploys `firestore:rules`
+and `storage` on any push to `main` that touches those files — rules only, never the app,
+functions, data or indexes. It needs a one-time owner secret `FIREBASE_SERVICE_ACCOUNT`
+(a service account with Firebase Rules Admin); without it the job tests and skips cleanly,
+so it never blocks a merge. This is what stops the next rule change — like the promo-video
+storage path — from silently not taking effect.
+
+### 28 August — organiser "Past events" archive tab
+
+Follow-on to the public past-events hide: the organiser events dashboard
+(`dashboard/organiser/events`) now splits its list into **Upcoming / Past / Calendar**
+tabs (each label carries its count), so a finished event is filed in a clear archive
+rather than mixed into the working list. "Past" uses the identical start-of-today cutoff
+as the public `getEvents` filter, so an event is never upcoming in one place and past in
+the other. The Past tab keeps View + Edit (records, reports, duplication) but drops the
+door Check-in, which a finished event has no use for. The table markup is now one shared
+renderer used by both tabs. No data change — it reads the same unfiltered
+`getEventsByOrganizer`, only grouped. Verified: typecheck, lint.
+
 ### 28 August — past events drop off the public frontend, stay in the organiser's list
 
 Owner request: a finished event should disappear from the public site but remain in the

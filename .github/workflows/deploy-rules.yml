@@ -1,0 +1,56 @@
+name: Deploy security rules
+
+# Firestore and Storage security rules are NOT deployed by App Hosting — App Hosting only
+# builds and runs the Next app. Rules ship with the Firebase CLI, separately. Without this
+# workflow a change to firestore.rules or storage.rules merges to main, is live in the repo
+# and green in CI, but is never ENFORCED in production until someone remembers to run
+# `firebase deploy --only ...` by hand. That gap is exactly what left a storage.rules change
+# (the promo-video upload path) un-deployed. This closes it: once a rules file lands on main
+# and its emulator tests pass, the rules deploy automatically.
+#
+# One-time setup by the owner: add a repo secret FIREBASE_SERVICE_ACCOUNT containing the
+# JSON key of a service account with the "Firebase Rules Admin" role (or "Firebase Admin")
+# on project ticketroyality. Until that secret exists this job runs the tests and then skips
+# the deploy cleanly, so it never blocks a merge.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - 'storage.rules'
+
+concurrency:
+  # One rules deploy at a time; a newer push supersedes an in-flight one.
+  group: deploy-rules
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Test, then deploy Firestore + Storage rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # The same gate the PR check enforces — never deploy a rule with no passing test.
+      - name: Rules unit tests
+        run: npm run test:rules --if-present
+      - name: Deploy rules (skips cleanly if the secret is not set)
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT is not set — skipping deploy."
+            echo "Add it in Settings → Secrets and variables → Actions to enable automatic rules deploys."
+            exit 0
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          # Rules only — never the app, functions, data or indexes. The narrowest deploy
+          # that puts firestore.rules and storage.rules into force.
+          npx firebase-tools deploy --only firestore:rules,storage --project ticketroyality --non-interactive
