@@ -19,6 +19,10 @@ on:
     paths:
       - 'firestore.rules'
       - 'storage.rules'
+  # A manual "Run workflow" button on the Actions tab, so the rules can be deployed on
+  # demand — e.g. right after adding the secret, to push a rules change that already
+  # merged, without having to touch a rules file again.
+  workflow_dispatch:
 
 concurrency:
   # One rules deploy at a time; a newer push supersedes an in-flight one.
