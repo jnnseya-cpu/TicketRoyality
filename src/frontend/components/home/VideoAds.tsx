@@ -33,11 +33,13 @@ import type { Event } from '@/shared/types';
  * document, and renders nothing at all when nothing is featured. An empty homepage
  * section is honest; a fake one is not.
  *
- * ## It is not video
+ * ## Video when there is one, the cover image when there is not
  *
- * The event's own cover image, said plainly rather than dressed up with a play button
- * that leads to nothing. Video ad slots are not built — see the promotions page, which no
- * longer sells them.
+ * A Spotlight placement can carry a promo video: the organiser uploads a short clip in the
+ * event editor (`videoAdUrl`), and it plays here muted and looping. When there is no video
+ * the strip shows the event's own cover image instead — honestly, with no play button that
+ * leads nowhere. So a paid video ad is real when one is supplied and never faked when it
+ * is not.
  */
 export default function VideoAds({ events }: { events: Event[] }) {
   const autoplay = React.useRef(
@@ -78,14 +80,31 @@ export default function VideoAds({ events }: { events: Event[] }) {
                 <CarouselItem key={event.id} className="md:basis-2/3 lg:basis-1/2">
                   <Link href={`/events/${event.id}`}>
                     <Card className="group relative aspect-video overflow-hidden border-primary/20">
-                      {/* An organiser's cover image can be on any host, and the optimiser
-                          only accepts hosts on its allowlist. */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={event.imageUrl}
-                        alt={event.title}
-                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      />
+                      {event.videoAdUrl ? (
+                        // The paid promo video: muted + autoplay + loop is the only
+                        // combination browsers allow to start on its own, and playsInline
+                        // stops iOS taking it fullscreen. The cover image is the poster, so
+                        // the card never flashes empty while the video buffers.
+                        <video
+                          src={event.videoAdUrl}
+                          poster={event.imageUrl}
+                          muted
+                          autoPlay
+                          loop
+                          playsInline
+                          preload="metadata"
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      ) : (
+                        // No video: the event's cover image, on any host, so it bypasses the
+                        // optimiser's allowlist with a plain img.
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={event.imageUrl}
+                          alt={event.title}
+                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        />
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
                       <div className="absolute inset-x-0 bottom-0 p-5">
                         <p className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-primary">

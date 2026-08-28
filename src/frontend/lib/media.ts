@@ -40,6 +40,47 @@ export const FOLDER_LIMITS = {
 } as const;
 export const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
 
+/**
+ * Promotional video for the homepage spotlight strip.
+ *
+ * A video cannot be resized in the browser the way an image can, so the only defence
+ * against a 400MB upload is a hard size ceiling checked here AND in `storage.rules` — the
+ * two must stay equal, exactly as the image folder limits do. 50MB is enough for a
+ * 15–30s promo at a sensible bitrate and small enough not to punish a phone on venue wifi;
+ * the strip autoplays muted, so anything longer is wasted bytes nobody watches.
+ */
+export const ACCEPTED_VIDEO = ['video/mp4', 'video/webm'];
+export const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
+
+/** Upload a promo video straight to Storage (no re-encode) and return its URL + path. */
+export async function uploadVideo(organiserId: string, file: File): Promise<UploadedImage> {
+  if (!ACCEPTED_VIDEO.includes(file.type)) {
+    throw new Error('Use an MP4 or WebM video.');
+  }
+  if (file.size > VIDEO_MAX_BYTES) {
+    throw new Error(
+      `That video is ${Math.round(file.size / 1024 / 1024)}MB. The limit is ${VIDEO_MAX_BYTES / 1024 / 1024}MB — trim it to a short clip.`
+    );
+  }
+
+  const extension = file.type.split('/')[1] ?? 'mp4';
+  const name = `promo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  const path = `events/${organiserId}/${name}`;
+
+  const location = ref(storage, path);
+  await uploadBytes(location, file, { contentType: file.type });
+
+  return {
+    url: await getDownloadURL(location),
+    path,
+    // Videos have no still dimensions we need to record; 0 keeps the shared shape.
+    width: 0,
+    height: 0,
+    bytes: file.size,
+    contentType: file.type,
+  };
+}
+
 /** Wide enough for a hero at 2× on a laptop; small enough to load on a phone. */
 const MAX_EDGE = 2000;
 const QUALITY = 0.85;

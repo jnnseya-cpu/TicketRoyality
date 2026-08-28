@@ -11,15 +11,23 @@ service firebase.storage {
       return request.resource.contentType.matches('image/.*');
     }
 
+    function isPromoVideo() {
+      return request.resource.contentType.matches('video/(mp4|webm)');
+    }
+
     /* Event and organiser media is public to read — it is rendered on public pages —
        and writable only by the owner, size- and type-bounded. An unbounded upload path
        is a free file host attached to your credit card. */
     match /events/{organiserId}/{fileName} {
       allow read: if true;
+      // Images up to 8MB, or a promo video (mp4/webm) up to 50MB for the homepage
+      // spotlight strip — the video ceiling mirrors VIDEO_MAX_BYTES in lib/media.ts.
       allow write: if isSignedIn()
                    && request.auth.uid == organiserId
-                   && isImage()
-                   && request.resource.size < 8 * 1024 * 1024;
+                   && (
+                     (isImage() && request.resource.size < 8 * 1024 * 1024) ||
+                     (isPromoVideo() && request.resource.size < 50 * 1024 * 1024)
+                   );
     }
 
     /* Profile photo and cover, for every account type — customer, organiser and

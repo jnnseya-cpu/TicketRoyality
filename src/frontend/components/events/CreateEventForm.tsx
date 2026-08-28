@@ -38,6 +38,7 @@ import { Textarea } from '@/frontend/components/ui/textarea';
 import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
 import { SeatMapBuilder } from '@/frontend/components/events/SeatMapBuilder';
 import { MediaPicker } from '@/frontend/components/media/MediaPicker';
+import { VideoAdPicker } from '@/frontend/components/media/VideoAdPicker';
 import { TierEconomics } from '@/frontend/components/pricing/TierEconomics';
 import { Switch } from '@/frontend/components/ui/switch';
 import { describeError } from '@/shared/errors';
@@ -270,6 +271,7 @@ const schema = z
     category: z.string().min(1, 'Choose a category.'),
     imageUrl: z.string().url('Enter a valid image URL.').optional().or(z.literal('')),
     coverImageUrl: z.string().url('Enter a valid image URL.').optional().or(z.literal('')),
+    videoAdUrl: z.string().url('Enter a valid video URL.').optional().or(z.literal('')),
     date: z.date({ required_error: 'Choose a date.' }),
     time: z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:MM.'),
     eventType: z.enum(['physical', 'online', 'livestream']),
@@ -404,6 +406,7 @@ function defaultsFor(event?: Event): FormValues {
       category: '',
       imageUrl: '',
       coverImageUrl: '',
+      videoAdUrl: '',
       date: new Date(Date.now() + 30 * 86_400_000),
       time: '19:00',
       eventType: 'physical',
@@ -460,6 +463,7 @@ function defaultsFor(event?: Event): FormValues {
     category: categoryValue(event.categoryGroup, event.category),
     imageUrl: event.imageUrl,
     coverImageUrl: event.coverImageUrl ?? '',
+    videoAdUrl: event.videoAdUrl ?? '',
     date: when,
     time: `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`,
     eventType: event.eventType,
@@ -730,6 +734,10 @@ export function CreateEventForm({
         // Empty string, not undefined: Firestore refuses undefined values, and '' falls
         // back to imageUrl everywhere the cover is read.
         coverImageUrl: values.coverImageUrl || '',
+        // The promo video for the homepage spotlight strip. '' rather than undefined for
+        // the same Firestore reason; the strip plays it only when a Spotlight placement
+        // is active and falls back to the cover image when it is blank.
+        videoAdUrl: values.videoAdUrl || '',
         date: when.toISOString(),
         eventType: values.eventType,
         location: values.eventType === 'physical' ? (values.location ?? '') : 'Online',
@@ -1145,6 +1153,29 @@ export function CreateEventForm({
                   <FormDescription>
                     The wide banner across the top of your event page. A landscape image
                     works best; leave blank to use the event picture there too.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="videoAdUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Promo video (optional)</FormLabel>
+                  <FormControl>
+                    <VideoAdPicker
+                      organiserId={profile.uid}
+                      value={field.value}
+                      onChange={(url) => field.onChange(url)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    A short clip that plays in the homepage “In the spotlight” strip while a
+                    Spotlight placement is active. Without a placement it stays off; without
+                    a video the strip shows your event picture.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
