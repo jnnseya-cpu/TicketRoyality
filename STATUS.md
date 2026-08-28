@@ -886,6 +886,30 @@ Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
 
+### 28 August — THE reason nothing deployed for six days: an invalid apphosting.yaml
+
+App Hosting rejected every rollout from 22 August onward with "Invalid apphosting.yaml
+… is not formatted properly", so the live site kept serving the pre-22-August build.
+This is why a week of fixes — the signed-in header fit, the money-audit passes, the
+Stripe multi-secret change, the whole "Programme" rebrand, and the launch-audit fixes —
+were all pushed, all green in CI, and none of them ever appeared. Every "still not fit"
+and "nothing changed" report traces to this one line, not to the code in each commit.
+
+Root cause: the 22 August Meta Pixel commit added two env entries with `value: ""`
+(`NEXT_PUBLIC_META_PIXEL_ID`, `NEXT_PUBLIC_GA_MEASUREMENT_ID`). App Hosting does not
+accept an empty-string `value`; it fails the *whole file* at validation, before the
+build runs — which is why CI (which never reads apphosting.yaml) stayed green while
+every deploy died. The error is a format rejection, not a missing-secret error, which
+pointed at structure rather than Secret Manager.
+
+Fix: the two entries are removed, not blanked. An absent variable and an empty one are
+identical to the app — `process.env.NEXT_PUBLIC_*` is falsy either way, the tags do not
+load, no consent banner shows — and the production build passes with neither set (CI
+proves it). To enable tracking later, the entries go back with REAL non-empty values.
+No other line in the file is non-standard; runConfig and the remaining 23 env entries
+validate. Verified here by YAML parse + schema-shape check; the authoritative proof is
+the next rollout, which is the owner's to watch.
+
 ### 28 August — launch hard-reality audit: two fixes shipped, the rest recorded
 
 A full adversarial launch audit (payments, authz/tenant isolation, API/cron, AI safety,

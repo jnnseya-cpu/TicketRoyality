@@ -88,21 +88,20 @@ env:
   # ── Advertising / analytics tags (owner-authorised; Meta is a vendor the owner
   #    added by direction on 20 Aug 2026) ─────────────────────────────────────
   #
-  # Empty values mean the tags simply do not load — no scripts, no consent banner.
-  # Set the Pixel ID from Meta Events Manager and the G-XXXX measurement id from
-  # Google Analytics, then roll out. They are public by nature: every site ships
-  # its pixel ids in the page source.
-  - variable: NEXT_PUBLIC_META_PIXEL_ID
-    value: ""
-    availability:
-      - BUILD
-      - RUNTIME
-
-  - variable: NEXT_PUBLIC_GA_MEASUREMENT_ID
-    value: ""
-    availability:
-      - BUILD
-      - RUNTIME
+  # DELIBERATELY ABSENT, not declared-empty. App Hosting rejects the whole file
+  # ("Invalid apphosting.yaml") when an env entry carries `value: ""` — an empty
+  # string is not an accepted value — and that rejection failed EVERY rollout from
+  # 22 Aug onward, which is why nothing deployed for days. An absent variable and an
+  # empty one are identical to the app: `process.env.NEXT_PUBLIC_META_PIXEL_ID` is
+  # falsy either way, so the tags do not load and no consent banner shows. CI proves
+  # it — the production build passes with neither variable set.
+  #
+  # To turn tracking on: add the two entries back WITH REAL, non-empty values (the
+  # Pixel ID from Meta Events Manager, the G-XXXX id from Google Analytics), e.g.
+  #   - variable: NEXT_PUBLIC_META_PIXEL_ID
+  #     value: "1234567890"
+  #     availability: [BUILD, RUNTIME]
+  # They are public by nature — every site ships its pixel ids in the page source.
 
   # ── Server-only secrets ────────────────────────────────────────────────────
   #
