@@ -1020,6 +1020,26 @@ de-branding the fan surfaces (Phase 2) and per-tenant custom domains + TLS (Phas
   borne card cost (£20 passed → fan £21.50, organiser nets £20.48, platform £0.40 clean),
   the free-list case and the below-zero guard. Verified: 43/43 fee tests, typecheck, lint.
 
+### 29 August — Automatic seat renewal between seasons (owner "build now")
+
+Closes the sports card's "Not yet". A season pass can now **renew an earlier one** with a
+**holder-first window**: until `holderWindowEnds`, only someone who bought `renewsPassId`
+may buy the new pass; after it, general sale. Same shape as the loyalty presale — a real
+gate, not a hidden button.
+
+- Types: `SeasonPass.renewsPassId?` + `holderWindowEnds?`.
+- `wasPassHolder(passId, userId)` reads the `season_pass_purchases` record (the same record a
+  transfer moves) and **fails closed** on error — an early renewal window given to a stranger
+  cannot be taken back, the reason the loyalty gate fails closed too.
+- `passAvailability(passId, userId?)` gains a `holders-only` outcome and enforces the window;
+  **checkout passes the buyer's uid** so the gate is server-authoritative, not UI-deep.
+- Create-pass API validates the renewal points at *this organiser's own* earlier pass and the
+  window ends in the future; both fields travel together or not at all.
+- Organiser form gains an optional "Renews an earlier pass" + window-end picker; the buy
+  surface shows the renewal-window note. Verified: typecheck, lint, build.
+- Honest residual (kept in the industries copy): the pass takes a *tier*, so seat-for-seat
+  carry within a seated map is a further step, not this.
+
 ### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
 
 Swept the public surfaces for horizontal overflow at 320–768px across two font scales

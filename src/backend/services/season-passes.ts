@@ -86,23 +86,71 @@ export async function listPasses(organizerId: string): Promise<SeasonPass[]> {
   }
 }
 
+/**
+ * Did this person buy this pass? The renewal window is gated on the answer, so it is read
+ * from the purchase record — the same record a transfer moves — never asserted by a form.
+ */
+export async function wasPassHolder(passId: string, userId: string): Promise<boolean> {
+  if (!isAdminConfigured() || !userId) return false;
+  try {
+    const snap = await getAdminDb()
+      .collection(PURCHASES)
+      .where('passId', '==', passId)
+      .where('userId', '==', userId)
+      .limit(1)
+      .get();
+    return !snap.empty;
+  } catch (error) {
+    reportError(error, { scope: 'passes.wasHolder', passId, userId });
+    // Fail closed: an outage must not hand a members-only renewal to a stranger. An early
+    // window given away cannot be taken back — the same reason the loyalty gate fails closed.
+    return false;
+  }
+}
+
 export type PassAvailability =
   | { ok: true; passesLeft: number }
-  | { ok: false; reason: 'inactive' | 'sold-out' | 'fixture-full' | 'unavailable'; error: string };
+  | {
+      ok: false;
+      reason: 'inactive' | 'sold-out' | 'fixture-full' | 'unavailable' | 'holders-only';
+      error: string;
+    };
 
 /**
- * Can this pass still be honoured in full?
+ * Can this pass still be honoured in full — and may *this* buyer take it yet?
  *
  * Every covered fixture is checked, because a pass that covers ten nights and can only
  * seat somebody at nine is not a pass — it is a complaint with a receipt attached.
+ *
+ * When the pass renews an earlier one and its holder window is still open, only last
+ * season's holders may buy: the renewal is theirs until it opens to everyone. `userId` is
+ * the buyer; omit it and a renewal in its holder window reports `holders-only`, which is
+ * the correct answer for an anonymous quote.
  */
-export async function passAvailability(passId: string): Promise<PassAvailability> {
+export async function passAvailability(passId: string, userId?: string): Promise<PassAvailability> {
   const pass = await getPass(passId);
   if (!pass) return { ok: false, reason: 'unavailable', error: 'That pass no longer exists.' };
   if (!pass.active) return { ok: false, reason: 'inactive', error: 'That pass is not on sale.' };
 
   const passesLeft = pass.quantity - (pass.sold ?? 0);
   if (passesLeft <= 0) return { ok: false, reason: 'sold-out', error: 'Season passes have sold out.' };
+
+  // The renewal window: while it is open, this pass sells only to holders of the pass it
+  // renews. After it, or with no window set, it is an ordinary pass on open sale.
+  if (pass.renewsPassId && pass.holderWindowEnds && new Date(pass.holderWindowEnds).getTime() > Date.now()) {
+    const held = await wasPassHolder(pass.renewsPassId, userId ?? '');
+    if (!held) {
+      const opens = new Date(pass.holderWindowEnds).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+      });
+      return {
+        ok: false,
+        reason: 'holders-only',
+        error: `This renewal is reserved for last season's pass holders until ${opens}, when it opens to everyone.`,
+      };
+    }
+  }
 
   try {
     const db = getAdminDb();

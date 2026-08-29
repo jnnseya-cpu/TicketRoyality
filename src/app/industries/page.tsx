@@ -78,7 +78,7 @@ const SEGMENTS = [
     need: 'Recurring fixtures without rebuilding them',
     detail:
       'Set a fixture to repeat weekly or monthly to an end date rather than creating each one by hand, with tiers and pricing carried across. Scan entry at the turnstile from any phone. Sell a season pass covering the whole run \u2014 it issues a real ticket for every fixture, so each one still counts its own capacity \u2014 and open a presale to people who have actually been before, checked against their attendance with you when the card is charged. A whole pass transfers in one link — every remaining fixture moves together, and fixtures already attended stay in the sender\u2019s history.',
-    next: 'Automatic seat renewal between seasons is not built.',
+    next: 'Renew a pass into next season with a holder-first window — last season’s holders buy before general sale, enforced at checkout against who actually bought. Seat-for-seat carry within a seated map is the remaining nuance.',
   },
   {
     icon: Presentation,

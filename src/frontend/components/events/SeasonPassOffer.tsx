@@ -92,6 +92,19 @@ export function SeasonPassOffer({
                 {left <= 10 && <Badge variant="gold">Only {left} left</Badge>}
               </div>
 
+              {pass.renewsPassId &&
+                pass.holderWindowEnds &&
+                new Date(pass.holderWindowEnds).getTime() > Date.now() && (
+                  <p className="rounded-md bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                    Renewal window — reserved for last season&apos;s pass holders until{' '}
+                    {new Date(pass.holderWindowEnds).toLocaleDateString('en-GB', {
+                      day: 'numeric',
+                      month: 'long',
+                    })}
+                    , then open to everyone. If you held last season&apos;s pass, buy now.
+                  </p>
+                )}
+
               {user ? (
                 <div className="space-y-2 pt-1">
                   {/* Plain form POSTs keep the redirect inside the click gesture. */}

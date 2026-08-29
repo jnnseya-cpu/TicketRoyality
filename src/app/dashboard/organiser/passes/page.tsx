@@ -46,6 +46,10 @@ function Passes({ profile }: { profile: UserProfile }) {
   const [quantity, setQuantity] = React.useState('100');
   const [chosen, setChosen] = React.useState<string[]>([]);
   const [tierIds, setTierIds] = React.useState<Record<string, string>>({});
+  // Automatic renewal: this pass renews an earlier one, whose holders buy first until the
+  // window closes. Both empty = an ordinary pass on open sale.
+  const [renewsPassId, setRenewsPassId] = React.useState('');
+  const [holderWindowEnds, setHolderWindowEnds] = React.useState('');
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -95,6 +99,10 @@ function Passes({ profile }: { profile: UserProfile }) {
           quantity: Number(quantity),
           eventIds: chosen,
           tierIds,
+          // Only sent as a pair; the server ignores one without the other.
+          ...(renewsPassId && holderWindowEnds
+            ? { renewsPassId, holderWindowEnds: new Date(holderWindowEnds).toISOString() }
+            : {}),
         }),
       });
       const data = (await response.json()) as { error?: string };
@@ -104,6 +112,8 @@ function Passes({ profile }: { profile: UserProfile }) {
       setDescription('');
       setPrice('');
       setChosen([]);
+      setRenewsPassId('');
+      setHolderWindowEnds('');
       toast({ title: 'Season pass created', description: `${chosen.length} fixtures covered.` });
       await load();
     } catch (error) {
@@ -187,6 +197,47 @@ function Passes({ profile }: { profile: UserProfile }) {
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+
+          {passes.length > 0 && (
+            <div className="space-y-2 rounded-md border border-border p-3">
+              <div>
+                <Label>Renews an earlier pass (optional)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Last season&apos;s holders can buy first. Until the window closes, only people
+                  who bought the pass below may buy this one — enforced at checkout, not just hidden.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Select value={renewsPassId} onValueChange={setRenewsPassId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="No renewal — open to everyone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {passes.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="space-y-1">
+                  <Input
+                    type="datetime-local"
+                    value={holderWindowEnds}
+                    disabled={!renewsPassId}
+                    onChange={(e) => setHolderWindowEnds(e.target.value)}
+                    aria-label="Holder-first window ends"
+                  />
+                  <p className="text-xs text-muted-foreground">Opens to everyone after this.</p>
+                </div>
+              </div>
+              {renewsPassId && !holderWindowEnds && (
+                <p className="text-xs text-destructive">
+                  Set when the holder-first window ends, or clear the pass above.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Fixtures covered</Label>

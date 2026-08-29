@@ -322,7 +322,10 @@ export async function POST(request: Request) {
     const pass = await getPass(passId);
     if (!pass) return fail('That season pass no longer exists');
 
-    const availability = await passAvailability(passId);
+    // The buyer, so a renewal's holder-first window is enforced here, server-side, against
+    // the purchase record — not by whether the buy button was shown.
+    const passBuyerId = String(form.get('userId') ?? '');
+    const availability = await passAvailability(passId, passBuyerId);
     if (!availability.ok) return fail(availability.error);
 
     lines.push({

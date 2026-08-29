@@ -53,6 +53,8 @@ export async function POST(request: Request) {
     quantity?: number;
     eventIds?: string[];
     tierIds?: Record<string, string>;
+    renewsPassId?: string;
+    holderWindowEnds?: string;
   };
   try {
     body = await request.json();
@@ -77,6 +79,23 @@ export async function POST(request: Request) {
     }
   }
 
+  // A renewal may only point at this organiser's own earlier pass — otherwise the window
+  // would gate on a stranger's holders. Both fields travel together or not at all.
+  let renewsPassId: string | undefined;
+  let holderWindowEnds: string | undefined;
+  if (body.renewsPassId && body.holderWindowEnds) {
+    const prev = await db.collection('season_passes').doc(String(body.renewsPassId)).get();
+    if (!prev.exists || prev.data()?.organizerId !== caller.uid) {
+      return NextResponse.json({ error: 'That is not your pass to renew.' }, { status: 403 });
+    }
+    const ends = new Date(String(body.holderWindowEnds));
+    if (Number.isNaN(ends.getTime()) || ends.getTime() <= Date.now()) {
+      return NextResponse.json({ error: 'The holder window must end in the future.' }, { status: 400 });
+    }
+    renewsPassId = String(body.renewsPassId);
+    holderWindowEnds = ends.toISOString();
+  }
+
   const result = await createPass({
     organizerId: caller.uid,
     name: String(body.name ?? '').trim().slice(0, 120),
@@ -87,6 +106,7 @@ export async function POST(request: Request) {
     eventIds,
     tierIds: body.tierIds ?? {},
     active: true,
+    ...(renewsPassId ? { renewsPassId, holderWindowEnds } : {}),
   });
 
   return result.ok

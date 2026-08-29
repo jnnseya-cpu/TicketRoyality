@@ -742,6 +742,17 @@ export interface SeasonPass {
   tierIds: Record<string, string>;
   active: boolean;
   createdAt: string;
+
+  /**
+   * Automatic renewal between seasons. When this pass renews an earlier one, last season's
+   * holders get first refusal: until `holderWindowEnds`, only someone who bought
+   * `renewsPassId` may buy this pass — the renewal window — and it opens to everyone after.
+   * Enforced server-side at checkout (a greyed-out button is not a gate), the same way the
+   * loyalty presale is. Both optional; a pass with neither is an ordinary pass on open sale.
+   */
+  renewsPassId?: string;
+  /** ISO 8601. While in the future, this pass sells only to holders of `renewsPassId`. */
+  holderWindowEnds?: string;
 }
 
 /**
