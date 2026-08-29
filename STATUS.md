@@ -886,6 +886,34 @@ Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
 
+### 28 August — Held ticket release (owner request)
+
+An organiser can hold when a ticket becomes usable. A buyer still pays now and their
+ticket is **issued, counted and guaranteed at purchase** — no scheduler, no
+payment-without-ticket risk — but it shows as a **purchase confirmation** rather than a
+scannable QR until the release moment, capped at **7 days before the event** so a held
+ticket always unlocks with time to spare.
+
+- **Event field `ticketReleaseAt`** (optional ISO instant), set on the event form as a
+  "Hold ticket release until" datetime; a `superRefine` refuses anything later than 7 days
+  before the event.
+- **Display gate** (`TicketModal`): while `event.ticketReleaseAt` is in the future the QR is
+  replaced by a "Purchase confirmed — releases on <date>" panel and the print/download-QR
+  buttons are hidden. The confirmation email needed no change — it already links to the
+  wallet, where this gate lives, so no functions deploy.
+- **Door gate** (`redeem.ts`, app-side, no functions deploy): a new `not-released` outcome
+  refuses the scan before the release date, whoever scans it — the door is the authority,
+  not the screen.
+- **Pre-purchase note** (`TicketBox`): the buy box tells a buyer tickets are held and when
+  they unlock, before they pay.
+
+Verified: typecheck, lint, production build. Design note: the ticket is issued at purchase
+(inventory consumed, idempotent, refundable) and only its *presentation* is gated — the
+safe choice over deferring issuance to a scheduler, which is the exact payment-without-
+ticket failure the money audits exist to prevent. **Honest limit**: a held ticket viewed
+fully offline (no event fetch) would fall back to showing its QR, but the door refuses it
+before release regardless, and release is always ≥7 days pre-event.
+
 ### 28 August — Box office / door sales (owner request)
 
 Gate staff (or the organiser) sell a ticket at the door — cash, card or mobile money in

@@ -477,6 +477,17 @@ export function TicketBox({ event }: { event: Event }) {
         <CardTitle>Get tickets</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
+        {event.ticketReleaseAt && new Date(event.ticketReleaseAt).getTime() > Date.now() && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
+            <strong className="text-foreground">Tickets are held.</strong> Buy now and you’ll get
+            a purchase confirmation; your scannable ticket unlocks on{' '}
+            {new Date(event.ticketReleaseAt).toLocaleString('en-GB', {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+            })}
+            .
+          </div>
+        )}
         <RadioGroup value={tier?.id ?? ''} onValueChange={setTierId} className="space-y-2">
           {visibleTiers.map((option) => {
             const remaining = option.quantity - (option.sold ?? 0);

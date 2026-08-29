@@ -264,6 +264,14 @@ const speakerSchema = z.object({
   photoUrl: z.string().url('Enter a valid URL.').optional().or(z.literal('')),
 });
 
+/** ISO instant → the `YYYY-MM-DDTHH:mm` a datetime-local input shows, in local time. */
+function isoToLocalInput(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const schema = z
   .object({
     title: z.string().min(4, 'Give the event a clear title.'),
@@ -274,6 +282,9 @@ const schema = z
     videoAdUrl: z.string().url('Enter a valid video URL.').optional().or(z.literal('')),
     date: z.date({ required_error: 'Choose a date.' }),
     time: z.string().regex(/^\d{2}:\d{2}$/, 'Use HH:MM.'),
+    // Optional held-release moment (a datetime-local string). Empty means tickets are
+    // usable the instant they are bought. Capped at 7 days before the event by the refine.
+    ticketReleaseAt: z.string().optional(),
     eventType: z.enum(['physical', 'online', 'livestream']),
     location: z.string().optional(),
     country: z.string().optional(),
@@ -349,6 +360,25 @@ const schema = z
       }
     });
 
+    // Held ticket release: at least 7 days before the event, so a held ticket always
+    // becomes usable with time to spare rather than at the door.
+    if (values.ticketReleaseAt) {
+      const release = new Date(values.ticketReleaseAt);
+      const [rh, rm] = values.time.split(':').map(Number);
+      const eventAt = new Date(values.date);
+      eventAt.setHours(rh || 0, rm || 0, 0, 0);
+      const cutoff = eventAt.getTime() - 7 * 86_400_000;
+      if (Number.isNaN(release.getTime())) {
+        ctx.addIssue({ path: ['ticketReleaseAt'], code: 'custom', message: 'Enter a valid date and time.' });
+      } else if (release.getTime() > cutoff) {
+        ctx.addIssue({
+          path: ['ticketReleaseAt'],
+          code: 'custom',
+          message: 'Ticket release must be at least 7 days before the event.',
+        });
+      }
+    }
+
     values.ticketTiers.forEach((tier, index) => {
       if (
         tier.salesStart &&
@@ -409,6 +439,7 @@ function defaultsFor(event?: Event): FormValues {
       videoAdUrl: '',
       date: new Date(Date.now() + 30 * 86_400_000),
       time: '19:00',
+      ticketReleaseAt: '',
       eventType: 'physical',
       location: '',
       country: 'United Kingdom',
@@ -466,6 +497,7 @@ function defaultsFor(event?: Event): FormValues {
     videoAdUrl: event.videoAdUrl ?? '',
     date: when,
     time: `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}`,
+    ticketReleaseAt: event.ticketReleaseAt ? isoToLocalInput(event.ticketReleaseAt) : '',
     eventType: event.eventType,
     location: event.location,
     country: event.country,
@@ -738,6 +770,9 @@ export function CreateEventForm({
         // the same Firestore reason; the strip plays it only when a Spotlight placement
         // is active and falls back to the cover image when it is blank.
         videoAdUrl: values.videoAdUrl || '',
+        // Held ticket release. '' (not undefined) when off — the display gate reads any
+        // falsy value as "usable now"; a set value is stored as an absolute ISO instant.
+        ticketReleaseAt: values.ticketReleaseAt ? new Date(values.ticketReleaseAt).toISOString() : '',
         date: when.toISOString(),
         eventType: values.eventType,
         location: values.eventType === 'physical' ? (values.location ?? '') : 'Online',
@@ -1223,6 +1258,25 @@ export function CreateEventForm({
                   <FormControl>
                     <Input type="time" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="ticketReleaseAt"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>Hold ticket release until (optional)</FormLabel>
+                  <FormControl>
+                    <Input type="datetime-local" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Buyers pay now and get a purchase confirmation; the scannable ticket
+                    appears on this date. Leave blank to release tickets immediately. Must be
+                    at least 7 days before the event.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

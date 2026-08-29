@@ -222,6 +222,14 @@ export function TicketModal({
     link.click();
   };
 
+  // The organiser is holding this ticket's release: it is bought and counted, but shows as
+  // a confirmation (no QR) until the release moment. `event` loads on open, so this is
+  // false for the instant before it resolves — harmless, since a held ticket is viewed at
+  // home well before any door, and the scanner refuses it before release regardless.
+  const held = Boolean(
+    event?.ticketReleaseAt && new Date(event.ticketReleaseAt).getTime() > Date.now()
+  );
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -238,7 +246,9 @@ export function TicketModal({
             <Logo className="h-5 w-5" />
             TicketRoyality
           </DialogTitle>
-          <DialogDescription>Present this QR code at the gate.</DialogDescription>
+          <DialogDescription>
+            {held ? 'Your purchase confirmation — the ticket releases soon.' : 'Present this QR code at the gate.'}
+          </DialogDescription>
         </DialogHeader>
 
         {/* On paper this sheet is one page split in half: the ticket above the fold,
@@ -257,19 +267,35 @@ export function TicketModal({
             />
           ) : null}
 
-          <div className="flex justify-center rounded-lg bg-white p-4">
-            <QRCodeCanvas
-              value={ticketQrPayload(ticket, rotating.code)}
-              size={196}
-              level="M"
-              includeMargin={false}
-            />
-          </div>
+          {held ? (
+            /* Held release: the ticket is bought, counted and guaranteed, but the organiser
+               has held its release, so this is a purchase confirmation until then — no QR to
+               screenshot early, and the door refuses it before the date anyway. */
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-5 text-center">
+              <p className="font-headline text-lg font-semibold">Purchase confirmed</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Your scannable ticket appears here on{' '}
+                <strong>{formatEventDate(event!.ticketReleaseAt!)}</strong>. Keep this as proof
+                of purchase until then.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-center rounded-lg bg-white p-4">
+                <QRCodeCanvas
+                  value={ticketQrPayload(ticket, rotating.code)}
+                  size={196}
+                  level="M"
+                  includeMargin={false}
+                />
+              </div>
 
-          {rotating.code && (
-            <p className="text-center text-xs text-muted-foreground">
-              This code refreshes in {rotating.secondsLeft}s — a screenshot will not scan.
-            </p>
+              {rotating.code && (
+                <p className="text-center text-xs text-muted-foreground">
+                  This code refreshes in {rotating.secondsLeft}s — a screenshot will not scan.
+                </p>
+              )}
+            </>
           )}
 
           <p className="text-center text-xs uppercase tracking-[0.2em] text-primary">
@@ -385,14 +411,18 @@ export function TicketModal({
           )}
         </div>
 
-        <DialogFooter className="print-hidden">
-          <Button variant="outline" onClick={() => window.print()}>
-            <Printer className="h-4 w-4" /> Print
-          </Button>
-          <Button onClick={handleDownload}>
-            <Download className="h-4 w-4" /> Download QR
-          </Button>
-        </DialogFooter>
+        {/* No QR to print or download while the ticket is held — the buttons return once
+            it is released. */}
+        {!held && (
+          <DialogFooter className="print-hidden">
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="h-4 w-4" /> Print
+            </Button>
+            <Button onClick={handleDownload}>
+              <Download className="h-4 w-4" /> Download QR
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );

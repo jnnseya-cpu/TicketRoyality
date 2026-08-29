@@ -487,6 +487,15 @@ export interface Event {
   ticketTiers: TicketTier[];
   seating?: SeatingSection[];
   /**
+   * Held ticket release. When set to a future date, a buyer still purchases now and their
+   * ticket is issued, counted and guaranteed — but it shows as a **purchase confirmation**
+   * rather than a scannable QR until this moment, and the door refuses it before then. The
+   * organiser sets it, and the form caps it at **7 days before the event** so a held ticket
+   * always releases with time to spare. Absent means tickets are usable the instant they
+   * are bought, as before.
+   */
+  ticketReleaseAt?: string;
+  /**
    * Fundraising alongside the tickets.
    *
    * Off unless the organiser turns it on. A donation is a **separate amount** from the

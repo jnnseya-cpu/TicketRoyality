@@ -53,6 +53,7 @@ export type RedeemResult =
         | 'expired-code'
         | 'refunded'
         | 'blocked'
+        | 'not-released'
         | 'unavailable';
       error: string;
       reference?: string;
@@ -115,6 +116,19 @@ export async function redeemAtDoor(
     // Read once and used twice: for the ownership check, and for the webhook's audience.
     const event = await db.collection('events').doc(eventId).get();
     eventOwnerId = String(event.data()?.organizerId ?? '');
+
+    // Held release: refuse a ticket the organiser has not released yet, whoever scans it.
+    // Belt-and-suspenders — the wallet does not show a held ticket's QR — but the door is
+    // the authority, so it enforces the date rather than trusting the screen.
+    const releaseRaw = event.data()?.ticketReleaseAt;
+    if (releaseRaw && new Date(String(releaseRaw)).getTime() > Date.now()) {
+      return {
+        ok: false,
+        status: 409,
+        kind: 'not-released',
+        error: `Not released yet — tickets unlock on ${new Date(String(releaseRaw)).toLocaleString('en-GB')}.`,
+      };
+    }
 
     if (!isAdmin) {
       if (!event.exists) {
