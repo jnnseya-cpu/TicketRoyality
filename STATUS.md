@@ -1102,7 +1102,7 @@ The homepage "In the spotlight" strip is now **video only, on two screens**. Eac
 cycles up to **three** promo videos; the two screens run **three seconds out of phase** so
 they never cut together; every clip is capped at **15 seconds** on screen. The YouTube cap
 needs no API: `youTubeClipEmbed` builds a **no-loop** embed with `end=15`, so the clip plays
-0→15s and **stops** rather than restarting; a file is held by the 15s timer. Only featured events that actually carry a video reach the
+0→15s and **stops** rather than restarting; a file is held by the 15s timer. And the cap is enforced at **upload** too: `VideoAdPicker` reads a chosen or pasted MP4/WebM's duration in the browser (metadata only) and **refuses anything over 15s** before it is saved — a YouTube link, or a cross-origin file it cannot read, still falls through to the playback cap. Only featured events that actually carry a video reach the
 strip — an event with no video no longer appears, and the whole section renders nothing when
 nothing featured has a video (the anti-fake rule this strip already carried). Videos are
 interleaved across the two screens (up to 6), and one lone video shows on a single screen

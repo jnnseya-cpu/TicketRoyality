@@ -9,6 +9,46 @@ import { useToast } from '@/frontend/hooks/use-toast';
 import { ACCEPTED_VIDEO, uploadVideo } from '@/frontend/lib/media';
 import { parseVideoAd } from '@/shared/video';
 
+/** A promo clip may not exceed this. Enforced here on upload/paste and again at playback. */
+const MAX_VIDEO_SECONDS = 15;
+// A hair of slack so a clip authored at exactly 15.0s isn't rejected for reading 15.03.
+const LIMIT = MAX_VIDEO_SECONDS + 0.5;
+
+/**
+ * Read a video's duration in the browser by loading only its metadata. Resolves the seconds,
+ * or rejects when the source can't be read (a cross-origin host that forbids it) — in which
+ * case the caller lets it through, because the 15-second playback cap still holds.
+ */
+function readDurationSeconds(src: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    const done = () => {
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute('src');
+      video.load();
+    };
+    const timeout = setTimeout(() => {
+      done();
+      reject(new Error('timeout'));
+    }, 8_000);
+    video.onloadedmetadata = () => {
+      clearTimeout(timeout);
+      const seconds = video.duration;
+      done();
+      resolve(seconds);
+    };
+    video.onerror = () => {
+      clearTimeout(timeout);
+      done();
+      reject(new Error('unreadable'));
+    };
+    video.src = src;
+  });
+}
+
 /**
  * Attach a promotional video for the homepage spotlight strip — three ways in, one field
  * out (`videoAdUrl`):
@@ -39,6 +79,25 @@ export function VideoAdPicker({
     if (!file) return;
     setUploading(true);
     try {
+      // Reject a long clip before it is uploaded. A local file's metadata is same-origin, so
+      // the duration always reads; only an unreadable one (rare) falls through to the cap.
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        const seconds = await readDurationSeconds(objectUrl);
+        if (Number.isFinite(seconds) && seconds > LIMIT) {
+          toast({
+            variant: 'destructive',
+            title: 'That clip is too long',
+            description: `Promo videos are ${MAX_VIDEO_SECONDS} seconds max — yours is ${Math.round(seconds)}s. Trim it and try again.`,
+          });
+          return;
+        }
+      } catch {
+        /* unreadable metadata: allow it — playback still hard-stops at 15s */
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+
       const uploaded = await uploadVideo(organiserId, file);
       onChange(uploaded.url);
     } catch (error) {
@@ -54,7 +113,8 @@ export function VideoAdPicker({
     }
   };
 
-  const addLink = () => {
+  const [checking, setChecking] = React.useState(false);
+  const addLink = async () => {
     const url = draft.trim();
     if (!url) return;
     // A light sanity check; parseVideoAd accepts anything, so guard the obvious paste slip.
@@ -66,6 +126,30 @@ export function VideoAdPicker({
       });
       return;
     }
+
+    // A pasted direct file we can read: hold it to 15s too. A YouTube link has no readable
+    // duration here (that would need the API), and a cross-origin file may refuse to report
+    // one — both fall through to the playback cap, which stops them at 15s regardless.
+    const parsed = parseVideoAd(url);
+    if (parsed?.kind === 'file') {
+      setChecking(true);
+      try {
+        const seconds = await readDurationSeconds(url);
+        if (Number.isFinite(seconds) && seconds > LIMIT) {
+          toast({
+            variant: 'destructive',
+            title: 'That clip is too long',
+            description: `Promo videos are ${MAX_VIDEO_SECONDS} seconds max — yours is ${Math.round(seconds)}s.`,
+          });
+          return;
+        }
+      } catch {
+        /* can't read it (CORS/host): allow — the 15s playback cap still applies */
+      } finally {
+        setChecking(false);
+      }
+    }
+
     onChange(url);
     setDraft('');
   };
@@ -130,15 +214,20 @@ export function VideoAdPicker({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    addLink();
+                    void addLink();
                   }
                 }}
                 placeholder="YouTube link, or a direct .mp4/.webm URL"
                 className="pl-9"
               />
             </div>
-            <Button type="button" variant="secondary" onClick={addLink} disabled={!draft.trim()}>
-              Add
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void addLink()}
+              disabled={!draft.trim() || checking}
+            >
+              {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add'}
             </Button>
           </div>
         </>
@@ -157,9 +246,10 @@ export function VideoAdPicker({
 
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Film className="h-3 w-3" />
-        A YouTube link works right away. An uploaded MP4/WebM (up to 50MB) needs the Storage
-        rule deployed. It plays muted and looping in the homepage spotlight while a Spotlight
-        placement is active; the cover picture shows if there is no video.
+        Up to {MAX_VIDEO_SECONDS} seconds — longer uploads are refused, and any clip stops at{' '}
+        {MAX_VIDEO_SECONDS}s on screen. A YouTube link works right away; an uploaded MP4/WebM
+        (up to 50MB) needs the Storage rule deployed. It plays muted in the homepage spotlight
+        while a placement is active.
       </p>
     </div>
   );
