@@ -993,6 +993,33 @@ price"). One surface leaked face — the homepage **video spotlight** (`VideoAds
 `allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
 typecheck, lint, build.
 
+### 29 August — White-label fee structure (owner request, Phase 1 of 3)
+
+Groundwork for a white-label tier where an organiser sells under their own brand. Owner
+decisions: **per-ticket platform fee** (not commission or subscription); the **organiser
+sets their own fan booking fee** (any % + flat, including zero, absorb or pass); **full
+custom domain** eventually. This commit builds **only the fee model** — the part the owner
+flagged as needed — as a complete, tested unit. Wiring it into checkout/issuance (Phase 1b),
+de-branding the fan surfaces (Phase 2) and per-tenant custom domains + TLS (Phase 3) are
+**not built yet** and are not implied by this entry.
+
+- **Data model**: `UserProfile.whiteLabel?: WhiteLabelConfig` — `enabled`, `brandName`,
+  `customDomain` (reserved), the organiser's `buyerFeePct` / `buyerFeeFixedMinor` / `feeMode`
+  (`absorb` | `pass`), and the superuser-set `platformPerTicketMinor` (platform revenue).
+- **Engine**: `computeWhiteLabelOrder(lines, profile, options)` in `shared/fees.ts` — pure,
+  integer-only, reusing the same `round`, rail table and per-order platform cost as
+  `computeOrderFees` (no second copy of the arithmetic). The **organiser bears the card
+  cost** (their brand, their processor economics), which is exactly what stops a flat
+  per-ticket fee going underwater on a dear ticket — the trap that a fee *cap* on the
+  standard model falls into. The platform's revenue is `platformPerTicketMinor` per paid
+  ticket and nothing else, so **the platform can never take a white-label order at a loss**;
+  the guard that can trip is the organiser's own `organiserProfitable` flag, false when their
+  fee settings wouldn't cover the platform fee + card cost on a cheap ticket.
+- **Free tickets** carry no booking fee and no platform fee, matching the standard model.
+- Six tests added to `fees.test.ts` pinning pass/absorb, the flat platform cut, organiser-
+  borne card cost (£20 passed → fan £21.50, organiser nets £20.48, platform £0.40 clean),
+  the free-list case and the below-zero guard. Verified: 43/43 fee tests, typecheck, lint.
+
 ### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
 
 Swept the public surfaces for horizontal overflow at 320–768px across two font scales

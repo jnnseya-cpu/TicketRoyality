@@ -400,6 +400,121 @@ export function validateFeeConfig(cfg: FeeConfig = ZERO_FEE_CONFIG): ConfigAudit
 }
 
 /* ------------------------------------------------------------------------- */
+/* White-label — a per-organiser fee model.                                   */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * A white-label organiser's fee inputs. The organiser sells under their own brand and
+ * sets their own fan-facing booking fee (their revenue); the platform earns a flat
+ * per-ticket fee instead of the standard buyer service fee.
+ */
+export interface WhiteLabelFeeProfile {
+  /** The organiser's booking fee, percentage of face. Zero is allowed. */
+  buyerFeePct: number;
+  /** The organiser's booking fee, flat per paid ticket, in minor units. Zero is allowed. */
+  buyerFeeFixedMinor: number;
+  /** `pass` charges the fan the booking fee on top of face; `absorb` funds it from the payout. */
+  feeMode: 'absorb' | 'pass';
+  /** The platform's flat cut per issued paid ticket, in minor units. This is platform revenue. */
+  platformPerTicketMinor: number;
+}
+
+export interface WhiteLabelQuote {
+  countryCode: string;
+  currency: string;
+  faceMinor: number;
+  paidQuantity: number;
+
+  /** The organiser's booking fee for the whole order — their revenue, fan-facing. */
+  bookingFeeMinor: number;
+  /** What the fan pays: face + booking fee when passed, else face. */
+  buyerTotalMinor: number;
+  /** The platform's fee for the whole order — TicketRoyality's revenue. Always clean profit. */
+  platformFeeMinor: number;
+  /**
+   * Card + infra cost on the whole charge, in minor units. On white-label the organiser
+   * bears this (their own brand, their own processor economics), which is exactly what
+   * keeps the platform's flat per-ticket fee from going underwater on a dear ticket —
+   * the trap a flat fee falls into whenever the platform absorbs a percentage card cost.
+   */
+  processingCostMinor: number;
+  /** What the organiser nets: buyer total − platform fee − processing. */
+  organiserPayoutMinor: number;
+  /** False if these fee settings would net the organiser below zero on this order. */
+  organiserProfitable: boolean;
+
+  rail: PaymentRail;
+}
+
+/**
+ * The authoritative white-label quote — the one place a white-label price is decided.
+ *
+ * Pure and integer-only, exactly like `computeOrderFees`, so it runs on the client for
+ * display and on the server for the charge and cannot disagree by a penny. Reuses the
+ * same `round`, rail table and per-order platform cost as the standard path rather than
+ * standing up a second copy of the arithmetic.
+ *
+ * The platform's revenue here is `platformPerTicketMinor` per paid ticket and nothing
+ * else — the organiser bears the card cost — so the platform can never take a white-label
+ * order at a loss. The guard that can trip is the *organiser's*: if their own booking fee
+ * does not cover the platform fee plus card cost on a cheap ticket, `organiserProfitable`
+ * is false and the UI must warn them before they sell.
+ */
+export function computeWhiteLabelOrder(
+  lines: OrderLine[],
+  profile: WhiteLabelFeeProfile,
+  options: { rail?: PaymentRail; countryCode?: string; cfg?: FeeConfig } = {}
+): WhiteLabelQuote {
+  const cfg = options.cfg ?? ZERO_FEE_CONFIG;
+  const rail = options.rail ?? 'stripe_uk_card';
+  const country = countryFor(cfg, options.countryCode);
+
+  const paid = lines.filter((line) => line.faceMinor > 0 && line.qty > 0);
+  const faceMinor = lines.reduce((total, line) => total + line.faceMinor * line.qty, 0);
+  const paidQuantity = paid.reduce((total, line) => total + line.qty, 0);
+
+  // The organiser's booking fee, per paid ticket. Free tickets carry none — same rule the
+  // standard service fee follows, and for the same reason.
+  const pct = Math.max(0, profile.buyerFeePct);
+  const flat = Math.max(0, profile.buyerFeeFixedMinor);
+  const bookingFeeMinor = paid.reduce(
+    (total, line) => total + (round((line.faceMinor * pct) / 100) + flat) * line.qty,
+    0
+  );
+
+  const buyerTotalMinor = faceMinor + (profile.feeMode === 'pass' ? bookingFeeMinor : 0);
+
+  // The platform's flat cut — per paid ticket, so a free guest list costs the organiser
+  // nothing, matching the standard model.
+  const platformFeeMinor = Math.max(0, profile.platformPerTicketMinor) * paidQuantity;
+
+  // Card + infra on the whole charge, once per order (the processor bills per transaction,
+  // not per ticket). Borne by the organiser.
+  const railCost = cfg.costs.rails[rail];
+  const pctOnCharge = round((buyerTotalMinor * railCost.pct) / 100);
+  const railPctCharged =
+    railCost.capPence === undefined ? pctOnCharge : Math.min(pctOnCharge, railCost.capPence);
+  const processingCostMinor =
+    paidQuantity > 0 ? railPctCharged + railCost.fixedPence + cfg.costs.platformFixedPerOrderMinor : 0;
+
+  const organiserPayoutMinor = buyerTotalMinor - platformFeeMinor - processingCostMinor;
+
+  return {
+    countryCode: country.countryCode,
+    currency: country.currency,
+    faceMinor,
+    paidQuantity,
+    bookingFeeMinor,
+    buyerTotalMinor,
+    platformFeeMinor,
+    processingCostMinor,
+    organiserPayoutMinor,
+    organiserProfitable: organiserPayoutMinor >= 0,
+    rail,
+  };
+}
+
+/* ------------------------------------------------------------------------- */
 /* Bridge to the float-pounds convention used by pricing.ts.                  */
 /* ------------------------------------------------------------------------- */
 

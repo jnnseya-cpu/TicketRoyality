@@ -45,6 +45,20 @@ export interface UserProfile {
   commissionPercent?: number;
   adminFee?: number;
 
+  /**
+   * White-label tier. Absent (or `enabled: false`) means this organiser sells under the
+   * standard TicketRoyality model — 0% commission, the platform's own buyer service fee,
+   * platform branding.
+   *
+   * When enabled, the organiser sells under their own brand and sets their own fan-facing
+   * booking fee (their revenue, may be zero), and the platform earns a flat per-ticket fee
+   * instead. See `computeWhiteLabelOrder` in `shared/fees.ts` for the authoritative
+   * arithmetic; the fields here are the inputs, never the computed prices. `platformPerTicketMinor`
+   * is set by the superuser (it is TicketRoyality's revenue); the fan-fee fields are the
+   * organiser's own.
+   */
+  whiteLabel?: WhiteLabelConfig;
+
   wallet?: Wallet;
   welcomeBonusGranted?: boolean;
 
@@ -72,6 +86,28 @@ export interface UserProfile {
     email?: boolean;
     unsubscribedAt?: string;
   };
+}
+
+/**
+ * A white-label organiser's configuration. See `UserProfile.whiteLabel` and the
+ * authoritative arithmetic in `computeWhiteLabelOrder` (`shared/fees.ts`). The fields here
+ * are inputs, never computed prices. `platformPerTicketMinor` is superuser-set (platform
+ * revenue); the fan-fee fields are the organiser's own.
+ */
+export interface WhiteLabelConfig {
+  enabled: boolean;
+  /** The name shown to fans in place of "TicketRoyality" on this organiser's pages and receipts. */
+  brandName?: string;
+  /** Reserved for the custom-domain phase — the organiser's own host, e.g. `tickets.brand.com`. */
+  customDomain?: string;
+  /** The organiser's own booking fee, as a percentage of face. Zero is allowed. */
+  buyerFeePct: number;
+  /** The organiser's own booking fee, flat per paid ticket, in minor units. Zero is allowed. */
+  buyerFeeFixedMinor: number;
+  /** `pass` charges the fan the booking fee on top of face; `absorb` funds it from the organiser's payout. */
+  feeMode: 'absorb' | 'pass';
+  /** TicketRoyality's flat cut per issued paid ticket, in minor units. Superuser-set — this is platform revenue. */
+  platformPerTicketMinor: number;
 }
 
 export type EventType = 'physical' | 'online' | 'livestream';
