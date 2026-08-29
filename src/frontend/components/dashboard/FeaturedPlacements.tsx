@@ -179,6 +179,7 @@ export function FeaturedPlacements() {
             <div className="space-y-2 pt-1">
               {(
                 [
+                  ['showcase', Boolean(picked.showcase)],
                   ['video-ad', Boolean(picked.spotlight)],
                   ['featured', Boolean(picked.featured)],
                   ['newsletter', Boolean(picked.newsletterSpotlight)],
