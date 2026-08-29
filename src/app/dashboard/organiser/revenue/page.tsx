@@ -18,6 +18,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/frontend/components/ui/tabs';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
 import { useToast } from '@/frontend/hooks/use-toast';
+import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { getTicketsForOrganizer } from '@/shared/data/repositories';
 import { commissionTermsFor, platformCutForTicket, settle } from '@/shared/pricing';
 import { formatCurrency } from '@/shared/utils';
@@ -34,6 +35,8 @@ const PAYOUT_METHODS = [
 function Revenue({ profile }: { profile: UserProfile }) {
   const { toast } = useToast();
   const [tickets, setTickets] = React.useState<Ticket[]>([]);
+  // Box-office service fee the organiser owes, per currency in minor units (net of refunds).
+  const [owed, setOwed] = React.useState<Record<string, number>>({});
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -46,6 +49,14 @@ function Revenue({ profile }: { profile: UserProfile }) {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    // Door sales are cash/card/mobile money in the organiser's own hand, so their fee is
+    // owed to the platform and netted off the payout rather than paid out.
+    authedFetch('/api/box-office/sales')
+      .then((res) => res.json())
+      .then((data: { owed?: Record<string, number> }) => {
+        if (!cancelled) setOwed(data.owed ?? {});
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -53,13 +64,30 @@ function Revenue({ profile }: { profile: UserProfile }) {
 
   // Memoised so the statement below is not rebuilt on every render by a fresh object identity.
   const terms = React.useMemo(() => commissionTermsFor(profile), [profile]);
-  const { gross, platformTotal: commission, net } = settle(tickets, terms);
-  const balance = Math.max(0, net);
 
-  // Running-balance statement, oldest first.
+  // Only tickets whose money the platform actually collected are payable. A box-office
+  // (`offline`) sale's face value is already in the organiser's hand — counting it as
+  // payable would pay them a second time for cash they already took. `offline` is the
+  // box-office issuance path (see box-office.ts); nothing else issues under it today.
+  const onlineTickets = React.useMemo(
+    () => tickets.filter((t) => t.paymentProvider !== 'offline'),
+    [tickets]
+  );
+  const { gross, platformTotal: commission, net } = settle(onlineTickets, terms);
+
+  // The door-sale fees owed, as a single settlement-currency figure (the page pays out in
+  // GBP; it already pools ticket amounts across currencies the same way).
+  const feesOwed = React.useMemo(
+    () => Object.values(owed).reduce((sum, minor) => sum + minor, 0) / 100,
+    [owed]
+  );
+  const balance = Math.max(0, net - feesOwed);
+
+  // Running-balance statement, oldest first. Box-office sales are excluded — they never
+  // pay out — so the statement reconciles to the available balance above.
   const statement = React.useMemo(() => {
     let running = 0;
-    return [...tickets]
+    return [...onlineTickets]
       .sort((a, b) => a.purchasedAt.localeCompare(b.purchasedAt))
       .map((ticket) => {
         const fee = platformCutForTicket(ticket.price, terms);
@@ -76,7 +104,7 @@ function Revenue({ profile }: { profile: UserProfile }) {
         };
       })
       .reverse();
-  }, [tickets, terms]);
+  }, [onlineTickets, terms]);
 
   if (loading) {
     return (
@@ -92,7 +120,9 @@ function Revenue({ profile }: { profile: UserProfile }) {
         <h1 className="font-headline text-2xl font-bold">Revenue &amp; payouts</h1>
         <p className="text-sm text-muted-foreground">
           Your balance after platform commission of {terms.percent}% plus{' '}
-          {formatCurrency(terms.adminFee)} per ticket.
+          {formatCurrency(terms.adminFee)} per ticket. Box-office (door) sales are collected
+          by you in person, so their face value is not paid out — only their service fee is
+          deducted here.
         </p>
       </div>
 
@@ -105,6 +135,15 @@ function Revenue({ profile }: { profile: UserProfile }) {
                 Available balance
               </p>
               <p className="font-headline text-2xl font-bold">{formatCurrency(balance)}</p>
+              {feesOwed > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Box-office service fees owed:{' '}
+                  <span className="tabular-nums text-destructive">
+                    -{formatCurrency(feesOwed)}
+                  </span>{' '}
+                  netted off
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

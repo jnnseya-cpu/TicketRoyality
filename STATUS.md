@@ -957,8 +957,18 @@ variant refunds a single ticket of a multi-ticket sale, leaving the rest valid �
 by ticket status, with the owed fee reduced by the per-ticket share and the sale marked
 `refunded` only once every ticket is. The organiser opens a sale to a per-ticket refund
 dialog (each valid ticket has a Refund button, plus "Refund all valid"); cash is handed back
-physically. **Still not covered**: the payout **deduction** itself depends on the payout
-process reading the owed figure this surfaces.
+physically.
+Follow-up — **payout accounting** (closing the third recorded limit): the Revenue & payouts
+page (`/dashboard/organiser/revenue`) now (a) **excludes box-office tickets from the payout
+gross** — a door sale's face value is already in the organiser's hand, so `settle()` runs
+over online tickets only (`paymentProvider !== 'offline'`; `offline` is the box-office
+issuance path and nothing else issues under it today) instead of double-counting cash the
+platform never received; and (b) **nets the owed door-sale service fee off the available
+balance**, with a "Box-office service fees owed: −£X netted off" line, reading the same
+`owed` figure `/api/box-office/sales` returns (net of refunds). The account statement is
+computed over the same online tickets, so it reconciles to the balance. Payouts remain
+display-only (no automated payout service exists); this makes the *displayed* balance the
+true payable amount. Verified: typecheck, lint.
 
 ### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
 
