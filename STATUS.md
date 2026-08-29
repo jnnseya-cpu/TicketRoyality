@@ -1070,6 +1070,26 @@ on in the Stripe dashboard and sets the env — no accidental transfers, no fake
   Activation is an owner action: enable Connect + `STRIPE_CONNECT_ENABLED=true`. Verified:
   4/4 settlement tests, typecheck, lint, build.
 
+### 29 August — landing-page rewrite: punchier, and caught up with what shipped
+
+Owner ask: make the public copy far more persuasive, and reflect everything built since. The
+homepage's truth rule holds — a claim goes live only against `STATUS.md`, never `docs/`:
+
+- **Hero** rewritten around the real differentiators: "Sell out the room. Keep every penny of
+  face." Sub-copy leads with **0% commission / 100% of face**, one **fair all-in price** (no
+  drip pricing), the 30-second rotating code, and **selling at the door** by card or mobile
+  money. CTA → "Start selling — free" (true: the organiser is charged nothing).
+- **`REVENUE_TOOLS`** corrected to what now has code: VIP tables & hospitality, tracked
+  promoter links, **sell at the door**, and **season tickets / presales / renewals** are all
+  flipped to live (each has a shipped `STATUS.md` row); merchandise and parking stay marked
+  not-live. No claim was moved to live without its row.
+- **Core features** gain "You keep 100% of face" and "Sell at the door" up top, each annotated
+  with the file that makes it true. Generic AI-tell copy ("distributed infrastructure for
+  high-trust orchestration") replaced with plain benefit lines.
+- Not marketed as live, correctly: white-label (fee model only) and automatic payouts (rail
+  built but gated off) — neither is claimed on the landing page. Verified: typecheck, lint,
+  build, check:links (26 published, every route resolves).
+
 ### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
 
 Swept the public surfaces for horizontal overflow at 320–768px across two font scales

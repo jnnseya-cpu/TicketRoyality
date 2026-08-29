@@ -78,9 +78,21 @@ const HEADLINE_STATS = [
 
 const CORE_FEATURES = [
   {
+    icon: TrendingUp,
+    title: 'You keep 100% of face',
+    // billing.ts DEFAULT_COMMISSION_PERCENT/ADMIN_FEE = 0; fees.ts carries the buyer-side fee.
+    body: '0% organiser commission — ever. Your fans pay one fair, all-in service fee shown before they check out, and every penny of face value is yours. No skim, no drip pricing, no surprise line at the till.',
+  },
+  {
+    icon: Store,
+    title: 'Sell at the door',
+    // box-office.ts — walk-up sales through the one issuance path; PIN-gated staff link.
+    body: 'Walk-up sales in seconds — cash, card or mobile money — each a real, scannable, counted ticket at the same price as online. Hand your gate team a PIN-protected link and they sell without your login.',
+  },
+  {
     icon: Ticket,
-    title: 'Smart Ticket Sales',
-    body: 'Create and sell tickets for concerts, football matches, conferences, festivals, and VIP experiences.',
+    title: 'Sell anything, any way',
+    body: 'Concerts, matches, conferences, festivals, VIP nights — with tiers, presales, season tickets, tables and tracked promoter links, all from one event.',
   },
   {
     icon: QrCode,
@@ -149,17 +161,16 @@ const EXPERIENCE_STEPS = [
 
 const REVENUE_TOOLS = [
   { name: 'Standard tickets', live: true },
-  { name: 'VIP and premium tiers', live: true },
+  { name: 'VIP tiers, tables & hospitality', live: true }, // packages/deposits/balances/guest list — built & tested
   { name: 'Free and guest-list places', live: true },
-  { name: 'Discount codes', live: true },
-  // Everything below is specified and absent. Listed rather than hidden, because an
-  // organiser choosing a platform is entitled to know what is coming — but marked,
-  // because the block previously read "Eight ways to earn" when four of the eight had
-  // no code behind them at all.
-  { name: 'Hospitality and tables', live: false },
+  { name: 'Discount codes & tracked promoter links', live: true }, // coupons + partner attribution shipped
+  { name: 'Sell at the door — cash, card or mobile money', live: true }, // box-office / door sales
+  { name: 'Season tickets, presales & renewals', live: true }, // season passes + loyalty presale + holder-first renewal
+  // Still specified and absent. Listed rather than hidden — an organiser choosing a
+  // platform is entitled to know what is coming — but marked, because this block must
+  // never read as live when the code is not.
   { name: 'Merchandise and add-ons', live: false },
   { name: 'Parking and food', live: false },
-  { name: 'Sponsor visibility', live: false },
 ];
 
 /** Small uppercase kicker above each section heading. */
@@ -195,31 +206,34 @@ export default async function HomePage() {
           <div className="max-w-3xl animate-fade-in-up">
             <Badge variant="gold" className="mb-5 gap-1.5 px-3 py-1">
               <Crown className="h-3.5 w-3.5" />
-              Premium Event Access · Verified Tickets · Royal Experience
+              0% organiser commission · You keep 100% of face
             </Badge>
 
             <h1 className="font-headline text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
-              Sell Out Events.
+              Sell out the room.
               <br />
-              Control Every Ticket.
+              Keep every penny of face.
               <br />
-              <span className="text-royal">Deliver a Royal Experience.</span>
+              <span className="text-royal">Run the night like royalty.</span>
             </h1>
 
             <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              TicketRoyality is a premium ticketing infrastructure built for stadiums, concerts,
-              festivals, and VIP events — powered by AI orchestration and real-time fraud
-              verification.
+              Premium ticketing for stadiums, festivals, concerts and VIP nights. We charge you
+              nothing — <strong className="text-foreground">0% commission, 100% of face value is
+              yours</strong> — while your fans pay one fair, all-in price with no nasty surprise at
+              checkout. Every ticket refreshes its code every 30 seconds, so it can&apos;t be
+              faked, forwarded or scanned twice. Sell online, <strong className="text-foreground">at
+              the door</strong>, by card or mobile money.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Button size="lg" variant="royal" asChild>
                 <Link href="/register/organiser">
-                  Launch Your Event <ArrowRight className="h-4 w-4" />
+                  Start selling — free <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link href="/events">Enter Platform</Link>
+                <Link href="/events">Browse live events</Link>
               </Button>
             </div>
 
@@ -243,11 +257,12 @@ export default async function HomePage() {
           <div>
             <Eyebrow>Operational core</Eyebrow>
             <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">
-              Built for <span className="text-royal">Serious Events</span>
+              Built for <span className="text-royal">serious events</span>
             </h2>
             <p className="mt-4 text-muted-foreground">
-              TicketRoyality gives event organisers total control from first sale to final scan.
-              A distributed infrastructure for high-trust event orchestration.
+              From the first sale to the final scan, you hold every lever — pricing, capacity,
+              the door, the money. No overselling. No fake tickets. No commission skimmed off the
+              top. Just your event, run properly.
             </p>
 
             <ul className="mt-6 space-y-3">
