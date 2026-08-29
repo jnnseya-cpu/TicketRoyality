@@ -193,6 +193,61 @@ export async function sellAtDoor(input: DoorSaleInput): Promise<DoorSaleResult> 
   };
 }
 
+export interface DoorTicket {
+  id: string;
+  reference: string;
+  eventId: string;
+  qrSignature?: string;
+  attendeeName?: string;
+  tierName?: string;
+  seat?: string;
+}
+
+/**
+ * The tickets a door sale issued, for showing the buyer their QR on the spot. Issuance is
+ * a beat behind the sale (it runs in the function), so this returns `[]` until the marker
+ * exists — the caller polls. Authorised by the sale's own event: the owning organiser, or
+ * a valid door PIN for that event.
+ */
+export async function saleTickets(
+  saleId: string,
+  auth: { organizerId?: string; pin?: string }
+): Promise<{ ok: true; tickets: DoorTicket[] } | { ok: false; error: string }> {
+  if (!isAdminConfigured()) return { ok: false, error: 'Unavailable right now.' };
+  const db = getAdminDb();
+  const saleSnap = await db.collection(SALES).doc(saleId).get();
+  if (!saleSnap.exists) return { ok: false, error: 'Sale not found.' };
+  const sale = saleSnap.data() as BoxOfficeSale;
+
+  const authorised = auth.organizerId
+    ? sale.organizerId === auth.organizerId
+    : auth.pin
+      ? await verifyBoxOfficePin(sale.eventId, auth.pin)
+      : false;
+  if (!authorised) return { ok: false, error: 'Not authorised.' };
+
+  const marker = await db.collection('issued_payments').doc(saleId).get();
+  const ids = (marker.data()?.ticketIds as string[] | undefined) ?? [];
+  if (ids.length === 0) return { ok: true, tickets: [] }; // not issued yet — poll again
+
+  const tickets: DoorTicket[] = [];
+  for (const id of ids) {
+    const t = await db.collection('tickets').doc(id).get();
+    if (!t.exists) continue;
+    const d = t.data() as Record<string, unknown>;
+    tickets.push({
+      id,
+      reference: String(d.reference ?? ''),
+      eventId: String(d.eventId ?? ''),
+      qrSignature: d.qrSignature ? String(d.qrSignature) : undefined,
+      attendeeName: d.attendeeName ? String(d.attendeeName) : undefined,
+      tierName: d.tierName ? String(d.tierName) : undefined,
+      seat: d.seat ? String(d.seat) : undefined,
+    });
+  }
+  return { ok: true, tickets };
+}
+
 /** The organiser's door sales, newest first, with the fee they owe. */
 export async function listDoorSales(organizerId: string): Promise<BoxOfficeSale[]> {
   if (!isAdminConfigured()) return [];

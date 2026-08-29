@@ -942,11 +942,16 @@ Server-side authority throughout: price re-read from Firestore, quantity 1–50,
 validated, ownership or PIN checked before any sale. `box_office_sales` and
 `event_box_office` are Admin-SDK-only (belt-and-suspenders explicit denies on top of the
 default-deny catch-all), so no client can read the PIN hash or forge a sale. Verified:
-typecheck, lint, production build. **Not covered in this pass** (recorded, not hidden):
-an on-screen QR at the moment of sale (the ticket issues a beat later and is emailed if an
-address is given, or found in the event's ticket list / admitted by scanning the buyer in);
-per-ticket rather than per-sale refunds; and the payout **deduction** itself depends on the
-payout process reading the owed figure this surfaces. **Next**: delayed ticket release.
+typecheck, lint, production build.
+
+Follow-up the same day — **QR at the moment of sale** (closing the first recorded limit):
+issuance runs a beat behind the sale, so the sell screen now polls the sale's tickets for
+a few seconds (`/api/box-office/sale-tickets`, authorised by the sale's event via the owning
+organiser or the door PIN) and shows the QR the instant they exist, so a buyer with no email
+still leaves with their ticket. Giving up is harmless — the ticket is issued regardless.
+**Still not covered** (recorded, not hidden): per-ticket rather than per-sale refunds; and
+the payout **deduction** itself depends on the payout process reading the owed figure this
+surfaces.
 
 ### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
 
