@@ -69,7 +69,7 @@ const SEGMENTS = [
     name: 'Concert promoters',
     need: 'Tiered pricing, coupons, commission you can see',
     detail:
-      'Run early-bird, general and VIP from one event, each with its own sales window so the early-bird closes exactly when you said it would, discount with coupon codes, and keep 100% of every ticket value — we charge organisers no commission at all. Buyers pay one service fee, shown inside the advertised price. Give a promoter a tracked link with an allocation and their sales, clicks and commission are counted for you.',
+      'Run early-bird, general and VIP from one event, each with its own sales window so the early-bird closes exactly when you said it would, discount with coupon codes, and keep 100% of every ticket value — we charge organisers no commission at all. Buyers pay one service fee, shown inside the advertised price. Give a promoter a tracked link with an allocation and their sales, clicks and commission are counted for you. Hold the on-sale when you want confirmed buyers before the tickets exist: people pay and get a confirmation, and the real tickets release on a date you choose, no later than seven days before the event.',
     next: 'Automatic payouts run on Stripe Connect: an organiser connects a payout account and settlements reach their bank, keyed so a retry never pays twice. Wiring each owed source (a promoter\u2019s commission, box-office fees) to settle on its own, and promoter onboarding, is the remaining step; until then that commission is still recorded as owed and paid directly.',
   },
   {
@@ -93,7 +93,7 @@ const SEGMENTS = [
     name: 'Nightclubs',
     need: 'Door throughput on the phones you already have',
     detail:
-      'A per-event check-in page scans QR codes and redeems them on the spot, on as many devices as you have staff. A redeemed ticket cannot be redeemed twice, and redeemed tickets are protected from refund. Tables sell as packages with a deposit now and the balance later, and the booker names their own guest list. A door blocklist refuses people you have barred, by email or by ticket, without cancelling anything. Download the ticket list before doors and the scanner keeps working with no signal, rotating codes still checked.',
+      'A per-event check-in page scans QR codes and redeems them on the spot, on as many devices as you have staff. A redeemed ticket cannot be redeemed twice, and redeemed tickets are protected from refund. Tables sell as packages with a deposit now and the balance later, and the booker names their own guest list. A door blocklist refuses people you have barred, by email or by ticket, without cancelling anything. Download the ticket list before doors and the scanner keeps working with no signal, rotating codes still checked. Sell at the door on the same system \u2014 cash, card or mobile money, each a real scannable counted ticket at the online price, from a PIN-protected staff link that needs none of your logins.',
     next: 'Online doors now see every gate\u2019s admissions live \u2014 a running count and the latest entries across the venue. A genuinely offline door still knows only what it admitted; a ticket used twice is reported with both scan times the moment scans sync.',
   },
   {
@@ -133,7 +133,7 @@ const SEGMENTS = [
     name: 'Parties & celebrations',
     need: 'Birthdays, private hire, a guest count you control',
     detail:
-      'Birthday parties, graduations, hen and stag nights, house, day and boat parties. Sell paid entry or issue free places, cap the guest list so a venue is never oversold, and check people in from a phone at the door.',
+      'Birthday parties, graduations, hen and stag nights, house, day and boat parties. Sell paid entry or issue free places, cap the guest list so a venue is never oversold, and check people in from a phone at the door. Take walk-up payment at the door too \u2014 cash, card or mobile money \u2014 issued as a real counted ticket from a staff link protected by a PIN.',
     next: null,
   },
   {
