@@ -977,8 +977,13 @@ per ticket", "Commission withheld"). Under the live model (`DEFAULT_COMMISSION_P
 misframed the model. The header now reads "You keep 100% of face value — the platform's
 service fee is charged to the buyer at checkout, not taken from your payout" and the third
 card shows **Box-office fees owed** (the only real deduction), reverting to the commission
-wording only when a bespoke `commissionTermsFor` override makes it non-zero. Verified:
-typecheck, lint.
+wording only when a bespoke `commissionTermsFor` override makes it non-zero.
+Also (owner direction — platform revenue is internal): under the zero-commission model the
+statement's **Fee** column is hidden (it was −£0.00 on every online row), and the
+organiser-facing `TierEconomics` breakdown no longer itemises the **platform's service-fee
+revenue** ("Fan service fee" line removed) — the organiser still sees they receive 100% of
+face and the price the fan will pay; the platform's per-ticket cut is now shown only on the
+superuser surfaces. Verified: typecheck, lint.
 
 ### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
 

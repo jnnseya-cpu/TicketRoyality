@@ -45,11 +45,6 @@ export function TierEconomics({ price, currency }: { price: number; currency: st
 
       <dt className="col-span-2 border-t border-border/70 pt-1" />
 
-      <dt className="text-muted-foreground">Fan service fee</dt>
-      <dd className="text-right tabular-nums">
-        {formatCurrency(toMajor(quote.serviceFeeMinor), currency)}
-      </dd>
-
       <dt className="text-muted-foreground">Price shown to the fan</dt>
       <dd className="text-right tabular-nums">
         {formatCurrency(toMajor(quote.buyerTotalMinor), currency)}

@@ -269,7 +269,11 @@ function Revenue({ profile }: { profile: UserProfile }) {
           <Card>
             <CardHeader>
               <CardTitle>Account statement</CardTitle>
-              <CardDescription>Every sale, fee and running balance.</CardDescription>
+              <CardDescription>
+                {hasCommission
+                  ? 'Every sale, fee and running balance.'
+                  : 'Every online sale and running balance — you keep the full face value.'}
+              </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               {statement.length === 0 ? (
@@ -282,7 +286,7 @@ function Revenue({ profile }: { profile: UserProfile }) {
                     <TableRow>
                       <TableHead>Date</TableHead>
                       <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Fee</TableHead>
+                      {hasCommission && <TableHead className="text-right">Fee</TableHead>}
                       <TableHead className="text-right">Credit</TableHead>
                       <TableHead className="text-right">Balance</TableHead>
                     </TableRow>
@@ -294,9 +298,11 @@ function Revenue({ profile }: { profile: UserProfile }) {
                           {new Date(row.date).toDateString()}
                         </TableCell>
                         <TableCell className="max-w-[18rem] truncate">{row.description}</TableCell>
-                        <TableCell className="text-right tabular-nums text-destructive">
-                          -{formatCurrency(row.debit, row.currency)}
-                        </TableCell>
+                        {hasCommission && (
+                          <TableCell className="text-right tabular-nums text-destructive">
+                            -{formatCurrency(row.debit, row.currency)}
+                          </TableCell>
+                        )}
                         <TableCell className="text-right tabular-nums text-success">
                           +{formatCurrency(row.credit, row.currency)}
                         </TableCell>
