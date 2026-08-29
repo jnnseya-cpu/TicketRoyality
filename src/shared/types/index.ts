@@ -606,6 +606,12 @@ export interface Event {
   /** The paid spotlight-strip placement (docs/04 M24), self-serve since 19 Aug 2026. */
   spotlight?: boolean;
   spotlightUntil?: string;
+  /**
+   * The premium "showcase" placement — the moving picture+video screen in the homepage's
+   * Operational core panel, priced 30% above the spotlight. Same lifecycle as `spotlight`.
+   */
+  showcase?: boolean;
+  showcaseUntil?: string;
   /** Queued for the weekly newsletter's dedicated block; cleared after one full send. */
   newsletterSpotlight?: boolean;
   /**

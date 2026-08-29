@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Crown, Loader2, Megaphone, PlayCircle } from 'lucide-react';
+import { Crown, Loader2, Megaphone, MonitorPlay, PlayCircle } from 'lucide-react';
 
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
@@ -37,6 +37,7 @@ import type { Event, UserProfile } from '@/shared/types';
  * and the real fulfilment surfaces are what make selling them honest now.
  */
 const PLACEMENT_ICONS: Record<string, typeof PlayCircle> = {
+  showcase: MonitorPlay,
   'video-ad': PlayCircle,
   featured: Crown,
   newsletter: Megaphone,

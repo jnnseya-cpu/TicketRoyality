@@ -1078,6 +1078,24 @@ money back from a bank), and a refund *after* payout is not yet clawed back. Sti
 promoter commission settlement (the `settle()` primitive takes a promoter party already) and
 promoter onboarding. Verified: 4/4 settlement tests, typecheck, lint, build.
 
+### 29 August — Premium showcase placement (owner request)
+
+A new paid placement above the spotlight: the big screen in the homepage's "Built for serious
+events" panel now runs a paid organiser's **moving picture AND video** — the cover image on a
+continuous slow Ken Burns drift with the promo video crossfading over it on a loop (image ~5s,
+clip up to 15s, back). Priced **30% above the spotlight** (£249 → **£324**), the most prominent
+slot on the site. Falls back to the section's static stadium image when none is sold.
+
+- `PLACEMENTS.showcase` (£324, 7 days) — the promotions page already renders `Object.values(PLACEMENTS)`,
+  so it's **self-serve** (organiser pays by card, activates on the webhook) with no extra wiring,
+  and the `/api/admin/placement-grant` route gains a `showcase` branch so a **superuser can grant
+  it manually** too — exactly the pay-or-grant model every other placement uses.
+- `Event.showcase` + `showcaseUntil`; `promotions.ts` activates (`video-ad`→spotlight pattern) and
+  `expirePlacements` sweeps it hourly like the others.
+- `ShowcaseScreen` (client) does the crossfade; `animate-kenburns` keyframe added to globals.css,
+  disabled under `prefers-reduced-motion`. YouTube (`&end=15`) or MP4, click falls through to the
+  event. Verified: typecheck, lint, build.
+
 ### 29 August — Spotlight: two staggered screens, video only (owner request)
 
 The homepage "In the spotlight" strip is now **video only, on two screens**. Each screen

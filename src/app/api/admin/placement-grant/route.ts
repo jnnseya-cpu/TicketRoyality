@@ -45,7 +45,9 @@ export async function POST(request: Request) {
     const snap = await ref.get();
     if (!snap.exists) return NextResponse.json({ error: 'No such event.' }, { status: 404 });
 
-    if (placement.id === 'video-ad') {
+    if (placement.id === 'showcase') {
+      await ref.update({ showcase: active, showcaseUntil: null });
+    } else if (placement.id === 'video-ad') {
       await ref.update({ spotlight: active, spotlightUntil: null });
     } else if (placement.id === 'featured') {
       // Granting consumes any standing request; removing leaves no stale hand raised.

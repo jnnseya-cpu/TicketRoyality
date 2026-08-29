@@ -121,7 +121,9 @@ export async function activatePlacement(
       });
 
       if (eventExists) {
-        if (placement.id === 'video-ad') {
+        if (placement.id === 'showcase') {
+          tx.update(eventRef, { showcase: true, showcaseUntil: expiresAt });
+        } else if (placement.id === 'video-ad') {
           tx.update(eventRef, { spotlight: true, spotlightUntil: expiresAt });
         } else if (placement.id === 'featured') {
           // Granting consumes any standing request, exactly as a manual grant does.
@@ -164,15 +166,23 @@ export async function expirePlacements(now = new Date()): Promise<{ expired: num
   // Single-field queries with the date compared in memory: live placements number in
   // the tens at most, and an equality+range pair would demand a composite index whose
   // absence fails the cron silently in exactly the environment nobody is watching.
-  const [spotlights, featured] = await Promise.all([
+  const [spotlights, featured, showcases] = await Promise.all([
     db.collection('events').where('spotlight', '==', true).get(),
     db.collection('events').where('featured', '==', true).get(),
+    db.collection('events').where('showcase', '==', true).get(),
   ]);
 
   for (const doc of spotlights.docs) {
     const until = doc.data().spotlightUntil as string | undefined;
     if (until && until <= cutoff) {
       await doc.ref.update({ spotlight: false, spotlightUntil: null });
+      expired += 1;
+    }
+  }
+  for (const doc of showcases.docs) {
+    const until = doc.data().showcaseUntil as string | undefined;
+    if (until && until <= cutoff) {
+      await doc.ref.update({ showcase: false, showcaseUntil: null });
       expired += 1;
     }
   }

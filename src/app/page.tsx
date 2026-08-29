@@ -26,6 +26,7 @@ import { Card, CardContent } from '@/frontend/components/ui/card';
 import { Separator } from '@/frontend/components/ui/separator';
 import { cn } from '@/shared/utils';
 import VideoAds from '@/frontend/components/home/VideoAds';
+import { ShowcaseScreen } from '@/frontend/components/home/ShowcaseScreen';
 import { FeaturedEvents, UpcomingSample } from '@/frontend/components/home/FeaturedEvents';
 import { QuickDiscovery } from '@/frontend/components/home/QuickDiscovery';
 import { getEvents } from '@/shared/data/repositories';
@@ -287,16 +288,23 @@ export default async function HomePage() {
             </div>
           </div>
 
-          <div className="relative aspect-[4/3] overflow-hidden rounded-xl gold-ring">
-            <Image
-              src={PLACEHOLDER_IMAGES.stadium}
-              alt="A packed stadium at night"
-              fill
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              className="object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-          </div>
+          {/* The premium showcase placement: a paid organiser's moving picture + video, or
+              the static stadium when none is sold. */}
+          <ShowcaseScreen
+            event={events.find((e) => e.showcase)}
+            fallback={
+              <div className="relative aspect-[4/3] overflow-hidden rounded-xl gold-ring">
+                <Image
+                  src={PLACEHOLDER_IMAGES.stadium}
+                  alt="A packed stadium at night"
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  className="object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+              </div>
+            }
+          />
         </div>
       </section>
 

@@ -304,3 +304,22 @@
     -webkit-touch-callout: none;
   }
 }
+
+/* The showcase placement's "moving picture": a slow Ken Burns drift on the cover image,
+   paired with the promo video crossfading over it. Respect reduced-motion. */
+@keyframes kenburns {
+  from {
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.14) translate3d(-2%, -2%, 0);
+  }
+}
+.animate-kenburns {
+  animation: kenburns 16s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-kenburns {
+    animation: none;
+  }
+}

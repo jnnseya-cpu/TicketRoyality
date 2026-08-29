@@ -34,14 +34,29 @@ export interface PlacementDef {
   periodLabel: string;
 }
 
-export type PlacementId = 'video-ad' | 'featured' | 'newsletter';
+export type PlacementId = 'showcase' | 'video-ad' | 'featured' | 'newsletter';
 
 export const PLACEMENTS: Record<PlacementId, PlacementDef> = {
+  showcase: {
+    id: 'showcase',
+    // The premium slot: the big screen in the homepage's "Built for serious events" panel,
+    // where the cover image AND the promo video both move (a slow zoom on the picture, the
+    // clip crossfading over it). Priced 30% above the spotlight — the single most prominent
+    // placement above the fold.
+    title: 'Homepage showcase',
+    description:
+      'The headline screen high on the homepage: your cover image and your promo video both in motion, crossfading, above the fold. The most prominent placement on the site — 30% more than the spotlight. Add a YouTube link or an uploaded clip (up to 15 seconds); links straight to your event.',
+    priceMajor: 324, // £249 × 1.3, rounded to the pound
+    currency: 'GBP',
+    priceUsdMajor: 324,
+    days: 7,
+    periodLabel: '7 days',
+  },
   'video-ad': {
     id: 'video-ad',
     title: 'Homepage spotlight',
     description:
-      'Your event in the rotating spotlight strip on the homepage. Add a short video — a YouTube link or an uploaded clip — and it plays there muted and looping; without one, your cover image shows. Links straight to your event.',
+      'Your event on one of the two spotlight screens on the homepage. Add a short video — a YouTube link or an uploaded clip (up to 15 seconds) — and it plays there muted; the two screens run three seconds apart so there is always motion. Links straight to your event.',
     priceMajor: 249,
     currency: 'GBP',
     priceUsdMajor: 249,
