@@ -162,8 +162,7 @@ export default function IndustriesPage() {
           instead of running two products and two reconciliations.
         </p>
         <p className="mt-3 text-sm text-muted-foreground">
-          Each card says what the platform does for that segment today, and what it does
-          not do yet. We would rather you found the gap here than at your first event.
+          Each card is what the platform does for that segment today.
         </p>
       </div>
 
@@ -175,12 +174,6 @@ export default function IndustriesPage() {
               <h2 className="font-headline text-xl font-semibold">{segment.name}</h2>
               <p className="text-sm font-medium text-primary">{segment.need}</p>
               <p className="flex-1 text-sm text-muted-foreground">{segment.detail}</p>
-              {segment.next && (
-                <p className="border-t border-border/70 pt-3 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Not yet: </span>
-                  {segment.next}
-                </p>
-              )}
             </CardContent>
           </Card>
         ))}
