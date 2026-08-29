@@ -751,6 +751,45 @@ export interface OfflinePayment {
   reviewedBy?: string;
 }
 
+/**
+ * How the money for a box-office (door) sale was taken. Not a payment rail — the platform
+ * moves none of it; the organiser collects it in person. It is recorded so a door sale can
+ * be reconciled and so the service fee can be billed back to the organiser.
+ */
+export type BoxOfficeTender = 'cash' | 'card' | 'mobile_money';
+
+/**
+ * One door sale. The tickets themselves are issued through the normal payment_events →
+ * issuance path (this is not a second way to mint them); this row is the financial record:
+ * what was taken, by whom, and — because the organiser collected the whole amount — how
+ * much service fee they now OWE the platform, to be shown on the dashboard and deducted at
+ * payout. Keyed by the same id as its payment_event so the two always line up.
+ */
+export interface BoxOfficeSale {
+  id: string;
+  organizerId: string;
+  eventId: string;
+  eventTitle: string;
+  tierId: string;
+  tierName: string;
+  tender: BoxOfficeTender;
+  quantity: number;
+  /** Minor units. face = organiser's money; serviceFee = owed to platform; total = what the buyer paid in person. */
+  faceMinor: number;
+  serviceFeeMinor: number;
+  buyerTotalMinor: number;
+  /** The service fee the organiser owes for this sale — reversed to 0 on refund. */
+  feeOwedMinor: number;
+  currency: string;
+  status: 'issued' | 'refunded';
+  /** 'door' for a PIN-authenticated staff sale, or the organiser's uid for a dashboard sale. */
+  soldBy: string;
+  buyerName?: string;
+  buyerEmail?: string;
+  createdAt: string;
+  refundedAt?: string;
+}
+
 export type LedgerType =
   | 'WELCOME_BONUS'
   | 'TOPUP_STRIPE'

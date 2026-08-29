@@ -886,6 +886,40 @@ Verified: typecheck, lint, production build. Not testable here: the pixels
 themselves — they need the owner's IDs set and a live visit; until the IDs exist the
 site ships zero tracking bytes.
 
+### 28 August — Box office / door sales (owner request)
+
+Gate staff (or the organiser) sell a ticket at the door — cash, card or mobile money in
+person — and the system issues a real, counted, scannable QR immediately, **through the
+one issuance path**. A door sale writes exactly the `payment_events` document a webhook
+writes (`provider: 'offline'`, `providerType: 'box_office.<tender>'`) and the already-
+deployed issuance function mints the ticket, so inventory, the oversell guard, the door
+scanner and refunds all work unchanged and **no buyer account is needed** (the ticket is
+valid by its signature). No functions redeploy: the `offline` provider path already
+existed for the customer offline-payment flow.
+
+- **Same price as online**: priced by the identical `computeOrderFees([{face, qty}])` call
+  the checkout uses. The organiser collects the whole amount, so the customer-side service
+  fee is recorded as **owed by the organiser** in `box_office_sales`, shown on the
+  dashboard and to be deducted at payout; a refund zeroes it.
+- **Two entry points**: the organiser dashboard (`/dashboard/organiser/box-office`, their
+  own auth) and a **scoped gate-staff link** (`/events/[id]/box-office`) gated by a
+  **per-event PIN** the organiser sets — stored only as an HMAC (`event_box_office`),
+  verified server-side on every sale, revoked by changing it. A guessable URL alone can
+  neither mint a ticket nor owe money.
+- **Refund**: reverses through the same `offline` path (mark refunded, return inventory,
+  owed → 0). The cash is handed back physically by the organiser; the system squares the
+  record and the inventory.
+
+Server-side authority throughout: price re-read from Firestore, quantity 1–50, tender
+validated, ownership or PIN checked before any sale. `box_office_sales` and
+`event_box_office` are Admin-SDK-only (belt-and-suspenders explicit denies on top of the
+default-deny catch-all), so no client can read the PIN hash or forge a sale. Verified:
+typecheck, lint, production build. **Not covered in this pass** (recorded, not hidden):
+an on-screen QR at the moment of sale (the ticket issues a beat later and is emailed if an
+address is given, or found in the event's ticket list / admitted by scanning the buyer in);
+per-ticket rather than per-sale refunds; and the payout **deduction** itself depends on the
+payout process reading the owed figure this surfaces. **Next**: delayed ticket release.
+
 ### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
 
 Swept the public surfaces for horizontal overflow at 320–768px across two font scales

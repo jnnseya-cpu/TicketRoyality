@@ -244,6 +244,24 @@ service cloud.firestore {
     }
 
     /* ---------------------------------------------------------------- */
+    /* box_office_sales — the door-sale financial record (fee owed)      */
+    /* event_box_office — the per-event door PIN (HMAC only)             */
+    /*                                                                  */
+    /* Both are written and read only through the Admin SDK: a door sale */
+    /* creates money owed by the organiser and a client that could write */
+    /* one, or read the PIN hash, is a hole. The organiser sees their    */
+    /* sales through the server (`/api/box-office/sales`), never a direct */
+    /* client query.                                                     */
+    /* ---------------------------------------------------------------- */
+
+    match /box_office_sales/{saleId} {
+      allow read, write: if false;
+    }
+    match /event_box_office/{eventId} {
+      allow read, write: if false;
+    }
+
+    /* ---------------------------------------------------------------- */
     /* comms_deliveries — the notification log                           */
     /* ---------------------------------------------------------------- */
 
