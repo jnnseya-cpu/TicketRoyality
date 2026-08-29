@@ -380,6 +380,18 @@ const DEFAULT_SWEEP: Record<string, number> = { curve: 40, arc: 90 };
  * diagonal; vertical turns it on its side for a side balcony or a coach.
  */
 export function seatPositions(section: SeatingSection): PositionedSeat[] {
+  // The floor-plan canvas is the authority for any seat it placed. Applied over whatever
+  // the shape layout computes, per label, so a half-arranged room still draws the rest —
+  // geometry only, the seat's label (its identity) is never touched here.
+  const coords = section.seatCoords;
+  const withCoords = (positioned: PositionedSeat[]): PositionedSeat[] =>
+    coords
+      ? positioned.map((seat) => {
+          const c = coords[seat.label];
+          return c ? { ...seat, x: c.x, y: c.y, rotation: 0 } : seat;
+        })
+      : positioned;
+
   const seats = sectionSeats(section);
   const shape = section.shape ?? 'straight';
 
@@ -396,7 +408,7 @@ export function seatPositions(section: SeatingSection): PositionedSeat[] {
     const sweep = (sweepDegrees * Math.PI) / 180;
     const baseRadius = Math.max((widest * SEAT_PITCH) / sweep, 3 * ROW_PITCH);
 
-    return seats.map((seat) => {
+    return withCoords(seats.map((seat) => {
       const radius = baseRadius + seat.rowIndex * ROW_PITCH;
       const row = rows[seat.rowIndex];
       const rowSeats = Math.max(1, row?.seats ?? 1);
@@ -416,10 +428,10 @@ export function seatPositions(section: SeatingSection): PositionedSeat[] {
         y: Math.round((radius - radius * Math.cos(theta) + seat.rowIndex * ROW_PITCH) * 100) / 100,
         rotation: Math.round(((theta * 180) / Math.PI) * 10) / 10,
       };
-    });
+    }));
   }
 
-  return seats.map((seat) => {
+  return withCoords(seats.map((seat) => {
     const row = sectionRows(section)[seat.rowIndex];
     const aisles = (row?.aisleAfter ?? []).filter((n) => n < (row?.from ?? 1) + seat.index).length;
     const along = (seat.index + (seat.offset ?? 0) / 2) * SEAT_PITCH + aisles * AISLE_GAP;
@@ -435,7 +447,7 @@ export function seatPositions(section: SeatingSection): PositionedSeat[] {
       default:
         return { ...seat, x: along, y: deep, rotation: 0 };
     }
-  });
+  }));
 }
 
 /** The box the drawing needs, with a margin for the seat glyphs themselves. */

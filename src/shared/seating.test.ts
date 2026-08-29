@@ -438,5 +438,36 @@ test('a section whose every seat is blocked or held back is an error, by name', 
   assert.ok(issues.some((i) => i.severity === 'error' && /no seats left to sell/.test(i.message)));
 });
 
+/* -------------------------------------------------------------------- */
+/* Floor-plan canvas — per-seat coordinate overrides                    */
+/* -------------------------------------------------------------------- */
+
+test('a dragged seat sits exactly where the canvas put it', () => {
+  const s = section({ rows: 1, seatsPerRow: 3, seatCoords: { A2: { x: 999, y: 500 } } });
+  const positions = seatPositions(s);
+  const a2 = positions.find((p) => p.label === 'A2');
+  assert.ok(a2, 'A2 should exist');
+  assert.equal(a2!.x, 999);
+  assert.equal(a2!.y, 500);
+  assert.equal(a2!.rotation, 0);
+});
+
+test('seats the canvas did not place keep their auto-layout', () => {
+  const s = section({ rows: 1, seatsPerRow: 3, seatCoords: { A2: { x: 999, y: 500 } } });
+  const auto = seatPositions(section({ rows: 1, seatsPerRow: 3 }));
+  const withCoords = seatPositions(s);
+  const a1auto = auto.find((p) => p.label === 'A1')!;
+  const a1kept = withCoords.find((p) => p.label === 'A1')!;
+  assert.equal(a1kept.x, a1auto.x);
+  assert.equal(a1kept.y, a1auto.y);
+});
+
+test('coordinates never change a seat label — identity is untouched', () => {
+  const s = section({ rows: 2, seatsPerRow: 4, seatCoords: { B3: { x: 10, y: 20 } } });
+  const labels = seatPositions(s).map((p) => p.label).sort();
+  const plain = seatPositions(section({ rows: 2, seatsPerRow: 4 })).map((p) => p.label).sort();
+  assert.deepEqual(labels, plain); // same seats sold, only their positions moved
+});
+
 console.log(`\n${passed}/${passed + failures.length} passed\n`);
 if (failures.length > 0) process.exit(1);

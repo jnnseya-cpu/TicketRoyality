@@ -337,6 +337,16 @@ export interface SeatingSection {
    * Off by default; best-available always *prefers* tidy selections either way.
    */
   preventOrphans?: boolean;
+  /**
+   * Free-form seat positions from the floor-plan canvas — a map of **seat label → {x, y}**
+   * in the same venue-space units the auto-layout uses. Pure geometry, exactly like `shape`:
+   * a seat's identity stays its label, so holds, checkout, issuance and the door are
+   * untouched whether a seat was auto-placed or dragged. When a label appears here it is the
+   * authority for *where* that seat sits; a label absent from it falls back to the computed
+   * layout, so a half-arranged room still draws. Absent means every seat uses the auto-layout,
+   * which is every section built before the canvas existed.
+   */
+  seatCoords?: Record<string, { x: number; y: number }>;
 }
 
 /**

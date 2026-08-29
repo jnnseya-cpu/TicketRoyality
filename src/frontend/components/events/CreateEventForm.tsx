@@ -37,6 +37,7 @@ import { Separator } from '@/frontend/components/ui/separator';
 import { Textarea } from '@/frontend/components/ui/textarea';
 import { SeatMapPreview } from '@/frontend/components/events/SeatMapPreview';
 import { SeatMapBuilder } from '@/frontend/components/events/SeatMapBuilder';
+import { SeatMapCanvas } from '@/frontend/components/events/SeatMapCanvas';
 import { MediaPicker } from '@/frontend/components/media/MediaPicker';
 import { VideoAdPicker } from '@/frontend/components/media/VideoAdPicker';
 import { TierEconomics } from '@/frontend/components/pricing/TierEconomics';
@@ -179,6 +180,8 @@ const seatingSchema = z.object({
   /** Comma-separated labels. Sold to nobody. */
   unavailableSeats: z.string().optional(),
   accessibleSeats: z.string().optional(),
+  /** Floor-plan canvas positions — seat label → {x, y}. Geometry only; identity is the label. */
+  seatCoords: z.record(z.object({ x: z.number(), y: z.number() })).optional(),
 });
 
 /** "A1, A2,a3" → ["A1","A2","A3"]. Tolerant of how a human types a list. */
@@ -867,6 +870,10 @@ export function CreateEventForm({
                   : {}),
                 ...(parseSeatList(section.accessibleSeats).length > 0
                   ? { accessibleSeats: parseSeatList(section.accessibleSeats) }
+                  : {}),
+                // Floor-plan positions, only when the organiser actually dragged something.
+                ...(section.seatCoords && Object.keys(section.seatCoords).length > 0
+                  ? { seatCoords: section.seatCoords }
                   : {}),
               }))
             : undefined,
@@ -2714,6 +2721,34 @@ export function CreateEventForm({
                     </FormItem>
                   )}
                 />
+
+                {/* Optional floor-plan canvas: drag individual seats where they sit. The row
+                    builder above decides what seats exist; this decides where they go. */}
+                <details className="group sm:col-span-4">
+                  <summary className="cursor-pointer text-sm font-medium text-primary">
+                    Arrange seats on a floor plan (optional)
+                  </summary>
+                  <div className="mt-3">
+                    <SeatMapCanvas
+                      section={{
+                        id: watchedSeating?.[index]?.id ?? `section-${index}`,
+                        name: watchedSeating?.[index]?.name ?? '',
+                        color: watchedSeating?.[index]?.color ?? '#b8860b',
+                        price: Number(watchedSeating?.[index]?.price) || 0,
+                        startRow: watchedSeating?.[index]?.startRow ?? 'A',
+                        rows: Number(watchedSeating?.[index]?.rows) || 1,
+                        seatsPerRow: Number(watchedSeating?.[index]?.seatsPerRow) || 1,
+                        shape: watchedSeating?.[index]?.shape,
+                        curveDegrees: watchedSeating?.[index]?.curveDegrees,
+                        rowSpec: watchedSeating?.[index]?.rowSpec,
+                        seatCoords: watchedSeating?.[index]?.seatCoords,
+                      }}
+                      onChange={(coords) =>
+                        form.setValue(`seating.${index}.seatCoords`, coords, { shouldDirty: true })
+                      }
+                    />
+                  </div>
+                </details>
 
                 <div className="flex items-end sm:col-span-4">
                   <Button

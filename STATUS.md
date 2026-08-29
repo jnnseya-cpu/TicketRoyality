@@ -1070,6 +1070,30 @@ on in the Stripe dashboard and sets the env — no accidental transfers, no fake
   Activation is an owner action: enable Connect + `STRIPE_CONNECT_ENABLED=true`. Verified:
   4/4 settlement tests, typecheck, lint, build.
 
+### 29 August — Floor-plan seat canvas (owner "build now")
+
+The theatres card's "Not yet" — drag individual seats around a floor plan, alongside the
+row builder that already shapes irregular rooms. Built as a **pure geometry layer**, the
+same doctrine as `shape`/`rowSpec`: a seat's identity is its label, so nothing about holds,
+checkout, issuance or the door changes wherever a seat is placed.
+
+- `SeatingSection.seatCoords?: Record<label, {x, y}>` — floor-plan positions in the same
+  venue units the auto-layout uses.
+- `seatPositions()` (the one function the buyer's map, the preview and the server allocator
+  all call) applies `seatCoords` per label over whatever the shape computes, falling back to
+  the auto-layout for any seat not placed — so a part-arranged room still draws. 3 new tests:
+  a dragged seat lands exactly where placed, un-placed seats keep auto-layout, and the seat
+  **labels are identical** with or without coords (identity untouched). 42/42 seating tests.
+- `SeatMapCanvas` — an SVG in venue units; pointer coords mapped back through the SVG's own
+  transform so drag lands true at any zoom, mouse or touch; snap-to-grid, arrow-key nudge for
+  the selected seat (a drag-only canvas is unusable for precise placement), reset-to-auto,
+  and a STAGE marker for orientation.
+- Wired into `CreateEventForm` per section as an optional "Arrange seats on a floor plan"
+  disclosure; the zod schema and submit carry `seatCoords` only when the organiser actually
+  dragged something. `SeatMapPreview` and the buyer's `SeatPicker` honour it automatically —
+  they already call `seatPositions()`. Industries copy updated. Verified: typecheck, lint,
+  build, 42/42 seating tests.
+
 ### 29 August — Real-time cross-door awareness (owner "build now")
 
 The nightclubs card's "Not yet". Each door scanner knew only what it admitted; now every
