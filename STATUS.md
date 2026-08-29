@@ -949,9 +949,16 @@ issuance runs a beat behind the sale, so the sell screen now polls the sale's ti
 a few seconds (`/api/box-office/sale-tickets`, authorised by the sale's event via the owning
 organiser or the door PIN) and shows the QR the instant they exist, so a buyer with no email
 still leaves with their ticket. Giving up is harmless — the ticket is issued regardless.
-**Still not covered** (recorded, not hidden): per-ticket rather than per-sale refunds; and
-the payout **deduction** itself depends on the payout process reading the owed figure this
-surfaces.
+Follow-up — **per-ticket refunds** (closing the second recorded limit): the whole-sale
+refund was rebuilt as a direct, synchronous transaction that mirrors the issuance
+function's refund exactly (mark valid → refunded, group by each ticket's *current* tier,
+decrement `sold` clamped at zero, never reverse a redeemed ticket), and a `ticketId`
+variant refunds a single ticket of a multi-ticket sale, leaving the rest valid — idempotent
+by ticket status, with the owed fee reduced by the per-ticket share and the sale marked
+`refunded` only once every ticket is. The organiser opens a sale to a per-ticket refund
+dialog (each valid ticket has a Refund button, plus "Refund all valid"); cash is handed back
+physically. **Still not covered**: the payout **deduction** itself depends on the payout
+process reading the owed figure this surfaces.
 
 ### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
 

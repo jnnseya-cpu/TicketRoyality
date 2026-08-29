@@ -6,6 +6,13 @@ import { Check, Copy, Loader2, Store } from 'lucide-react';
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/frontend/components/ui/dialog';
 import { Input } from '@/frontend/components/ui/input';
 import { Label } from '@/frontend/components/ui/label';
 import {
@@ -24,6 +31,15 @@ import { describeError } from '@/shared/errors';
 import { toMajor } from '@/shared/fees';
 import { formatCurrency } from '@/shared/utils';
 import type { BoxOfficeSale, Event, UserProfile } from '@/shared/types';
+
+/** One issued ticket of a door sale, as the sale-tickets endpoint returns it. */
+interface SaleTicket {
+  id: string;
+  reference: string;
+  tierName?: string;
+  seat?: string;
+  status?: string;
+}
 
 function BoxOffice({ profile }: { profile: UserProfile }) {
   const { toast } = useToast();
@@ -91,19 +107,44 @@ function BoxOffice({ profile }: { profile: UserProfile }) {
     }
   };
 
-  const refund = async (saleId: string) => {
+  // Per-ticket refunds: open a sale to see its tickets, refund one or all valid ones.
+  const [refundFor, setRefundFor] = React.useState<BoxOfficeSale | null>(null);
+  const [refundTickets, setRefundTickets] = React.useState<SaleTicket[]>([]);
+  const [refundBusy, setRefundBusy] = React.useState(false);
+
+  const openRefund = async (sale: BoxOfficeSale) => {
+    setRefundFor(sale);
+    setRefundTickets([]);
+    try {
+      const res = await authedFetch(`/api/box-office/sale-tickets?saleId=${encodeURIComponent(sale.id)}`);
+      const data = (await res.json()) as { tickets?: SaleTicket[] };
+      setRefundTickets(data.tickets ?? []);
+    } catch {
+      setRefundTickets([]);
+    }
+  };
+
+  const refund = async (saleId: string, ticketId?: string) => {
+    setRefundBusy(true);
     try {
       const res = await authedFetch('/api/box-office/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ saleId }),
+        body: JSON.stringify(ticketId ? { saleId, ticketId } : { saleId }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Refund failed.');
       toast({ title: 'Refunded', description: 'Hand the cash back to the buyer. Inventory returned.' });
-      void loadSales();
+      await loadSales();
+      // Refresh the open dialog's ticket list, or close it if the sale is fully done.
+      const sale = (await (await authedFetch('/api/box-office/sales')).json()) as { sales?: BoxOfficeSale[] };
+      const updated = sale.sales?.find((s) => s.id === saleId) ?? null;
+      if (updated && updated.status !== 'refunded') void openRefund(updated);
+      else setRefundFor(null);
     } catch (error) {
       toast({ variant: 'destructive', title: 'Not refunded', description: describeError(error) });
+    } finally {
+      setRefundBusy(false);
     }
   };
 
@@ -247,9 +288,16 @@ function BoxOffice({ profile }: { profile: UserProfile }) {
                   {s.status === 'refunded' ? (
                     <Badge variant="secondary">Refunded</Badge>
                   ) : (
-                    <Button variant="outline" size="sm" onClick={() => refund(s.id)}>
-                      Refund
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {s.refundedCount ? (
+                        <Badge variant="secondary">
+                          {s.refundedCount}/{s.quantity} refunded
+                        </Badge>
+                      ) : null}
+                      <Button variant="outline" size="sm" onClick={() => openRefund(s)}>
+                        Refund…
+                      </Button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -257,6 +305,64 @@ function BoxOffice({ profile }: { profile: UserProfile }) {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(refundFor)} onOpenChange={(o) => !o && setRefundFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Refund tickets</DialogTitle>
+            <DialogDescription>
+              Refund one ticket or all of them. You hand the cash back; each refunded ticket
+              is voided and its place returned to inventory.
+            </DialogDescription>
+          </DialogHeader>
+          {refundFor && (
+            <div className="space-y-2">
+              {refundTickets.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Loading tickets…</p>
+              ) : (
+                refundTickets.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between gap-3 rounded-md border border-border p-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">
+                        {t.tierName ?? 'Ticket'}
+                        {t.seat ? ` · Seat ${t.seat}` : ''}
+                      </p>
+                      <p className="font-mono text-xs text-muted-foreground">{t.reference}</p>
+                    </div>
+                    {t.status === 'valid' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={refundBusy}
+                        onClick={() => refund(refundFor.id, t.id)}
+                      >
+                        Refund
+                      </Button>
+                    ) : (
+                      <Badge variant="secondary">
+                        {t.status === 'redeemed' ? 'Checked in' : 'Refunded'}
+                      </Badge>
+                    )}
+                  </div>
+                ))
+              )}
+              {refundTickets.some((t) => t.status === 'valid') && (
+                <Button
+                  className="w-full"
+                  variant="destructive"
+                  disabled={refundBusy}
+                  onClick={() => refund(refundFor.id)}
+                >
+                  Refund all valid tickets
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

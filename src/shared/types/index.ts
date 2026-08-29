@@ -791,6 +791,8 @@ export interface BoxOfficeSale {
   feeOwedMinor: number;
   currency: string;
   status: 'issued' | 'refunded';
+  /** How many of the sale's tickets have been refunded (whole sale is refunded when this hits quantity). */
+  refundedCount?: number;
   /** 'door' for a PIN-authenticated staff sale, or the organiser's uid for a dashboard sale. */
   soldBy: string;
   buyerName?: string;

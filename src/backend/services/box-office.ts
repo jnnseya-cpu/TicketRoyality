@@ -201,6 +201,8 @@ export interface DoorTicket {
   attendeeName?: string;
   tierName?: string;
   seat?: string;
+  /** 'valid' can be refunded or admitted; 'redeemed' already entered; 'refunded' reversed. */
+  status?: string;
 }
 
 /**
@@ -243,6 +245,7 @@ export async function saleTickets(
       attendeeName: d.attendeeName ? String(d.attendeeName) : undefined,
       tierName: d.tierName ? String(d.tierName) : undefined,
       seat: d.seat ? String(d.seat) : undefined,
+      status: d.status ? String(d.status) : undefined,
     });
   }
   return { ok: true, tickets };
@@ -271,40 +274,87 @@ export function owedFromSales(sales: BoxOfficeSale[]): Record<string, number> {
 }
 
 /**
- * Refund a door sale: reverse the tickets (through the same issuance path — provider
- * 'offline' means no external money moves), zero the owed fee, and mark the row. The cash
- * itself is handed back by the organiser; the system only squares the record and inventory.
+ * Reverse door-sale tickets — one, or all still-valid ones — directly and synchronously.
+ *
+ * Mirrors the issuance function's refund exactly (mark valid → refunded, group by each
+ * ticket's CURRENT tier, decrement `sold` clamped at zero, never touch a redeemed ticket),
+ * but does it in-process so a door refund is instant and needs no async function. No money
+ * moves — a box-office sale was cash/card/mobile-money in the organiser's hand — so this
+ * only squares the ticket, the inventory and the fee the organiser owes. Idempotent by
+ * ticket status: a second refund of the same ticket reverses nothing.
  */
-export async function refundDoorSale(
+async function reverseDoorTickets(
   saleId: string,
-  organizerId: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
+  organizerId: string,
+  onlyTicketId?: string
+): Promise<{ ok: true; reversed: number } | { ok: false; error: string }> {
   if (!isAdminConfigured()) return { ok: false, error: 'Unavailable right now.' };
   const db = getAdminDb();
-  const ref = db.collection(SALES).doc(saleId);
-  const snap = await ref.get();
-  if (!snap.exists) return { ok: false, error: 'Sale not found.' };
-  const sale = snap.data() as BoxOfficeSale;
+  const saleRef = db.collection(SALES).doc(saleId);
+  const saleSnap = await saleRef.get();
+  if (!saleSnap.exists) return { ok: false, error: 'Sale not found.' };
+  const sale = saleSnap.data() as BoxOfficeSale;
   if (sale.organizerId !== organizerId) return { ok: false, error: 'Not your sale.' };
-  if (sale.status === 'refunded') return { ok: true }; // idempotent
 
-  const refund = await recordPaymentEvent({
-    providerEventId: `${saleId}_refund`,
-    provider: 'offline',
-    providerType: `box_office.refund`,
-    intent: 'refund',
-    eventId: sale.eventId,
-    tierId: sale.tierId,
-    userId: '',
-    quantity: sale.quantity,
-    price: 0,
-    currency: sale.currency,
-    attendeeName: '',
-    attendeeEmail: '',
-    refundsRef: saleId,
+  const marker = await db.collection('issued_payments').doc(saleId).get();
+  const allIds = (marker.data()?.ticketIds as string[] | undefined) ?? [];
+  const targetIds = onlyTicketId ? allIds.filter((id) => id === onlyTicketId) : allIds;
+  if (onlyTicketId && targetIds.length === 0) {
+    return { ok: false, error: 'That ticket is not part of this sale.' };
+  }
+  if (targetIds.length === 0) return { ok: true, reversed: 0 };
+
+  const eventRef = db.collection('events').doc(sale.eventId);
+  const reversed = await db.runTransaction(async (tx) => {
+    const ticketRefs = targetIds.map((id) => db.collection('tickets').doc(id));
+    const snaps = await tx.getAll(eventRef, ...ticketRefs);
+    const eventSnap = snaps[0];
+    let count = 0;
+    const perTier: Record<string, number> = {};
+    for (const snap of snaps.slice(1)) {
+      if (!snap.exists) continue;
+      const t = snap.data() as { status?: string; tierId?: string };
+      if (t.status !== 'valid') continue; // never reverse a redeemed or already-refunded ticket
+      tx.update(snap.ref, { status: 'refunded', refundedAt: new Date().toISOString() });
+      count += 1;
+      const tierId = t.tierId ?? sale.tierId;
+      perTier[tierId] = (perTier[tierId] ?? 0) + 1;
+    }
+    if (eventSnap.exists && count > 0) {
+      const ev = eventSnap.data() as { ticketTiers?: Array<{ id: string; sold?: number }> };
+      const tiers = Array.isArray(ev.ticketTiers) ? [...ev.ticketTiers] : [];
+      let changed = false;
+      for (const [tierId, c] of Object.entries(perTier)) {
+        const idx = tiers.findIndex((t) => t.id === tierId);
+        if (idx === -1) continue;
+        tiers[idx] = { ...tiers[idx], sold: Math.max(0, (tiers[idx].sold ?? 0) - c) };
+        changed = true;
+      }
+      if (changed) tx.update(eventRef, { ticketTiers: tiers });
+    }
+    return count;
   });
-  if (refund === 'unavailable') return { ok: false, error: 'Refund could not be recorded.' };
 
-  await ref.update({ status: 'refunded', feeOwedMinor: 0, refundedAt: new Date().toISOString() });
-  return { ok: true };
+  if (reversed > 0) {
+    const perTicketFee = sale.quantity > 0 ? Math.round(sale.serviceFeeMinor / sale.quantity) : 0;
+    const refundedCount = (sale.refundedCount ?? 0) + reversed;
+    await saleRef.update({
+      refundedCount,
+      feeOwedMinor: Math.max(0, sale.feeOwedMinor - perTicketFee * reversed),
+      ...(refundedCount >= sale.quantity
+        ? { status: 'refunded', refundedAt: new Date().toISOString() }
+        : {}),
+    });
+  }
+  return { ok: true, reversed };
+}
+
+/** Refund every still-valid ticket of a door sale. */
+export function refundDoorSale(saleId: string, organizerId: string) {
+  return reverseDoorTickets(saleId, organizerId);
+}
+
+/** Refund one ticket of a multi-ticket door sale, leaving the rest valid. */
+export function refundDoorTicket(saleId: string, ticketId: string, organizerId: string) {
+  return reverseDoorTickets(saleId, organizerId, ticketId);
 }
