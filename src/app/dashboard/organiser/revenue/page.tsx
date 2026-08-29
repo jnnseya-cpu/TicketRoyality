@@ -80,6 +80,39 @@ function Revenue({ profile }: { profile: UserProfile }) {
     };
   }, [profile.uid]);
 
+  // Fire the real per-event payouts to the connected account. Each event settles once,
+  // keyed server-side, so a double click never pays twice.
+  const [paying, setPaying] = React.useState(false);
+  const requestPayout = async () => {
+    if (!connect?.payoutsEnabled) {
+      toast({
+        title: 'Connect a payout account first',
+        description: 'Set up automatic payouts to receive your settlement.',
+      });
+      return;
+    }
+    setPaying(true);
+    try {
+      const res = await authedFetch('/api/connect/payout', { method: 'POST' });
+      const data = (await res.json()) as { paid?: number; blocked?: number; failed?: number; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Payout could not be started.');
+      toast({
+        title: data.paid ? 'Payout on its way' : 'Nothing new to pay out',
+        description: data.paid
+          ? `${data.paid} event${data.paid === 1 ? '' : 's'} settled to your bank.`
+          : 'Your finished events are already settled.',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Payout failed',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      });
+    } finally {
+      setPaying(false);
+    }
+  };
+
   // Start (or resume) Stripe Connect onboarding, then follow Stripe's hosted link.
   const startConnect = async () => {
     setConnecting(true);
@@ -259,16 +292,12 @@ function Revenue({ profile }: { profile: UserProfile }) {
                   </AlertDescription>
                 </Alert>
               ) : (
-                <Button
-                  variant="royal"
-                  onClick={() =>
-                    toast({
-                      title: 'Withdrawal requested',
-                      description: `${formatCurrency(balance)} queued for payout.`,
-                    })
-                  }
-                >
-                  Withdraw {formatCurrency(balance)}
+                <Button variant="royal" onClick={requestPayout} disabled={paying}>
+                  {paying ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    `Withdraw ${formatCurrency(balance)}`
+                  )}
                 </Button>
               )}
             </CardContent>

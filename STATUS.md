@@ -1064,11 +1064,19 @@ on in the Stripe dashboard and sets the env — no accidental transfers, no fake
 - `POST/GET /api/connect/onboard` — organiser onboarding + status, mirrored onto the profile.
   Revenue page gains an **"Automatic payouts"** card (Connect a payout account → Stripe hosted
   onboarding → "Payouts connected"), shown only when Connect is enabled.
-- **Not yet wired**: automatic triggering per owed source (pay an organiser after their event,
-  compute a promoter's owed commission and settle it) and promoter onboarding — the rail and
-  the primitive exist; the callers that fire `settle()` on each source are the next step.
-  Activation is an owner action: enable Connect + `STRIPE_CONNECT_ENABLED=true`. Verified:
+- Activation is an owner action: enable Connect + `STRIPE_CONNECT_ENABLED=true`. Verified:
   4/4 settlement tests, typecheck, lint, build.
+
+Follow-up — **per-event payout trigger wired**: `settleOrganiserEvent(organiserId, eventId)`
+computes the organiser's payable for a *finished* event — the face of its **online** tickets
+(box-office tickets excluded, that face is cash already in hand; refunded tickets excluded) —
+and settles it keyed by the event, so a second run pays nothing again. `POST /api/connect/payout`
+walks the organiser's own past events and settles each; the revenue page's **Withdraw** button
+now calls it (real payout when Connect is live, a "connect first" nudge when it isn't). Known,
+documented edge: only finished events settle (a pre-event refund would otherwise mean clawing
+money back from a bank), and a refund *after* payout is not yet clawed back. Still to wire:
+promoter commission settlement (the `settle()` primitive takes a promoter party already) and
+promoter onboarding. Verified: 4/4 settlement tests, typecheck, lint, build.
 
 ### 29 August — Floor-plan seat canvas (owner "build now")
 

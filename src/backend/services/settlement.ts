@@ -150,6 +150,59 @@ export async function settleOrganiser(input: {
   });
 }
 
+/**
+ * Settle one event's takings to its organiser — the per-event trigger.
+ *
+ * The organiser is owed the **face value of every online ticket** for the event (at 0%
+ * commission they keep 100% of face; the platform's revenue is the buyer-side service fee it
+ * already holds). Box-office tickets are excluded — that face is cash the organiser already
+ * took at the door — exactly as the revenue page computes it. Keyed by the event, so settling
+ * the same event twice pays once; a fresh event is a fresh, payable key.
+ *
+ * Deliberately settles only events that have **finished**: a refund before the event is
+ * common and would otherwise mean clawing money back from a bank, which Connect does not do
+ * cheaply. After the event, refunds are rare, and this is the honest first cut — a refund
+ * after payout is a known, documented edge, not a silent overpayment.
+ */
+export async function settleOrganiserEvent(
+  organiserId: string,
+  eventId: string
+): Promise<SettleResult> {
+  if (!isAdminConfigured()) return { ok: false, status: 'failed', error: 'Settlement is unavailable.' };
+  const db = getAdminDb();
+
+  const eventSnap = await db.collection('events').doc(eventId).get();
+  const event = eventSnap.data() as { organizerId?: string; currency?: string; date?: string } | undefined;
+  if (!event || event.organizerId !== organiserId) {
+    return { ok: false, status: 'failed', error: 'Not your event.' };
+  }
+  if (event.date && new Date(event.date).getTime() > Date.now()) {
+    return { ok: false, status: 'blocked', error: 'This event has not finished yet.' };
+  }
+
+  // Face of online tickets only — single-field query, filtered in memory (no composite index).
+  const tickets = await db.collection('tickets').where('eventId', '==', eventId).get();
+  let payableMinor = 0;
+  for (const doc of tickets.docs) {
+    const t = doc.data() as { status?: string; paymentProvider?: string; price?: number };
+    if (t.status === 'refunded') continue;
+    if (t.paymentProvider === 'offline') continue; // box-office cash the organiser already holds
+    payableMinor += Math.round((Number(t.price) || 0) * 100);
+  }
+  if (payableMinor <= 0) {
+    return { ok: false, status: 'blocked', error: 'Nothing to settle for this event yet.' };
+  }
+
+  return settleOrganiser({
+    organiserId,
+    amountMinor: payableMinor,
+    currency: event.currency || 'GBP',
+    reason: 'organiser_event',
+    periodKey: eventId,
+    metadata: { eventId },
+  });
+}
+
 /** A party's payout history, newest first. */
 export async function listPayouts(partyId: string): Promise<Payout[]> {
   if (!isAdminConfigured()) return [];
