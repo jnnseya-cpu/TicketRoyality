@@ -139,21 +139,38 @@ export function OrganiserStructuredData({
 export function SiteStructuredData() {
   const base = siteUrl();
   return (
-    <JsonLd
-      data={{
-        '@context': 'https://schema.org',
-        '@type': 'WebSite',
-        name: SITE_NAME,
-        url: base,
-        potentialAction: {
-          '@type': 'SearchAction',
-          target: {
-            '@type': 'EntryPoint',
-            urlTemplate: `${base}/events?q={search_term_string}`,
+    <>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: SITE_NAME,
+          url: base,
+          potentialAction: {
+            '@type': 'SearchAction',
+            target: {
+              '@type': 'EntryPoint',
+              urlTemplate: `${base}/events?q={search_term_string}`,
+            },
+            'query-input': 'required name=search_term_string',
           },
-          'query-input': 'required name=search_term_string',
-        },
-      }}
-    />
+        }}
+      />
+      {/* Organization markup so search engines read the brand's name and logo rather than
+          guessing them from prose. No LocalBusiness type or address/phone: TicketRoyality is
+          an online platform, not a walk-in shop, and inventing a postal address to satisfy a
+          local-SEO check would be a fabricated fact. */}
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: SITE_NAME,
+          url: base,
+          logo: `${base}/icons/icon-512.png`,
+          description:
+            'Premium ticketing for stadiums, concerts, festivals and clubs, with 0% organiser commission.',
+        }}
+      />
+    </>
   );
 }

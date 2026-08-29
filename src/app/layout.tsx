@@ -47,8 +47,14 @@ export const metadata: Metadata = {
     default: 'TicketRoyality — Premium Event Access. Verified Tickets.',
     template: '%s · TicketRoyality',
   },
+  // 50–165 characters: long enough to earn the click, short enough that Google shows it
+  // whole instead of writing its own from a cookie banner.
   description:
-    'TicketRoyality is a premium ticketing and event management platform built for stadiums, concerts, festivals, clubs, promoters and VIP events — with secure QR tickets, real-time validation, fraud control, seat management and powerful revenue tools.',
+    'Premium ticketing for stadiums, concerts, festivals and clubs — secure QR tickets, real-time entry, 0% organiser commission and one fair all-in price for fans.',
+  alternates: {
+    // Names the one address to index, so the same page at two URLs cannot dilute itself.
+    canonical: '/',
+  },
   keywords: [
     'ticketing platform',
     'event management',
@@ -62,6 +68,15 @@ export const metadata: Metadata = {
     description:
       'Sell out events. Control every ticket. Deliver a royal experience.',
     type: 'website',
+    url: '/',
+    siteName: 'TicketRoyality',
+    // The og:image comes from `app/opengraph-image.tsx` (a generated 1200×630 card), so a
+    // shared link renders as a proper preview instead of a bare grey URL.
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'TicketRoyality — Where Every Ticket Feels Royal',
+    description: 'Sell out events. Control every ticket. Deliver a royal experience.',
   },
   applicationName: 'TicketRoyality',
   appleWebApp: {

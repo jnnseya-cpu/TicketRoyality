@@ -1078,6 +1078,31 @@ money back from a bank), and a refund *after* payout is not yet clawed back. Sti
 promoter commission settlement (the `settle()` primitive takes a promoter party already) and
 promoter onboarding. Verified: 4/4 settlement tests, typecheck, lint, build.
 
+### 29 August — SEO audit fixes (owner ran a MarketWar OS audit on the live site)
+
+Fixed the code-fixable findings from a website audit of ticketroyality.com:
+
+- **Meta description** shortened from 247 → ~158 chars (50–165 band), so Google shows it
+  whole instead of writing its own.
+- **Open Graph / Twitter image**: `app/opengraph-image.tsx` generates a branded 1200×630 card
+  (next/og, Node runtime for the Cloud Run standalone server); `twitter-image.tsx` reuses it.
+  `openGraph` gains `url` + `siteName`; a `twitter` summary_large_image block added. A shared
+  link now previews as a card, not a bare URL.
+- **Canonical tag**: `alternates.canonical: '/'` on the root metadata.
+- **Organization schema**: `SiteStructuredData` now emits `Organization` (name, url, logo,
+  description) beside the existing `WebSite`/`SearchAction`. Deliberately **not** `LocalBusiness`
+  and **no address/phone** — TicketRoyality is an online platform, and inventing a postal
+  address to pass a local-SEO check would be a fabricated fact.
+- Image alt text: audited the three pages' `<Image>`s — all already carry alt (hero is a
+  deliberate empty alt for a decorative image).
+
+**Left for the owner (real data / infra, not inventable):** a phone number and postal address
+(only if the business wants them public), real social-profile links (the footer currently
+points at bare twitter.com/linkedin.com), and the **www→root redirect** (a DNS/Firebase
+App Hosting domain setting — `www.ticketroyality.com` currently doesn't answer). The one
+"render-blocking script" is next-themes' anti-flash inline script, which is correct as-is.
+Verified: typecheck, lint, build.
+
 ### 29 August — Premium showcase placement (owner request)
 
 A new paid placement above the spotlight: the big screen in the homepage's "Built for serious
