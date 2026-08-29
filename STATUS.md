@@ -1040,6 +1040,36 @@ gate, not a hidden button.
 - Honest residual (kept in the industries copy): the pass takes a *tier*, so seat-for-seat
   carry within a seated map is a further step, not this.
 
+### 29 August — Stripe Connect settlement rail (owner "build big", highest-leverage)
+
+The automated-payout rail the whole platform was missing — payouts were display-only, and
+every owed record (promoter commission, box-office fees, organiser face) had no way to
+actually *move*. Built on **Stripe Connect** (inside the existing Stripe vendor, not a sixth
+one), **gated OFF** behind `STRIPE_CONNECT_ENABLED` so nothing moves until the owner turns it
+on in the Stripe dashboard and sets the env — no accidental transfers, no fake success.
+
+- `backend/payments/stripe-connect.ts` — the adapter: `createConnectedAccount` (Express, KYC
+  stays with Stripe), `createOnboardingLink`, `getConnectedAccountStatus`, and
+  `transferToConnected` **idempotent by key**. Every function refuses cleanly when Connect is
+  off.
+- `backend/services/settlement.ts` — `settle()` claims the idempotency key as the
+  `payouts/{key}` doc id FIRST, then moves money, then records the outcome; a repeat finds the
+  key and pays nothing again (the same guard issuance uses inbound). Connect-off or
+  onboarding-incomplete records the payout as **`blocked`** — the debt stays owed and visible,
+  never a silent no-op. `settleOrganiser()` resolves the account from the profile; `payoutKey()`
+  is pure and unit-tested (4 tests: same debt → same key, new period → new key, no
+  cross-party collision, always a legal doc id).
+- Types: `UserProfile.stripeConnectId` + `stripeConnectPayoutsEnabled`, `PartnerLink.connectedAccountId`,
+  and the `Payout` record. `firestore.rules`: `payouts` is Admin-SDK-only.
+- `POST/GET /api/connect/onboard` — organiser onboarding + status, mirrored onto the profile.
+  Revenue page gains an **"Automatic payouts"** card (Connect a payout account → Stripe hosted
+  onboarding → "Payouts connected"), shown only when Connect is enabled.
+- **Not yet wired**: automatic triggering per owed source (pay an organiser after their event,
+  compute a promoter's owed commission and settle it) and promoter onboarding — the rail and
+  the primitive exist; the callers that fire `settle()` on each source are the next step.
+  Activation is an owner action: enable Connect + `STRIPE_CONNECT_ENABLED=true`. Verified:
+  4/4 settlement tests, typecheck, lint, build.
+
 ### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
 
 Swept the public surfaces for horizontal overflow at 320–768px across two font scales

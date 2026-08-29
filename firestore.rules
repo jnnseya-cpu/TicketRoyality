@@ -262,6 +262,20 @@ service cloud.firestore {
     }
 
     /* ---------------------------------------------------------------- */
+    /* payouts — settlement records (Stripe Connect transfers).          */
+    /*                                                                  */
+    /* Money leaving the platform. Written only by the settlement layer  */
+    /* through the Admin SDK, keyed by an idempotency key so a repeat     */
+    /* pays nothing again. A client that could write one could invent a   */
+    /* payout; a party sees their own through the server, never a direct  */
+    /* client query.                                                      */
+    /* ---------------------------------------------------------------- */
+
+    match /payouts/{payoutId} {
+      allow read, write: if false;
+    }
+
+    /* ---------------------------------------------------------------- */
     /* comms_deliveries — the notification log                           */
     /* ---------------------------------------------------------------- */
 

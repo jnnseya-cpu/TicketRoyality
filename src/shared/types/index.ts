@@ -46,6 +46,15 @@ export interface UserProfile {
   adminFee?: number;
 
   /**
+   * Stripe Connect. When set, the organiser has an Express account money can be settled to.
+   * `stripeConnectPayoutsEnabled` mirrors Stripe's `payouts_enabled` — the settlement layer
+   * reads it before paying and never assumes it. Absent until the organiser onboards; the
+   * whole feature is gated by `STRIPE_CONNECT_ENABLED` server-side regardless.
+   */
+  stripeConnectId?: string;
+  stripeConnectPayoutsEnabled?: boolean;
+
+  /**
    * White-label tier. Absent (or `enabled: false`) means this organiser sells under the
    * standard TicketRoyality model — 0% commission, the platform's own buyer service fee,
    * platform branding.
@@ -683,6 +692,36 @@ export interface PartnerLink {
   ticketsSold: number;
   grossMinor: number;
   commissionMinor: number;
+  /**
+   * The promoter's Stripe Connect account, once they onboard, so their owed commission can
+   * be settled to them automatically instead of the organiser paying them by hand. Absent
+   * until they onboard; without it the commission stays recorded-as-owed exactly as before.
+   */
+  connectedAccountId?: string;
+}
+
+/**
+ * A settlement paid out to a party through Stripe Connect. Written once, idempotently, by
+ * the settlement layer. Its **document id is the idempotency key**, so a repeated settlement
+ * finds the record present and pays nothing again — the same guard `payment_events` uses on
+ * the way in, applied on the way out.
+ */
+export interface Payout {
+  /** = the idempotency key. */
+  id: string;
+  party: 'organiser' | 'promoter';
+  /** The organiser's uid, or the promoter link's code. */
+  partyId: string;
+  connectedAccountId: string;
+  amountMinor: number;
+  currency: string;
+  /** Why: e.g. `organiser_event`, `promoter_commission`, `box_office_owed`, `white_label`. */
+  reason: string;
+  /** `paid` moved money; `blocked` never attempted (Connect off, or payouts not enabled); `failed` tried and errored. */
+  status: 'paid' | 'blocked' | 'failed';
+  transferId?: string;
+  error?: string;
+  createdAt: string;
 }
 
 /** One attributed order. Written once, by the payment path, and never edited. */

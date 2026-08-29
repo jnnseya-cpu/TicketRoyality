@@ -37,6 +37,13 @@ function Revenue({ profile }: { profile: UserProfile }) {
   const [tickets, setTickets] = React.useState<Ticket[]>([]);
   // Box-office service fee the organiser owes, per currency in minor units (net of refunds).
   const [owed, setOwed] = React.useState<Record<string, number>>({});
+  // Stripe Connect payout-account status. `enabled` false = Connect is off platform-wide.
+  const [connect, setConnect] = React.useState<{
+    enabled: boolean;
+    connected: boolean;
+    payoutsEnabled: boolean;
+  } | null>(null);
+  const [connecting, setConnecting] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -57,10 +64,39 @@ function Revenue({ profile }: { profile: UserProfile }) {
         if (!cancelled) setOwed(data.owed ?? {});
       })
       .catch(() => undefined);
+    authedFetch('/api/connect/onboard')
+      .then((res) => res.json())
+      .then((data: { enabled?: boolean; connected?: boolean; payoutsEnabled?: boolean }) => {
+        if (!cancelled)
+          setConnect({
+            enabled: Boolean(data.enabled),
+            connected: Boolean(data.connected),
+            payoutsEnabled: Boolean(data.payoutsEnabled),
+          });
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
   }, [profile.uid]);
+
+  // Start (or resume) Stripe Connect onboarding, then follow Stripe's hosted link.
+  const startConnect = async () => {
+    setConnecting(true);
+    try {
+      const res = await authedFetch('/api/connect/onboard', { method: 'POST' });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? 'Could not start onboarding.');
+      window.location.href = data.url;
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not connect payouts',
+        description: error instanceof Error ? error.message : 'Please try again.',
+      });
+      setConnecting(false);
+    }
+  };
 
   // Memoised so the statement below is not rebuilt on every render by a fresh object identity.
   const terms = React.useMemo(() => commissionTermsFor(profile), [profile]);
@@ -237,6 +273,36 @@ function Revenue({ profile }: { profile: UserProfile }) {
               )}
             </CardContent>
           </Card>
+
+          {connect?.enabled && (
+            <Card className={connect.payoutsEnabled ? 'border-primary/30 bg-primary/5' : undefined}>
+              <CardHeader>
+                <CardTitle>Automatic payouts</CardTitle>
+                <CardDescription>
+                  {connect.payoutsEnabled
+                    ? 'Your payout account is connected. Settlements are sent to your bank automatically.'
+                    : connect.connected
+                      ? 'Nearly there — finish the payout setup with Stripe to receive settlements.'
+                      : 'Connect a payout account to receive your settlements straight to your bank.'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {connect.payoutsEnabled ? (
+                  <Badge variant="secondary">Payouts connected</Badge>
+                ) : (
+                  <Button variant="royal" onClick={startConnect} disabled={connecting}>
+                    {connecting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : connect.connected ? (
+                      'Finish payout setup'
+                    ) : (
+                      'Connect a payout account'
+                    )}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
