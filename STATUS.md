@@ -983,7 +983,15 @@ statement's **Fee** column is hidden (it was −£0.00 on every online row), and
 organiser-facing `TierEconomics` breakdown no longer itemises the **platform's service-fee
 revenue** ("Fan service fee" line removed) — the organiser still sees they receive 100% of
 face and the price the fan will pay; the platform's per-ticket cut is now shown only on the
-superuser surfaces. Verified: typecheck, lint.
+superuser surfaces.
+Drip-pricing leak fixed (UK DMCCA 2024, in force 6 Apr 2025 — mandatory fees must be in the
+headline price): the catalogue, SEO structured data, related/article links and homepage
+badges all already advertise the **all-in** price via `allInTicketPriceMinor`, matching the
+module's stated doctrine ("there is deliberately no export that formats a face value as a
+price"). One surface leaked face — the homepage **video spotlight** (`VideoAds.tsx`) showed
+`from {leadPrice}` (face) while checkout charges the all-in total. Now routed through
+`allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
+typecheck, lint, build.
 
 ### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
 

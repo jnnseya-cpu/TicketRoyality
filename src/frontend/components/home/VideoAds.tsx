@@ -14,7 +14,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from '@/frontend/components/ui/carousel';
-import { formatCurrency } from '@/shared/utils';
+import { allInPriceLabelFromMajor } from '@/frontend/components/pricing/TicketPrice';
 import { leadPrice } from '@/shared/pricing';
 import { parseVideoAd } from '@/shared/video';
 import type { Event } from '@/shared/types';
@@ -141,7 +141,9 @@ export default function VideoAds({ events }: { events: Event[] }) {
                             day: 'numeric',
                             month: 'long',
                           })}
-                          {from > 0 ? ` · from ${formatCurrency(from, event.currency)}` : ' · Free'}
+                          {/* All-in, never face: a "from £X" that omits the fee is the
+                              drip-pricing pattern (see allInTicketPriceMinor's doctrine). */}
+                          {from > 0 ? ` · from ${allInPriceLabelFromMajor(from, event.currency)}` : ' · Free'}
                         </p>
                       </div>
                     </Card>
