@@ -1078,6 +1078,18 @@ money back from a bank), and a refund *after* payout is not yet clawed back. Sti
 promoter commission settlement (the `settle()` primitive takes a promoter party already) and
 promoter onboarding. Verified: 4/4 settlement tests, typecheck, lint, build.
 
+### 29 August — Spotlight: two staggered screens, video only (owner request)
+
+The homepage "In the spotlight" strip is now **video only, on two screens**. Each screen
+cycles up to **three** promo videos; the two screens run **three seconds out of phase** so
+they never cut together; every clip is capped at **15 seconds** on screen (YouTube via
+`&end=15`, a file by a 15s timer). Only featured events that actually carry a video reach the
+strip — an event with no video no longer appears, and the whole section renders nothing when
+nothing featured has a video (the anti-fake rule this strip already carried). Videos are
+interleaved across the two screens (up to 6), and one lone video shows on a single screen
+rather than a half. `VideoAds` rebuilt from the carousel into `Screen`/`VideoTile`; YouTube or
+MP4 only, click still falls through to the event. Verified: typecheck, lint, build.
+
 ### 29 August — Floor-plan seat canvas (owner "build now")
 
 The theatres card's "Not yet" — drag individual seats around a floor plan, alongside the
