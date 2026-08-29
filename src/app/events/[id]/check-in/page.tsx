@@ -5,6 +5,7 @@ import { ShieldCheck } from 'lucide-react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/frontend/components/ui/alert';
 import { Logo } from '@/frontend/components/common/Logo';
+import { LiveAdmissions } from '@/frontend/components/dashboard/LiveAdmissions';
 import { TicketScanner } from '@/frontend/components/dashboard/TicketScanner';
 import { WristbandDesk } from '@/frontend/components/dashboard/WristbandDesk';
 import { getEventById } from '@/shared/data/repositories';
@@ -65,6 +66,9 @@ export default async function CheckInPage({ params }: { params: Promise<{ id: st
       <div className="mt-6">
         <WristbandDesk eventId={event.id} />
       </div>
+
+      {/* Cross-door awareness: what every other gate has admitted, live. */}
+      <LiveAdmissions eventId={event.id} />
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Problem at the gate?{' '}

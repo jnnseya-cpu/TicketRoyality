@@ -1070,6 +1070,22 @@ on in the Stripe dashboard and sets the env — no accidental transfers, no fake
   Activation is an owner action: enable Connect + `STRIPE_CONNECT_ENABLED=true`. Verified:
   4/4 settlement tests, typecheck, lint, build.
 
+### 29 August — Real-time cross-door awareness (owner "build now")
+
+The nightclubs card's "Not yet". Each door scanner knew only what it admitted; now every
+gate sees the whole venue's admissions live — a running admitted count and the latest
+entries across all doors.
+
+- `GET /api/check-in/pulse?eventId=` — server-mediated (Admin SDK after proving the caller
+  owns the event), a **single-field `eventId` query filtered in memory** so it needs **no new
+  composite index** — nothing extra to deploy. Returns `{ admitted, issued, recent[] }`.
+- `LiveAdmissions` polls every 5s (polling, not a socket, survives flaky venue wifi), shows
+  the count + recent entries + a Live/Reconnecting indicator, and **fails silently** — a stale
+  number beats a blank panel at a door. Added to the scoped check-in portal.
+- The genuinely-offline door is unchanged and honestly so: it can't know another door's state
+  without a network (physics), and a double-use is still reported with both times on sync.
+- Industries copy updated to the truth. Verified: typecheck, lint, build.
+
 ### 29 August — landing-page rewrite: punchier, and caught up with what shipped
 
 Owner ask: make the public copy far more persuasive, and reflect everything built since. The

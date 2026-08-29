@@ -94,7 +94,7 @@ const SEGMENTS = [
     need: 'Door throughput on the phones you already have',
     detail:
       'A per-event check-in page scans QR codes and redeems them on the spot, on as many devices as you have staff. A redeemed ticket cannot be redeemed twice, and redeemed tickets are protected from refund. Tables sell as packages with a deposit now and the balance later, and the booker names their own guest list. A door blocklist refuses people you have barred, by email or by ticket, without cancelling anything. Download the ticket list before doors and the scanner keeps working with no signal, rotating codes still checked.',
-    next: 'Offline scanning knows what its own device admitted, not what another door did — anything used twice is reported when the scans sync, with both times.',
+    next: 'Online doors now see every gate\u2019s admissions live \u2014 a running count and the latest entries across the venue. A genuinely offline door still knows only what it admitted; a ticket used twice is reported with both scan times the moment scans sync.',
   },
   {
     icon: Clapperboard,
