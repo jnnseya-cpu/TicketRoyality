@@ -83,6 +83,12 @@ function Revenue({ profile }: { profile: UserProfile }) {
   );
   const balance = Math.max(0, net - feesOwed);
 
+  // The standard model charges the organiser nothing and pays 100% of face — platform
+  // revenue is the buyer-side service fee already in the ticket price. Only a bespoke,
+  // superuser-set per-organiser agreement makes commission non-zero, and only then does the
+  // commission framing below apply.
+  const hasCommission = terms.percent > 0 || terms.adminFee > 0;
+
   // Running-balance statement, oldest first. Box-office sales are excluded — they never
   // pay out — so the statement reconciles to the available balance above.
   const statement = React.useMemo(() => {
@@ -119,10 +125,19 @@ function Revenue({ profile }: { profile: UserProfile }) {
       <div>
         <h1 className="font-headline text-2xl font-bold">Revenue &amp; payouts</h1>
         <p className="text-sm text-muted-foreground">
-          Your balance after platform commission of {terms.percent}% plus{' '}
-          {formatCurrency(terms.adminFee)} per ticket. Box-office (door) sales are collected
-          by you in person, so their face value is not paid out — only their service fee is
-          deducted here.
+          {hasCommission ? (
+            <>
+              Your balance after your agreed platform commission of {terms.percent}% plus{' '}
+              {formatCurrency(terms.adminFee)} per ticket.{' '}
+            </>
+          ) : (
+            <>
+              You keep 100% of face value — the platform&apos;s service fee is charged to the
+              buyer at checkout, not taken from your payout.{' '}
+            </>
+          )}
+          Box-office (door) sales are collected by you in person, so their face value is not
+          paid out here — only the service fee you owe on them is deducted.
         </p>
       </div>
 
@@ -135,7 +150,7 @@ function Revenue({ profile }: { profile: UserProfile }) {
                 Available balance
               </p>
               <p className="font-headline text-2xl font-bold">{formatCurrency(balance)}</p>
-              {feesOwed > 0 && (
+              {hasCommission && feesOwed > 0 && (
                 <p className="mt-1 text-xs text-muted-foreground">
                   Box-office service fees owed:{' '}
                   <span className="tabular-nums text-destructive">
@@ -149,16 +164,36 @@ function Revenue({ profile }: { profile: UserProfile }) {
         </Card>
         <Card>
           <CardContent className="p-6">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Gross sales</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Online sales (paid to you)
+            </p>
             <p className="mt-1 font-headline text-2xl font-bold">{formatCurrency(gross)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Commission withheld
-            </p>
-            <p className="mt-1 font-headline text-2xl font-bold">{formatCurrency(commission)}</p>
+            {hasCommission ? (
+              <>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Commission withheld
+                </p>
+                <p className="mt-1 font-headline text-2xl font-bold">
+                  {formatCurrency(commission)}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Box-office fees owed
+                </p>
+                <p className="mt-1 font-headline text-2xl font-bold tabular-nums text-destructive">
+                  {feesOwed > 0 ? `-${formatCurrency(feesOwed)}` : formatCurrency(0)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Service fee on door sales, deducted from your balance.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

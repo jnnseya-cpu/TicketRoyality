@@ -968,7 +968,17 @@ balance**, with a "Box-office service fees owed: −£X netted off" line, readin
 `owed` figure `/api/box-office/sales` returns (net of refunds). The account statement is
 computed over the same online tickets, so it reconciles to the balance. Payouts remain
 display-only (no automated payout service exists); this makes the *displayed* balance the
-true payable amount. Verified: typecheck, lint.
+true payable amount.
+Copy correction (owner-flagged): the page's header and third summary card still described
+the **retired organiser-side commission** ("balance after platform commission of X% plus £Y
+per ticket", "Commission withheld"). Under the live model (`DEFAULT_COMMISSION_PERCENT = 0`,
+`DEFAULT_ADMIN_FEE = 0`) the organiser keeps **100% of face** and platform revenue is the
+**buyer-side service fee** already in the ticket price — so those numbers rendered 0%/£0 and
+misframed the model. The header now reads "You keep 100% of face value — the platform's
+service fee is charged to the buyer at checkout, not taken from your payout" and the third
+card shows **Box-office fees owed** (the only real deduction), reverting to the commission
+wording only when a bespoke `commissionTermsFor` override makes it non-zero. Verified:
+typecheck, lint.
 
 ### 28 August — cross-screen fit pass: two hardenings, and an honest test limit
 
