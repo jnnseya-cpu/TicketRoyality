@@ -8,7 +8,7 @@ import { Badge } from '@/frontend/components/ui/badge';
 import { Card } from '@/frontend/components/ui/card';
 import { allInPriceLabelFromMajor } from '@/frontend/components/pricing/TicketPrice';
 import { leadPrice } from '@/shared/pricing';
-import { parseVideoAd } from '@/shared/video';
+import { parseVideoAd, youTubeClipEmbed } from '@/shared/video';
 import type { Event } from '@/shared/types';
 
 /**
@@ -34,11 +34,6 @@ import type { Event } from '@/shared/types';
 const MAX_MS = 15_000;
 const STAGGER_MS = 3_000;
 
-/** Cap a YouTube embed at 15 seconds of content, on top of the on-screen timer. */
-function cap15(embedUrl: string): string {
-  return embedUrl.includes('end=') ? embedUrl : `${embedUrl}&end=15`;
-}
-
 /** One playing video, filling its screen, linking to the event. */
 function VideoTile({ event }: { event: Event }) {
   const ad = parseVideoAd(event.videoAdUrl);
@@ -58,7 +53,7 @@ function VideoTile({ event }: { event: Event }) {
             />
             {/* pointer-events-none so a click falls through to the event link, not YouTube. */}
             <iframe
-              src={cap15(ad.embedUrl)}
+              src={youTubeClipEmbed(ad.id, 15)}
               title={event.title}
               loading="lazy"
               allow="autoplay; encrypted-media; picture-in-picture"

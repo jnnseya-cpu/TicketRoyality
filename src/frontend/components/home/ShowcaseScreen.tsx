@@ -7,7 +7,7 @@ import { Sparkles } from 'lucide-react';
 import { Badge } from '@/frontend/components/ui/badge';
 import { allInPriceLabelFromMajor } from '@/frontend/components/pricing/TicketPrice';
 import { leadPrice } from '@/shared/pricing';
-import { parseVideoAd } from '@/shared/video';
+import { parseVideoAd, youTubeClipEmbed } from '@/shared/video';
 import type { Event } from '@/shared/types';
 
 /**
@@ -25,10 +25,6 @@ import type { Event } from '@/shared/types';
 const IMAGE_MS = 5_000;
 const VIDEO_MS = 15_000;
 
-function cap15(embedUrl: string): string {
-  return embedUrl.includes('end=') ? embedUrl : `${embedUrl}&end=15`;
-}
-
 export function ShowcaseScreen({
   event,
   fallback,
@@ -38,6 +34,9 @@ export function ShowcaseScreen({
 }) {
   const ad = event ? parseVideoAd(event.videoAdUrl) : null;
   const [showVideo, setShowVideo] = React.useState(false);
+  // Bumped every time the clip comes back on, so it remounts and replays from 0 — and,
+  // with the capped embed, hard-stops again at 15s rather than running on underneath.
+  const [cycle, setCycle] = React.useState(0);
 
   React.useEffect(() => {
     if (!ad) return; // no video: the moving picture just runs on its own
@@ -46,8 +45,10 @@ export function ShowcaseScreen({
     const loop = (video: boolean) => {
       timer = setTimeout(() => {
         if (cancelled) return;
-        setShowVideo(!video);
-        loop(!video);
+        const next = !video;
+        setShowVideo(next);
+        if (next) setCycle((c) => c + 1);
+        loop(next);
       }, video ? VIDEO_MS : IMAGE_MS);
     };
     loop(false);
@@ -80,7 +81,8 @@ export function ShowcaseScreen({
           >
             {ad.kind === 'youtube' ? (
               <iframe
-                src={cap15(ad.embedUrl)}
+                key={cycle}
+                src={youTubeClipEmbed(ad.id, 15)}
                 title={event.title}
                 loading="lazy"
                 allow="autoplay; encrypted-media; picture-in-picture"
@@ -88,11 +90,11 @@ export function ShowcaseScreen({
               />
             ) : (
               <video
+                key={cycle}
                 src={ad.url}
                 poster={event.imageUrl}
                 muted
                 autoPlay
-                loop
                 playsInline
                 preload="metadata"
                 className="absolute inset-0 h-full w-full object-cover"

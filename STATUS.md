@@ -1100,8 +1100,9 @@ slot on the site. Falls back to the section's static stadium image when none is 
 
 The homepage "In the spotlight" strip is now **video only, on two screens**. Each screen
 cycles up to **three** promo videos; the two screens run **three seconds out of phase** so
-they never cut together; every clip is capped at **15 seconds** on screen (YouTube via
-`&end=15`, a file by a 15s timer). Only featured events that actually carry a video reach the
+they never cut together; every clip is capped at **15 seconds** on screen. The YouTube cap
+needs no API: `youTubeClipEmbed` builds a **no-loop** embed with `end=15`, so the clip plays
+0→15s and **stops** rather than restarting; a file is held by the 15s timer. Only featured events that actually carry a video reach the
 strip — an event with no video no longer appears, and the whole section renders nothing when
 nothing featured has a video (the anti-fake rule this strip already carried). Videos are
 interleaved across the two screens (up to 6), and one lone video shows on a single screen

@@ -21,6 +21,26 @@ export function youTubeId(raw: string): string | null {
   return match ? match[1] : null;
 }
 
+/**
+ * A "play once, hard-stop at N seconds" YouTube embed — no API, just the `end` parameter,
+ * and crucially **no loop**, so the clip plays from 0 to the cap and stops rather than
+ * restarting. This is how a YouTube spotlight/showcase clip is held to 15 seconds without
+ * the IFrame API or a sixth vendor: the URL itself refuses to play past the cap.
+ */
+export function youTubeClipEmbed(id: string, maxSeconds = 15): string {
+  const params = new URLSearchParams({
+    autoplay: '1',
+    mute: '1',
+    controls: '0',
+    modestbranding: '1',
+    playsinline: '1',
+    rel: '0',
+    start: '0',
+    end: String(Math.max(1, Math.floor(maxSeconds))),
+  });
+  return `https://www.youtube-nocookie.com/embed/${id}?${params.toString()}`;
+}
+
 export function parseVideoAd(raw?: string | null): VideoAd | null {
   const url = (raw ?? '').trim();
   if (!url) return null;
