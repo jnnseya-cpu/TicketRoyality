@@ -14,6 +14,24 @@ const nextConfig: NextConfig = {
   // Genkit pulls in optional server-only deps that must not be bundled for the browser.
   serverExternalPackages: ['genkit', '@genkit-ai/google-genai'],
 
+  /**
+   * One canonical host. `www.ticketroyality.com` and the apex both resolving with a 200
+   * splits ranking signals and trips duplicate-content SEO checks; this 308s every www
+   * request to the bare apex, which is the host every canonical tag and og:url already
+   * points at. It fires only once `www` is attached as a domain in App Hosting — until
+   * then no request ever arrives with that host, so the rule is inert rather than wrong.
+   */
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.ticketroyality.com' }],
+        destination: 'https://ticketroyality.com/:path*',
+        permanent: true,
+      },
+    ];
+  },
+
   // Trims the response body and removes a free fingerprint for scanners.
   // Emits .next/standalone so the Docker image carries only what it needs.
   output: 'standalone',
