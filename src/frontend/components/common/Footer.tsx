@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { Activity, Linkedin, Twitter } from 'lucide-react';
 
 import { Logo, Wordmark } from '@/frontend/components/common/Logo';
 import { Separator } from '@/frontend/components/ui/separator';
@@ -67,23 +66,15 @@ export function Footer() {
               The premium infrastructure operating system for serious events. From stadiums to
               festivals, we orchestrate the future of ticketing.
             </p>
+            {/* Only real, working contact routes here — no placeholder social icons pointing at
+                bare twitter.com / linkedin.com. Real profile links go back the moment there are
+                accounts to link; the mailbox below is the live info@ SMTP inbox. */}
             <a
               href="mailto:info@ticketroyality.com"
               className="block text-sm text-primary underline-offset-4 hover:underline"
             >
               info@ticketroyality.com
             </a>
-            <div className="flex gap-3 text-muted-foreground">
-              <Link href="https://twitter.com" aria-label="Twitter / X" className="hover:text-primary">
-                <Twitter className="h-4 w-4" />
-              </Link>
-              <Link href="https://linkedin.com" aria-label="LinkedIn" className="hover:text-primary">
-                <Linkedin className="h-4 w-4" />
-              </Link>
-              <Link href="/how-it-works" aria-label="System status" className="hover:text-primary">
-                <Activity className="h-4 w-4" />
-              </Link>
-            </div>
           </div>
 
           {COLUMNS.map((column) => (
