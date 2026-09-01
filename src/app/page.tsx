@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -12,7 +11,6 @@ import {
   QrCode,
   ScanLine,
   ShieldCheck,
-  Sparkles,
   Store,
   Ticket,
   TrendingUp,
@@ -22,16 +20,15 @@ import {
 
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
-import { Card, CardContent } from '@/frontend/components/ui/card';
 import { Separator } from '@/frontend/components/ui/separator';
 import { cn } from '@/shared/utils';
+import { CoverArt } from '@/frontend/components/brand/CoverArt';
 import VideoAds from '@/frontend/components/home/VideoAds';
 import { ShowcaseScreen } from '@/frontend/components/home/ShowcaseScreen';
 import { FeaturedEvents, UpcomingSample } from '@/frontend/components/home/FeaturedEvents';
 import { QuickDiscovery } from '@/frontend/components/home/QuickDiscovery';
 import { getEvents } from '@/shared/data/repositories';
 import { PersonalizedRecommendations } from '@/frontend/components/ai/PersonalizedRecommendations';
-import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
 
 const TRUST_POINTS = [
   { icon: QrCode, label: 'Secure QR Access' },
@@ -125,7 +122,7 @@ const CORE_FEATURES = [
   {
     icon: BarChart3,
     title: 'Real-Time Dashboard',
-    body: 'Track sales, attendance, revenue, and entry activity live from your command centre.',
+    body: 'Sales, attendance, revenue and who has walked in — updating live on one screen as it happens.',
   },
   {
     icon: LayoutGrid,
@@ -192,14 +189,10 @@ export default async function HomePage() {
       {/* Hero                                                               */}
       {/* ------------------------------------------------------------------ */}
       <section className="relative overflow-hidden">
-        <Image
-          src={PLACEHOLDER_IMAGES.heroCrowd}
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover opacity-40"
-        />
+        {/* An engraved backdrop, not a stock crowd photo: the house rosework, held far
+            back so the type carries the page. A printed programme cover, not a hero
+            image bought by the thousand. */}
+        <CoverArt seed="tr-hero-arena" aspect={16 / 6} frame={false} className="absolute inset-0 opacity-[0.18]" />
         <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/85 to-background" />
         <div className="absolute inset-0 grid-backdrop opacity-60" />
 
@@ -293,15 +286,8 @@ export default async function HomePage() {
           <ShowcaseScreen
             event={events.find((e) => e.showcase)}
             fallback={
-              <div className="relative aspect-[4/3] overflow-hidden rounded-xl gold-ring">
-                <Image
-                  src={PLACEHOLDER_IMAGES.stadium}
-                  alt="A packed stadium at night"
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                  className="object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+              <div className="relative aspect-[4/3] overflow-hidden rounded-[--radius] gold-ring">
+                <CoverArt seed="tr-stadium" label="The Stand" aspect={4 / 3} className="absolute inset-0" />
               </div>
             }
           />
@@ -311,29 +297,38 @@ export default async function HomePage() {
       {/* ------------------------------------------------------------------ */}
       {/* System modules                                                     */}
       {/* ------------------------------------------------------------------ */}
-      <section className="container py-16">
-        <div className="mb-10 text-center">
-          <Eyebrow>System modules</Eyebrow>
-          <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">Core Features</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-            Everything a modern event operation needs, in one place.
+      <section className="container py-16 lg:py-24">
+        <div className="max-w-2xl">
+          <Eyebrow>The system</Eyebrow>
+          <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">
+            Everything you run, from one place
+          </h2>
+          <p className="mt-3 text-muted-foreground">
+            Pricing, the door, the money and the inventory — one operation, nothing bolted on.
           </p>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {CORE_FEATURES.map((feature) => (
-            <Card
+        {/* An index, not a wall of tinted icon tiles: foil numerals, hairline rules,
+            Didone titles — the register of a printed programme. */}
+        <div className="mt-12 grid gap-x-14 sm:grid-cols-2">
+          {CORE_FEATURES.map((feature, i) => (
+            <div
               key={feature.title}
-              className="group h-full border-border/70 bg-card/50 transition-colors hover:border-primary/40"
+              className="flex gap-5 border-t border-border/60 py-6 first:border-t-0 sm:[&:nth-child(2)]:border-t-0"
             >
-              <CardContent className="p-6">
-                <div className="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-                  <feature.icon className="h-5 w-5" />
+              <span className="pt-1 font-mono text-xs tabular-nums text-primary/80">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <feature.icon className="h-4 w-4 shrink-0 text-primary" />
+                  <h3 className="font-headline text-lg font-semibold leading-tight">
+                    {feature.title}
+                  </h3>
                 </div>
-                <h3 className="font-headline text-base font-semibold">{feature.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{feature.body}</p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       </section>
@@ -357,23 +352,23 @@ export default async function HomePage() {
       {/* ------------------------------------------------------------------ */}
       <section className="border-y border-border/60 bg-card/30 py-16">
         <div className="container">
-          <div className="mb-10 text-center">
-            <Eyebrow>Segment advantage</Eyebrow>
+          <div className="mb-10 max-w-2xl">
+            <Eyebrow>Who it&apos;s for</Eyebrow>
             <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">
-              Why <span className="text-royal">TicketRoyality</span> Wins
+              One platform, four rooms
             </h2>
           </div>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid divide-y divide-border/60 border-y border-border/60 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4">
             {SEGMENTS.map((segment) => (
-              <Card key={segment.audience} className="border-border/70 bg-background/40">
-                <CardContent className="p-6">
-                  <segment.icon className="mb-4 h-6 w-6 text-primary" />
-                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-                    {segment.audience}
-                  </p>
-                  <p className="mt-2 text-sm text-muted-foreground">{segment.value}</p>
-                </CardContent>
-              </Card>
+              <div
+                key={segment.audience}
+                className="px-0 py-6 sm:px-6 sm:py-2 sm:[&:nth-child(odd)]:pl-0 lg:border-l lg:border-border/60 lg:first:border-l-0 lg:[&:nth-child(odd)]:pl-6"
+              >
+                <p className="font-mono text-xs uppercase tracking-[0.18em] text-primary">
+                  {segment.audience}
+                </p>
+                <p className="mt-2 font-headline text-lg leading-snug">{segment.value}</p>
+              </div>
             ))}
           </div>
         </div>
@@ -384,14 +379,8 @@ export default async function HomePage() {
       {/* ------------------------------------------------------------------ */}
       <section className="container py-16">
         <div className="grid items-center gap-12 lg:grid-cols-2">
-          <div className="relative order-2 aspect-[4/3] overflow-hidden rounded-xl gold-ring lg:order-1">
-            <Image
-              src={PLACEHOLDER_IMAGES.vipLounge}
-              alt="A VIP lounge before doors open"
-              fill
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              className="object-cover"
-            />
+          <div className="relative order-2 aspect-[4/3] overflow-hidden rounded-[--radius] gold-ring lg:order-1">
+            <CoverArt seed="tr-vip-lounge" label="The Box" aspect={4 / 3} className="absolute inset-0" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 p-6">
               {/* Tables, deposits, balances and named guests are built and tested. The
@@ -412,25 +401,26 @@ export default async function HomePage() {
           </div>
 
           <div className="order-1 lg:order-2">
-            <Eyebrow>The fan journey</Eyebrow>
+            <Eyebrow>What the fan sees</Eyebrow>
             <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">
-              Premium Event Experience
+              One clean line, tap to door
             </h2>
             <p className="mt-4 text-muted-foreground">
-              From the first click to the final scan, TicketRoyality makes your event feel bigger,
-              sharper and more professional.
+              From the first tap to the scan at the gate, the buyer meets one branded flow — the
+              all-in price shown before they pay, the ticket in their wallet a second later, no
+              chain of redirects and no surprise line at the till.
             </p>
 
-            <div className="mt-6 space-y-3">
+            <ol className="mt-8 divide-y divide-border/60 border-y border-border/60">
               {EXPERIENCE_STEPS.map((step, index) => (
-                <div key={step} className="flex items-center gap-4">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/40 bg-primary/10 font-headline text-xs font-bold text-primary">
+                <li key={step} className="flex items-baseline gap-4 py-3.5">
+                  <span className="font-headline text-lg font-semibold tabular-nums text-primary">
                     {index + 1}
                   </span>
                   <span className="text-sm">{step}</span>
-                </div>
+                </li>
               ))}
-            </div>
+            </ol>
           </div>
         </div>
 
@@ -478,23 +468,24 @@ export default async function HomePage() {
         {/* A faint ruled ledger grid rather than a gold radial glow — flat register. */}
         <div className="absolute inset-0 grid-backdrop opacity-40" />
         <div className="container relative py-20 text-center">
-          <Sparkles className="mx-auto mb-5 h-8 w-8 text-primary" />
+          {/* A struck foil rule, not a sparkle. */}
+          <div className="mx-auto mb-6 h-px w-16 bg-primary/60" />
           <h2 className="mx-auto max-w-3xl font-headline text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
-            Your Event Deserves More Than <span className="text-royal">Basic Ticketing</span>.
+            Keep the whole gate. <span className="text-royal">Run the whole night.</span>
           </h2>
           <p className="mx-auto mt-5 max-w-2xl text-muted-foreground">
-            TicketRoyality gives you the control, security and premium experience needed to run
-            powerful modern events.
+            Zero commission, tickets that can&apos;t be faked, and door sales in cash, card or
+            mobile money — set up an event and start selling in minutes.
           </p>
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button size="lg" variant="royal" asChild>
               <Link href="/register/organiser">
-                Launch Your Event Today <ArrowRight className="h-4 w-4" />
+                Start selling — free <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link href="/events">Enter Platform &amp; Explore Events</Link>
+              <Link href="/events">Browse live events</Link>
             </Button>
           </div>
 
