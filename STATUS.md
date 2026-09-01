@@ -1376,6 +1376,47 @@ transitive dependency vulns** (4 high) under `firebase-admin`/`google-cloud`.
 Standing above all of it: the App Hosting rollout is **not serving new builds** — the
 release/rollback path is the top launch blocker regardless of code quality.
 
+### 1 September — the generated look, taken off the imagery and the marketing pages (owner request)
+
+"Make the entire system look premium, ultra-realistic and far less AI-generated." The
+Programme sorted the tokens, type and CTAs on 27 August; the tells that remained were
+in **imagery** and **page composition**, not the palette.
+
+- **Imagery — the biggest one.** Every image an organiser had not uploaded was a
+  `picsum.photos` seed: a random, unrelated stock photo standing in for "a packed
+  stadium". A random landscape captioned as your event is the loudest "unfinished /
+  machine-filled" signal on the site. Replaced with **designed house cover art**: a
+  deterministic engraved-poster SVG — guilloché rosework (a hypotrochoid, the same
+  maths as banknote engraving), a ruled foil frame, corner register marks, a struck
+  Didone monogram — built in `shared/brand/cover-art.ts` (pure, dependency-free, seeds
+  a stable FNV-1a → mulberry32 PRNG) and rendered inline via `CoverArt` or as a
+  `data:` URI. Every consumer keeps its signature: `eventImageSeed(id, title?)`,
+  `avatarSeed(id, name?)` and the `PLACEHOLDER_IMAGES` constants now return cover art,
+  so events show their own initials and organisers/speakers show real monograms rather
+  than a picsum face. No network image is fetched for a fallback any more.
+  `preserveAspectRatio="slice"` makes the inline backdrop cover its box.
+- **The homepage and marketing pages.** The recurring SaaS-template tell was the
+  icon-in-a-tinted-box feature grid (and tinted `rounded-full` numbered circles),
+  repeated on essentially every public page. Converted to an **editorial numbered
+  index** — foil mono numerals, hairline rules between entries, Didone titles, a small
+  monochrome icon — the register of a printed programme, not a card wall. Homepage hero
+  drops the stock crowd photo for the house engraving held far back; `Sparkles` retired
+  for a struck foil rule; industries' twelve-card wall becomes a catalogue. Pricing
+  tables, endpoint/webhook tables and code-block cards were deliberately **left as
+  functional cards** — the tell is the decorative grid, not every box.
+- **Chrome and copy.** Header drops `backdrop-blur-xl` frosted glass for a solid ink
+  masthead (the Programme had already flattened `.glass`); the OG social card's crown
+  emoji becomes a foil rule; footer "orchestrate the future / operating system /
+  System Nodes" and developers' "Build on the OS" and about-us' "infrastructure" jargon
+  replaced with plain, concrete copy. No business logic, route, money rule or factual
+  claim touched — a skin and a copy edit over the existing contract.
+
+Also shipped alongside: a **308 redirect from the `www` host to the apex** in
+`next.config.ts` (one canonical origin; inert until `www` is attached in App Hosting).
+Verified: typecheck, lint, production build. `shared/brand/cover-art.ts` imports
+nothing, honouring the `shared`-depends-on-nothing rule; the React wrapper lives in
+`frontend/components/brand/CoverArt.tsx`.
+
 ### 27 August — "The Programme": the brand moves off the generated look (owner request)
 
 "Rebrand this OS to be very premium and cinematic … and it must not look like
