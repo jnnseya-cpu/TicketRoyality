@@ -107,20 +107,23 @@ export default function HowItWorksPage() {
 
       <section className="mb-14">
         <h2 className="mb-6 font-headline text-2xl font-bold">For attendees</h2>
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid gap-x-14 sm:grid-cols-2">
           {ATTENDEE_STEPS.map((step, index) => (
-            <Card key={step.title}>
-              <CardContent className="p-6">
-                <div className="mb-3 flex items-center gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/40 bg-primary/10 font-headline text-xs font-bold text-primary">
-                    {index + 1}
-                  </span>
-                  <step.icon className="h-5 w-5 text-primary" />
+            <div
+              key={step.title}
+              className="flex gap-5 border-t border-border/60 py-6 first:border-t-0 sm:[&:nth-child(2)]:border-t-0"
+            >
+              <span className="pt-1 font-mono text-xs tabular-nums text-primary/80">
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <step.icon className="h-4 w-4 shrink-0 text-primary" />
+                  <h3 className="font-headline text-lg font-semibold leading-tight">{step.title}</h3>
                 </div>
-                <h3 className="font-headline text-base font-semibold">{step.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       </section>
@@ -129,15 +132,23 @@ export default function HowItWorksPage() {
 
       <section className="mb-14">
         <h2 className="mb-6 font-headline text-2xl font-bold">For organisers</h2>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {ORGANISER_STEPS.map((step) => (
-            <Card key={step.title}>
-              <CardContent className="p-6">
-                <step.icon className="mb-3 h-5 w-5 text-primary" />
-                <h3 className="font-headline text-base font-semibold">{step.title}</h3>
+        <div className="grid gap-x-14 sm:grid-cols-2 lg:grid-cols-3">
+          {ORGANISER_STEPS.map((step, index) => (
+            <div
+              key={step.title}
+              className="flex gap-5 border-t border-border/60 py-6 first:border-t-0 sm:[&:nth-child(2)]:border-t-0 lg:[&:nth-child(3)]:border-t-0"
+            >
+              <span className="pt-1 font-mono text-xs tabular-nums text-primary/80">
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <step.icon className="h-4 w-4 shrink-0 text-primary" />
+                  <h3 className="font-headline text-lg font-semibold leading-tight">{step.title}</h3>
+                </div>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       </section>

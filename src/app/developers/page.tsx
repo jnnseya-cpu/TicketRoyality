@@ -72,7 +72,7 @@ export default function DevelopersPage() {
         <Badge variant="gold" className="mb-4">
           Developers
         </Badge>
-        <h1 className="font-headline text-3xl font-bold sm:text-5xl">Build on the OS</h1>
+        <h1 className="font-headline text-3xl font-bold sm:text-5xl">The TicketRoyality API</h1>
         <p className="mt-4 text-lg text-muted-foreground">
           Read your events and tickets from your own systems, and get told when something
           happens. A sandbox key in a minute, webhooks that are signed and replay-safe.
@@ -89,15 +89,23 @@ export default function DevelopersPage() {
         </div>
       </div>
 
-      <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {PRINCIPLES.map((principle) => (
-          <Card key={principle.title}>
-            <CardContent className="space-y-3 pt-6">
-              <principle.icon className="h-7 w-7 text-primary" />
-              <h2 className="font-headline text-lg font-semibold">{principle.title}</h2>
-              <p className="text-sm text-muted-foreground">{principle.body}</p>
-            </CardContent>
-          </Card>
+      <div className="mt-12 grid gap-x-14 sm:grid-cols-2">
+        {PRINCIPLES.map((principle, index) => (
+          <div
+            key={principle.title}
+            className="flex gap-5 border-t border-border/60 py-6 first:border-t-0 sm:[&:nth-child(2)]:border-t-0"
+          >
+            <span className="pt-1 font-mono text-xs tabular-nums text-primary/80">
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <principle.icon className="h-4 w-4 shrink-0 text-primary" />
+                <h2 className="font-headline text-lg font-semibold leading-tight">{principle.title}</h2>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{principle.body}</p>
+            </div>
+          </div>
         ))}
       </div>
 

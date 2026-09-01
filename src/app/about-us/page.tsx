@@ -1,17 +1,16 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { ArrowRight, Globe, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, Cpu, Globe, ShieldCheck } from 'lucide-react';
 
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
-import { Card, CardContent } from '@/frontend/components/ui/card';
 import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
 
 export const metadata: Metadata = {
   title: 'About us',
   description:
-    'TicketRoyality builds premium ticketing infrastructure for stadiums, festivals, clubs and VIP events.',
+    'TicketRoyality builds premium ticketing for stadiums, festivals, clubs and VIP events.',
 };
 
 const PRINCIPLES = [
@@ -21,7 +20,7 @@ const PRINCIPLES = [
     body: 'One code, one entry, one event. Every scan is checked and redeemed inside a single database transaction, so a ticket that has already been through the gate is refused — including when two doors scan it at the same instant.',
   },
   {
-    icon: Sparkles,
+    icon: Cpu,
     title: 'Automate the boring parts',
     body: 'Marketing copy, recommendations and similar-event discovery are generated on demand. Organisers spend their time on the event, not on the spreadsheet.',
   },
@@ -53,7 +52,7 @@ export default function AboutUsPage() {
           About us
         </Badge>
         <h1 className="font-headline text-3xl font-bold sm:text-4xl">
-          We build the infrastructure behind <span className="text-royal">great nights out</span>
+          We build the ticketing behind <span className="text-royal">great nights out</span>
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
           TicketRoyality exists because the gap between a brilliant event and a chaotic one is
@@ -64,7 +63,7 @@ export default function AboutUsPage() {
       <div className="relative mb-14 aspect-[21/9] overflow-hidden rounded-xl gold-ring">
         <Image
           src={PLACEHOLDER_IMAGES.aboutTeam}
-          alt="A full house at a live event"
+          alt="TicketRoyality"
           fill
           priority
           sizes="(max-width: 1024px) 100vw, 1024px"
@@ -75,17 +74,27 @@ export default function AboutUsPage() {
 
       <section className="mb-14">
         <h2 className="mb-6 font-headline text-2xl font-bold">What we believe</h2>
-        <div className="grid gap-5 sm:grid-cols-3">
-          {PRINCIPLES.map((principle) => (
-            <Card key={principle.title}>
-              <CardContent className="p-6">
-                <principle.icon className="mb-3 h-6 w-6 text-primary" />
-                <h3 className="font-headline text-base font-semibold">{principle.title}</h3>
+        <div className="grid gap-x-14 border-t border-border/60 sm:grid-cols-3">
+          {PRINCIPLES.map((principle, index) => (
+            <div
+              key={principle.title}
+              className="flex gap-5 border-t border-border/60 py-6 first:border-t-0"
+            >
+              <span className="pt-1 font-mono text-xs tabular-nums text-primary/80">
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <principle.icon className="h-4 w-4 shrink-0 text-primary" />
+                  <h3 className="font-headline text-lg font-semibold leading-tight">
+                    {principle.title}
+                  </h3>
+                </div>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {principle.body}
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       </section>

@@ -90,20 +90,23 @@ export default function GrowthPage() {
         </div>
       </div>
 
-      <div className="mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-14 grid gap-x-14 sm:grid-cols-2">
         {STEPS.map((step, index) => (
-          <Card key={step.title}>
-            <CardContent className="space-y-3 pt-6">
-              <div className="flex items-center gap-2">
-                <step.icon className="h-6 w-6 text-primary" />
-                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                  Step {index + 1}
-                </span>
+          <div
+            key={step.title}
+            className="flex gap-5 border-t border-border/60 py-6 first:border-t-0 sm:[&:nth-child(2)]:border-t-0"
+          >
+            <span className="pt-1 font-mono text-xs tabular-nums text-primary/80">
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <step.icon className="h-4 w-4 shrink-0 text-primary" />
+                <h2 className="font-headline text-lg font-semibold leading-tight">{step.title}</h2>
               </div>
-              <h2 className="font-headline text-lg font-semibold">{step.title}</h2>
-              <p className="text-sm text-muted-foreground">{step.body}</p>
-            </CardContent>
-          </Card>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+            </div>
+          </div>
         ))}
       </div>
 

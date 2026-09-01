@@ -113,10 +113,10 @@ export default function GetStartedPage() {
         </div>
         <Card>
           <CardContent className="pt-6">
-            <ol className="space-y-4">
+            <ol className="divide-y divide-border/60 border-y border-border/60">
               {ORGANISER_STEPS.map((step, index) => (
-                <li key={step} className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+                <li key={step} className="flex items-baseline gap-4 py-3.5">
+                  <span className="font-headline text-lg font-semibold tabular-nums text-primary">
                     {index + 1}
                   </span>
                   <span className="text-sm text-muted-foreground">{step}</span>

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { Building2, LifeBuoy, Mail, ShieldAlert, Sparkles } from 'lucide-react';
+import { Building2, LifeBuoy, Mail, Newspaper, ShieldAlert } from 'lucide-react';
 
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
@@ -30,7 +30,7 @@ const ROUTES = [
     body: 'Running events at scale, a venue, a promoter network, or a white-label deployment. Tell us roughly how many events a year and where.',
   },
   {
-    icon: Sparkles,
+    icon: Newspaper,
     title: 'Press & media',
     body: 'Interviews, data requests and our annual ticket-pricing report. We publish our own figures and will share the methodology.',
   },
