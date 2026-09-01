@@ -5,7 +5,6 @@ import {
   Building2,
   Church,
   Clapperboard,
-  Crown,
   Heart,
   HeartHandshake,
   Music,
@@ -18,7 +17,6 @@ import {
 
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
-import { Card, CardContent } from '@/frontend/components/ui/card';
 
 export const metadata: Metadata = {
   title: 'Industries',
@@ -166,44 +164,58 @@ export default function IndustriesPage() {
         </p>
       </div>
 
-      <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {SEGMENTS.map((segment) => (
-          <Card key={segment.name} className="flex flex-col">
-            <CardContent className="flex flex-1 flex-col gap-3 pt-6">
-              <segment.icon className="h-7 w-7 text-primary" />
-              <h2 className="font-headline text-xl font-semibold">{segment.name}</h2>
-              <p className="text-sm font-medium text-primary">{segment.need}</p>
-              <p className="flex-1 text-sm text-muted-foreground">{segment.detail}</p>
-            </CardContent>
-          </Card>
+      {/* A catalogue, not a wall of identical icon-topped cards: foil numerals, a
+          hairline between entries, the segment name in Didone — a printed index. */}
+      <div className="mx-auto mt-14 grid max-w-5xl gap-x-14 lg:grid-cols-2">
+        {SEGMENTS.map((segment, i) => (
+          <article
+            key={segment.name}
+            className="flex gap-5 border-t border-border/60 py-7 first:border-t-0 lg:[&:nth-child(2)]:border-t-0"
+          >
+            <span className="pt-1 font-mono text-xs tabular-nums text-primary/80">
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <segment.icon className="h-4 w-4 shrink-0 text-primary" />
+                <h2 className="font-headline text-xl font-semibold leading-tight">
+                  {segment.name}
+                </h2>
+              </div>
+              <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-primary/90">
+                {segment.need}
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                {segment.detail}
+              </p>
+            </div>
+          </article>
         ))}
       </div>
 
-      <Card className="mt-12 border-primary/30 bg-card/60">
-        <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
-          <Crown className="h-8 w-8 text-primary" />
-          <h2 className="font-headline text-2xl font-bold">
-            One inventory model, whatever you are selling
-          </h2>
-          {/* This block once promised hospitality that did not exist, and was cut back to
-              "a VIP tier is a priced tier" for a year. Packages, deposits, balances and
-              named guests are now built and tested; a concierge workflow and per-guest
-              ticket delivery are still not, and that distinction is what this says. */}
-          <p className="max-w-2xl text-muted-foreground">
-            A VIP place, a general-admission ticket and a livestream pass are the same
-            object at different prices, so they sell from one event and reconcile in one
-            report. A hospitality table is that same inventory sold whole — with
-            inclusions, a deposit now, the balance on a date you set, and a guest list the
-            booker fills in. Tickets are issued when the balance settles, never on the
-            deposit.
-          </p>
-          <Button asChild>
-            <Link href="/register/organiser">
-              Start selling <ArrowRight className="ml-1 h-4 w-4" />
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="mx-auto mt-16 max-w-3xl border-t border-border/60 pt-12 text-center">
+        <div className="mx-auto mb-6 h-px w-16 bg-primary/60" />
+        <h2 className="font-headline text-2xl font-bold">
+          One inventory model, whatever you are selling
+        </h2>
+        {/* This block once promised hospitality that did not exist, and was cut back to
+            "a VIP tier is a priced tier" for a year. Packages, deposits, balances and
+            named guests are now built and tested; a concierge workflow and per-guest
+            ticket delivery are still not, and that distinction is what this says. */}
+        <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
+          A VIP place, a general-admission ticket and a livestream pass are the same
+          object at different prices, so they sell from one event and reconcile in one
+          report. A hospitality table is that same inventory sold whole — with
+          inclusions, a deposit now, the balance on a date you set, and a guest list the
+          booker fills in. Tickets are issued when the balance settles, never on the
+          deposit.
+        </p>
+        <Button asChild className="mt-8">
+          <Link href="/register/organiser">
+            Start selling <ArrowRight className="ml-1 h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }

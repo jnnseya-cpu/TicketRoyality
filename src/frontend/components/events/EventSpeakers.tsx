@@ -1,7 +1,7 @@
 import Image from 'next/image';
 
 import { Card, CardContent } from '@/frontend/components/ui/card';
-import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
+import { avatarSeed } from '@/shared/constants/placeholder-images';
 import type { Speaker } from '@/shared/types';
 
 export function EventSpeakers({ speakers }: { speakers: Speaker[] }) {
@@ -16,7 +16,7 @@ export function EventSpeakers({ speakers }: { speakers: Speaker[] }) {
             <CardContent className="flex items-center gap-4 p-4">
               <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-muted">
                 <Image
-                  src={speaker.photoUrl || PLACEHOLDER_IMAGES.speakerFallback}
+                  src={speaker.photoUrl || avatarSeed(speaker.name, speaker.name)}
                   alt={speaker.name}
                   fill
                   sizes="56px"

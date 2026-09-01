@@ -178,7 +178,7 @@ export function coverArtSvg(seed: string, opts: CoverArtOptions = {}): string {
     <text x="${cx}" y="${H - pad - 14}" text-anchor="middle" fill="${GOLD}" opacity="0.6" font-family="'Space Mono','SFMono-Regular',monospace" font-size="13" letter-spacing="6">· TICKETROYALITY ·</text>`
     : '';
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice" role="img">
   <defs>
     <radialGradient id="g${uid}" cx="50%" cy="42%" r="75%">
       <stop offset="0%" stop-color="${g0}"/>

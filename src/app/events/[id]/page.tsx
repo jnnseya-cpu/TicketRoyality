@@ -99,7 +99,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           src={
             event.coverImageUrl?.trim() ||
             event.imageUrl?.trim() ||
-            eventImageSeed(event.id)
+            eventImageSeed(event.id, event.title)
           }
           alt={event.title}
           className="absolute inset-0 h-full w-full object-cover"

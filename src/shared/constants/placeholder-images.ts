@@ -26,9 +26,10 @@ export const PLACEHOLDER_IMAGES = {
   aboutTeam: coverArtDataUri('tr-team', { label: 'A Full House', aspect: 1200 / 700 }),
 } as const;
 
-/** Per-event cover for an event with no uploaded image — stable for the event's life. */
-export function eventImageSeed(id: string) {
-  return coverArtDataUri(`tr-event-${id}`, { aspect: 800 / 500 });
+/** Per-event cover for an event with no uploaded image — stable for the event's life.
+ *  Pass the title so the struck monogram is the event's own initials. */
+export function eventImageSeed(id: string, title?: string) {
+  return coverArtDataUri(`tr-event-${id}`, { aspect: 800 / 500, label: title });
 }
 
 /** Per-person monogram tile for an avatar with no photo. Pass the name for real initials. */

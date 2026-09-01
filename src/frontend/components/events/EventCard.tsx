@@ -26,7 +26,7 @@ export function EventCard({ event, className }: { event: Event; className?: stri
    * a plain img with a guaranteed src, the same decision the homepage strip already
    * made for the same reason.
    */
-  const imageSrc = event.imageUrl?.trim() || eventImageSeed(event.id);
+  const imageSrc = event.imageUrl?.trim() || eventImageSeed(event.id, event.title);
 
   return (
     // min-w-0: the card sits in 1fr grid tracks, and a track grows to its item's

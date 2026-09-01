@@ -9,7 +9,8 @@ import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { EventCard } from '@/frontend/components/events/EventCard';
 import { getPublicOrganiser, getPublicOrganiserEvents } from '@/backend/services/public-profiles';
-import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
+import { avatarSeed } from '@/shared/constants/placeholder-images';
+import { coverArtDataUri } from '@/shared/brand/cover-art';
 
 /**
  * Per request, not prerendered. Same reason as the directory: the profile is live data
@@ -62,7 +63,10 @@ export default async function OrganiserDetailPage({
         */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={organiser.coverUrl?.trim() || PLACEHOLDER_IMAGES.organiserCover}
+          src={
+            organiser.coverUrl?.trim() ||
+            coverArtDataUri(`org-cover-${organiser.uid}`, { label: name, aspect: 16 / 5 })
+          }
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
         />
@@ -74,7 +78,7 @@ export default async function OrganiserDetailPage({
           <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-background bg-muted">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={organiser.logoUrl?.trim() || PLACEHOLDER_IMAGES.organiserLogo}
+              src={organiser.logoUrl?.trim() || avatarSeed(organiser.uid, name)}
               alt={name}
               className="absolute inset-0 h-full w-full object-cover"
             />

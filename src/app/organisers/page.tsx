@@ -6,7 +6,8 @@ import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent } from '@/frontend/components/ui/card';
 import { getPublicOrganisers } from '@/backend/services/public-profiles';
-import { PLACEHOLDER_IMAGES } from '@/shared/constants/placeholder-images';
+import { avatarSeed } from '@/shared/constants/placeholder-images';
+import { coverArtDataUri } from '@/shared/brand/cover-art';
 
 /**
  * Rendered per request, not at build time.
@@ -53,7 +54,13 @@ export default async function OrganisersPage() {
                     on empty strings and unknown hosts — see the profile page. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={organiser.coverUrl?.trim() || PLACEHOLDER_IMAGES.organiserCover}
+                  src={
+                    organiser.coverUrl?.trim() ||
+                    coverArtDataUri(`org-cover-${organiser.uid}`, {
+                      label: organiser.companyName ?? organiser.fullName,
+                      aspect: 16 / 5,
+                    })
+                  }
                   alt=""
                   loading="lazy"
                   className="absolute inset-0 h-full w-full object-cover"
@@ -65,7 +72,10 @@ export default async function OrganisersPage() {
                 <div className="relative h-14 w-14 overflow-hidden rounded-full border-2 border-card bg-muted">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={organiser.logoUrl?.trim() || PLACEHOLDER_IMAGES.organiserLogo}
+                    src={
+                      organiser.logoUrl?.trim() ||
+                      avatarSeed(organiser.uid, organiser.companyName ?? organiser.fullName)
+                    }
                     alt={organiser.companyName ?? organiser.fullName}
                     loading="lazy"
                     className="absolute inset-0 h-full w-full object-cover"
