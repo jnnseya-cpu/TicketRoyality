@@ -12,7 +12,7 @@ import { Separator } from '@/frontend/components/ui/separator';
  */
 const COLUMNS = [
   {
-    title: 'System Nodes',
+    title: 'Discover',
     links: [
       { label: 'All Events', href: '/events' },
       { label: 'Verified Organisers', href: '/organisers' },
@@ -63,8 +63,8 @@ export function Footer() {
               <Wordmark />
             </Link>
             <p className="max-w-xs text-sm text-muted-foreground">
-              The premium infrastructure operating system for serious events. From stadiums to
-              festivals, we orchestrate the future of ticketing.
+              Premium ticketing for stadiums, festivals, concerts and clubs. Zero organiser
+              commission, tickets that can&apos;t be faked, and sales online or at the door.
             </p>
             {/* Only real, working contact routes here — no placeholder social icons pointing at
                 bare twitter.com / linkedin.com. Real profile links go back the moment there are

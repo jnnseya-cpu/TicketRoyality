@@ -63,7 +63,11 @@ export function Header() {
     // installed app, where the page renders behind the clock.
     <header
       data-app-header
-      className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/80 backdrop-blur-xl"
+      // A solid masthead, not frosted glass. The Programme retired the frosted-glass
+      // tell everywhere else (globals.css `.glass` is now an opaque sheet); the header
+      // is the most prominent surface, so it holds the line most visibly: flat ink,
+      // one hairline rule, nothing blurred behind it.
+      className="sticky top-0 z-50 w-full border-b border-border/70 bg-background"
     >
       <div className="container flex h-16 items-center gap-4">
         {/*

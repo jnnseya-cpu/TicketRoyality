@@ -48,7 +48,7 @@ export function SeatMapPreview({
 
   return (
     <div className="space-y-5 rounded-lg border border-border bg-background/40 p-5">
-      <div className="mx-auto w-2/3 rounded-md bg-gradient-to-b from-primary/30 to-primary/5 py-2 text-center text-xs font-semibold uppercase tracking-[0.3em] text-primary">
+      <div className="mx-auto w-2/3 rounded-md border-x border-t border-primary/40 bg-primary/10 py-2 text-center text-xs font-semibold uppercase tracking-[0.3em] text-primary">
         Stage
       </div>
 

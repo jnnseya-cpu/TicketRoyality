@@ -230,7 +230,7 @@ export function SeatPicker({
 
   return (
     <div className="space-y-3 rounded-lg border border-border bg-background/40 p-4">
-      <div className="mx-auto w-2/3 rounded-md bg-gradient-to-b from-primary/30 to-primary/5 py-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-primary">
+      <div className="mx-auto w-2/3 rounded-md border-x border-t border-primary/40 bg-primary/10 py-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-primary">
         Stage
       </div>
 

@@ -31,8 +31,10 @@ export default function OpengraphImage() {
           border: '10px solid #b8860b',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', fontSize: 34, letterSpacing: 8, color: '#caa24a', textTransform: 'uppercase' }}>
-          👑&nbsp;&nbsp;Premium event access
+        {/* A struck foil rule and letterspaced caps — a printed masthead, not an emoji. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: 30, letterSpacing: 8, color: '#caa24a', textTransform: 'uppercase' }}>
+          <div style={{ width: 60, height: 2, background: '#caa24a' }} />
+          Premium event access
         </div>
         <div style={{ display: 'flex', fontSize: 96, fontWeight: 700, marginTop: 24, lineHeight: 1.05 }}>
           Ticket<span style={{ color: '#c0546a' }}>Royality</span>
