@@ -15,6 +15,9 @@ import {
   Ticket,
   TrendingUp,
   Users,
+  WifiOff,
+  Banknote,
+  LifeBuoy,
   Zap,
 } from 'lucide-react';
 
@@ -23,6 +26,7 @@ import { Button } from '@/frontend/components/ui/button';
 import { Separator } from '@/frontend/components/ui/separator';
 import { cn } from '@/shared/utils';
 import { CoverArt } from '@/frontend/components/brand/CoverArt';
+import { FeeCalculator } from '@/frontend/components/home/FeeCalculator';
 import VideoAds from '@/frontend/components/home/VideoAds';
 import { ShowcaseScreen } from '@/frontend/components/home/ShowcaseScreen';
 import { FeaturedEvents, UpcomingSample } from '@/frontend/components/home/FeaturedEvents';
@@ -31,9 +35,9 @@ import { getEvents } from '@/shared/data/repositories';
 import { PersonalizedRecommendations } from '@/frontend/components/ai/PersonalizedRecommendations';
 
 const TRUST_POINTS = [
-  { icon: QrCode, label: 'Secure QR Access' },
-  { icon: ScanLine, label: 'Real-time Entry Control' },
-  { icon: Crown, label: 'Premium Fan Experience' },
+  { icon: QrCode, label: 'QR that can’t be faked' },
+  { icon: WifiOff, label: 'Scans offline at the door' },
+  { icon: Banknote, label: 'Cash, card & mobile money' },
 ];
 
 const NO_MORE = [
@@ -63,15 +67,17 @@ const HEADLINE_STATS = [
   // src/shared/constants/billing.ts — DEFAULT_COMMISSION_PERCENT and DEFAULT_ADMIN_FEE
   // are both 0. The organiser is charged nothing and is paid the whole face value;
   // `shared/fees.ts` carries the buyer-side service fee that replaced it.
-  { value: '0%', label: 'Organiser commission. You keep 100% of your ticket value' },
+  { value: '0%', label: 'We take in commission — you keep 100% of face value' },
   // firestore.rules only permits valid -> redeemed, on the status field alone, so a
   // ticket cannot be reset and reused even by the organiser who owns the event.
-  { value: '1', label: 'Scan per ticket, enforced in the database' },
+  { value: '1', label: 'Entry per ticket — two people can’t get in on one' },
   // functions/src/issuance.ts checks sold + quantity against the tier inside a
   // Firestore transaction. Covered by 10 emulator tests against real transactions.
-  { value: '0', label: 'Oversold tickets, by construction' },
-  // src/backend/ai/gateway.ts — Gemini, Claude, OpenAI, in that order.
-  { value: '3', label: 'AI providers, with automatic failover' },
+  { value: '0', label: 'Times the same seat can sell twice' },
+  // frontend/lib/offline-door.ts — the door caches a signed manifest in IndexedDB and
+  // decides admission locally (decideOffline), queuing each redemption to sync later. A
+  // real capability, not a slogan: the scanner admits guests with no connection at all.
+  { value: 'Offline', label: 'Doors keep scanning when the internet drops' },
 ];
 
 const CORE_FEATURES = [
@@ -99,17 +105,21 @@ const CORE_FEATURES = [
   },
   {
     icon: ScanLine,
-    title: 'Live Entry Validation',
-    body: 'Gate staff scan tickets instantly using mobile or tablet devices for lightning-fast entry processing.',
+    title: 'The door works with no internet',
+    // frontend/lib/offline-door.ts + shared/tickets/offline.ts: the manifest is cached in
+    // IndexedDB and the admit/deny decision is made locally (decideOffline), so a dropped
+    // signal at the gate does not stop the queue. Every scan is written locally first and
+    // synced when the connection returns — a genuine offline path, not a retry.
+    body: 'Download the guest list to the phone and the scanner keeps admitting even with no signal at all — every scan recorded locally and synced the moment you’re back online. The festival field and the basement club both just work.',
   },
   {
     icon: ShieldCheck,
-    title: 'Fraud Protection',
+    title: 'Tickets that can’t be faked',
     // Accurate and now stronger than it was: the code rotates every 30 seconds, and
     // redemption runs in one transaction so two doors cannot both admit one ticket.
     // Deliberately no longer claims a "verification engine" — there is no fraud model
     // behind this, and there does not need to be for what it does.
-    body: 'Every ticket scans once. The code refreshes every 30 seconds so a forwarded screenshot is stale, and a redeemed ticket cannot be reset and reused.',
+    body: 'Every ticket admits once. The QR refreshes every 30 seconds, so a forwarded screenshot is already stale, and a scanned ticket can’t be reset and waved through again — not even by the person who owns the event.',
   },
   {
     icon: Crown,
@@ -169,6 +179,44 @@ const REVENUE_TOOLS = [
   // never read as live when the code is not.
   { name: 'Merchandise and add-ons', live: false },
   { name: 'Parking and food', live: false },
+];
+
+/**
+ * Objection handling, not testimonials.
+ *
+ * A new platform has no reviews to borrow trust from, and inventing them is forbidden
+ * (CLAUDE.md §6). What it can do honestly is answer the fears an organiser actually has
+ * on the night — and every answer below is a real, checkable capability in this codebase,
+ * not a promise. When there are real organisers to quote, their words go above this; this
+ * stays, because "what happens when it breaks" outlasts any testimonial.
+ */
+const REASSURANCE = [
+  {
+    icon: WifiOff,
+    q: 'The signal drops at the door',
+    // frontend/lib/offline-door.ts — cached manifest, local decideOffline, queued sync.
+    a: 'The scanner already has the guest list on the phone. It keeps admitting with no connection and records every entry locally, syncing the second you’re back online. A dead signal doesn’t stop your queue.',
+  },
+  {
+    icon: ShieldCheck,
+    q: 'A ticket gets screenshotted and passed around',
+    // 30s rotating QR + one-transaction redemption in backend/services/redeem.ts.
+    a: 'The code refreshes every 30 seconds, so a screenshot is stale before it reaches the gate, and once a ticket is scanned it can’t be reset and used again. One ticket, one entry.',
+  },
+  {
+    icon: Banknote,
+    q: 'You need your money',
+    // 0% commission (billing.ts) — face value is never reduced. Cash/mobile money taken
+    // at the door directly; card sales settle to the organiser's own account. No SLA is
+    // claimed here on purpose — payout timing depends on the connected account.
+    a: 'Every sale is yours at face value — nothing is skimmed off it. Cash and mobile money you take on the spot at the door; card sales settle to your own account after your event.',
+  },
+  {
+    icon: LifeBuoy,
+    q: 'Something goes wrong and you need a human',
+    // The honest support surface: a real inbox, no invented 24/7 tier or phone line.
+    a: 'You reach a real inbox at info@ticketroyality.com, answered by the people who build the platform — not a ticket queue that forgets you. We’d rather promise a reply than a hotline that isn’t staffed.',
+  },
 ];
 
 /** Small uppercase kicker above each section heading. */
@@ -291,6 +339,27 @@ export default async function HomePage() {
               </div>
             }
           />
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* What you keep — the calculator                                     */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="container py-16 lg:py-24">
+        <div className="max-w-2xl">
+          <Eyebrow>The money</Eyebrow>
+          <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">
+            Do the sum on your own event
+          </h2>
+          <p className="mt-3 text-muted-foreground">
+            Not a slogan about commission — your ticket, your numbers. We take{' '}
+            <strong className="text-foreground">0% from you</strong> and earn from one clear,
+            VAT-inclusive fee your fans see before they pay. It’s lower than the big platforms,
+            so more baskets convert. Change the figures and check it against the quote you already have.
+          </p>
+        </div>
+        <div className="mt-10">
+          <FeeCalculator />
         </div>
       </section>
 
@@ -458,6 +527,44 @@ export default async function HomePage() {
               {!tool.live && <span className="text-xs">soon</span>}
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Reassurance — the night-of fears, answered honestly                */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="border-y border-border/60 bg-card/30 py-16">
+        <div className="container">
+          <div className="mb-10 max-w-2xl">
+            <Eyebrow>Before you trust us with the night</Eyebrow>
+            <h2 className="mt-3 font-headline text-3xl font-bold sm:text-4xl">
+              The questions that actually matter
+            </h2>
+            <p className="mt-3 text-muted-foreground">
+              We’re new, and we won’t pretend otherwise with borrowed logos or invented
+              reviews. Here is what actually happens when it counts — every answer is a real
+              part of the platform, not a promise.
+            </p>
+          </div>
+          <div className="grid gap-x-14 sm:grid-cols-2">
+            {REASSURANCE.map((item, i) => (
+              <div
+                key={item.q}
+                className="flex gap-5 border-t border-border/60 py-6 first:border-t-0 sm:[&:nth-child(2)]:border-t-0"
+              >
+                <span className="pt-1 font-mono text-xs tabular-nums text-primary/80">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <item.icon className="h-4 w-4 shrink-0 text-primary" />
+                    <h3 className="font-headline text-lg font-semibold leading-tight">{item.q}</h3>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.a}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
