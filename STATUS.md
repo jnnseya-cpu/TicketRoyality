@@ -1376,6 +1376,38 @@ transitive dependency vulns** (4 high) under `firebase-admin`/`google-cloud`.
 Standing above all of it: the App Hosting rollout is **not serving new builds** — the
 release/rollback path is the top launch blocker regardless of code quality.
 
+### 2 September — the landing page, answered to a brutal critique (owner request)
+
+The owner asked, as an organiser landing cold, what would actually persuade them —
+"be brutal". The honest read: the page asserted trust it had not earned, led with its
+weakest differentiators, and left the "0% — so how do you make money?" doubt unanswered.
+Fixes, all constrained by §6 (nothing invented):
+
+- **Take-home calculator** (`frontend/components/home/FeeCalculator.tsx`, a client
+  component). Computes the fan's all-in price from the **same `serviceFeeForTicket`
+  the checkout charges through** — the fee shown is the fee the buyer pays, not a
+  marketing figure. The rival rate is an **editable, labelled estimate** with named
+  presets, and it displays honestly even when a flat-fee rival is cheaper on a
+  high-value ticket — a calculator that can be corrected persuades better than one
+  rigged to win. It turns "0% commission" into the organiser's own numbers and answers
+  "how do you earn?" in the same view.
+- **Headline stats**: dropped "3 AI providers with automatic failover" — engineer
+  pride, not a buyer benefit, and actively confusing on a ticketing page — for the real
+  differentiator, the door scanning **offline**. The rest reworded to outcomes ("two
+  people can't get in on one ticket").
+- **Features**: promoted **offline door scanning** to its own headline item, verified
+  against `frontend/lib/offline-door.ts` (cached IndexedDB manifest, local `decideOffline`,
+  queued sync) — a real capability, not a slogan; de-fluffed the entry copy.
+- **Reassurance band**: honest objection-handling — signal drops, screenshot sharing,
+  getting paid, reaching a human — **in place of fabricated testimonials or borrowed
+  logos**. Every answer is a real capability; support is stated as the real inbox, no
+  invented 24/7 tier, and no payout SLA is promised (Connect-gated).
+
+Deliberately **not** done: the strategic "pick one beachhead market (UK premium vs
+mobile-money/African)" call — that is the owner's to make, not a copy edit. Real
+testimonials and a proof section wait on real events to quote. Verified: typecheck,
+lint, production build.
+
 ### 1 September — the generated look, taken off the imagery and the marketing pages (owner request)
 
 "Make the entire system look premium, ultra-realistic and far less AI-generated." The
