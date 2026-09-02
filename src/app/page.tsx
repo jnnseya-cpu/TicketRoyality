@@ -27,6 +27,7 @@ import { Separator } from '@/frontend/components/ui/separator';
 import { cn } from '@/shared/utils';
 import { CoverArt } from '@/frontend/components/brand/CoverArt';
 import { FeeCalculator } from '@/frontend/components/home/FeeCalculator';
+import { Testimonials } from '@/frontend/components/home/Testimonials';
 import VideoAds from '@/frontend/components/home/VideoAds';
 import { ShowcaseScreen } from '@/frontend/components/home/ShowcaseScreen';
 import { FeaturedEvents, UpcomingSample } from '@/frontend/components/home/FeaturedEvents';
@@ -529,6 +530,9 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* Real, consented organiser quotes. Renders nothing until there are any. */}
+      <Testimonials />
 
       {/* ------------------------------------------------------------------ */}
       {/* Reassurance — the night-of fears, answered honestly                */}

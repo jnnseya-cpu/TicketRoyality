@@ -1404,9 +1404,17 @@ Fixes, all constrained by §6 (nothing invented):
   invented 24/7 tier, and no payout SLA is promised (Connect-gated).
 
 Deliberately **not** done: the strategic "pick one beachhead market (UK premium vs
-mobile-money/African)" call — that is the owner's to make, not a copy edit. Real
-testimonials and a proof section wait on real events to quote. Verified: typecheck,
-lint, production build.
+mobile-money/African)" call — that is the owner's to make, not a copy edit. Verified:
+typecheck, lint, production build.
+
+Follow-up the same day: **testimonials wired from a data file, empty by design.**
+`shared/content/testimonials.ts` holds a typed `Testimonial[]` that starts empty; the
+`Testimonials` homepage band (`frontend/components/home/Testimonials.tsx`) renders the
+consented entries and renders **nothing at all** while the array is empty — no heading,
+no placeholder, no "coming soon". A `consent: true` gate drops any entry that is not a
+real, attributable, agreed quote; a missing photo shows the house foil monogram, never a
+stock face. Adding a real quote is now a one-line data edit, and until one exists the page
+makes no claim it cannot back.
 
 ### 1 September — the generated look, taken off the imagery and the marketing pages (owner request)
 
