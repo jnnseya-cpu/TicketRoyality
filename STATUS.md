@@ -993,6 +993,53 @@ price"). One surface leaked face — the homepage **video spotlight** (`VideoAds
 `allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
 typecheck, lint, build.
 
+### 2 September — White-label made usable: Phase 1b + 2 wired (owner "build and make ready")
+
+The 29 August entry built the fee **model** only. This makes white-label a thing an
+organiser can actually be put on and sell under. Built as four verified slices:
+
+- **A — config, grant, settings** (`backend/services/white-label.ts`,
+  `/api/admin/white-label-grant`, `/api/white-label/settings`). `whiteLabelProfileFor()`
+  is the gate: it returns a profile **only when `enabled`**, so an ungranted config
+  prices and brands exactly like the standard platform (no half-on state), and it fails
+  to the standard path on any read error. Two writes, both server-side (Admin SDK), never
+  a client write: the organiser sets brand + booking fee + mode + requested domain and
+  **can never** write `enabled` or `platformPerTicketMinor` — the platform's revenue
+  switch. Superuser grants from the commissions page; the organiser edits from Settings
+  with a live £20 preview through the real engine.
+- **B — the money** (`api/checkout/route.ts` + `resolveOrderWhiteLabel`). When a whole
+  order is one white-label organiser's (single-organiser rule, mirroring attribution),
+  the **card** checkout prices via `computeWhiteLabelOrder`: the platform service-fee line
+  becomes the organiser's own booking fee (charged on top in `pass`, absorbed from payout
+  in `absorb`), and metadata records the split (`wl`, `wlBrand`, `platformRevenueMinor`,
+  the organiser payout) under the field names the webhook already reads. **Face value,
+  issuance and the tickets are untouched.** 43/43 fee tests.
+- **C — the buying surface** (`events/[id]/page.tsx` → `TicketBox`). A white-label event's
+  price summary shows the organiser's booking fee under their brand, the total the
+  checkout will charge, and "Sold by {brand} on TicketRoyality" instead of the false
+  "100% of face / we charge them nothing".
+
+**Deliberately NOT built, and not implied:**
+
+- **Mobile-money white-label.** The card rail is wired; the KODA/mobile-money rail stays
+  on the standard model (the DRC corridor is `active: false` anyway). A documented
+  follow-up, not a silent half-build.
+- **White-label settlement.** Paying the organiser their white-label payout (which, unlike
+  the standard model, is not face value) belongs to the **gated Stripe Connect** work.
+  The payout amount is recorded correctly; nothing pays it out until Connect is enabled,
+  and the settlement path must branch on `wl` before it is.
+- **The digital ticket + receipt emails** still carry the TicketRoyality mark — de-branding
+  them needs the brand plumbed through the ticket list and mail templates.
+- **Slice D — custom domains (Phase 3).** The `customDomain` is captured and validated in
+  Settings, and nothing else: serving an organiser's events on their own host needs (1) the
+  **owner** to attach the domain in App Hosting (DNS + TLS — a console action, not code)
+  and (2) a host-scoping layer that Firebase-admin cannot run from edge middleware. No
+  inert resolver was shipped for it, on purpose. It stays reserved until both exist.
+
+Net: an organiser can be granted white-label, set their brand and fee, and sell on the
+card rail under their own brand and fee today. Verified: 43/43 fee tests, typecheck, lint,
+production build.
+
 ### 29 August — White-label fee structure (owner request, Phase 1 of 3)
 
 Groundwork for a white-label tier where an organiser sells under their own brand. Owner
