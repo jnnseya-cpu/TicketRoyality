@@ -7,6 +7,7 @@ import {
   isConnectConfigured,
   transferToConnected,
 } from '@/backend/payments/stripe-connect';
+import { whiteLabelProfileFor } from '@/backend/services/white-label';
 import type { Payout, UserProfile } from '@/shared/types';
 
 /**
@@ -37,6 +38,57 @@ const PAYOUTS = 'payouts';
  */
 export function payoutKey(party: string, partyId: string, reason: string, periodKey: string): string {
   return `${party}_${partyId}_${reason}_${periodKey}`.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 300);
+}
+
+/**
+ * What a white-label organiser is owed for one event, summed from the recorded payment
+ * events. Pure, so it is unit-tested without the database.
+ *
+ * White-label changes the organiser's payout from face value to `organiserPayoutMinor` —
+ * what `computeWhiteLabelOrder` worked out at checkout (buyer total − the platform's flat
+ * cut − the card cost the organiser bears). That figure was recorded on the payment
+ * event's `feeSnapshot` and is read back here, never recomputed: §16 forbids re-pricing a
+ * historical order from whatever the config says later, which is the whole reason the
+ * snapshot exists.
+ *
+ * The rules encoded here:
+ * - Only **issued** payments count; a `refund` event marks its order (by the shared
+ *   payment-intent ref) and that order's payout is netted out — the same "a refunded sale
+ *   is not owed" the face path gets by skipping refunded tickets.
+ * - Only card and mobile-money rails; **offline/box-office** sales are cash the organiser
+ *   already holds, and **free** claims owe nothing — both excluded, exactly as the face
+ *   path excludes `paymentProvider === 'offline'` and zero-price tickets.
+ * - `organiserPayoutMinor` is the amount; on a pre-payout-field snapshot it falls back to
+ *   `faceMinor` (a standard order keeps face), and a snapshot-less event is skipped rather
+ *   than guessed.
+ */
+export interface PayableEvent {
+  intent?: string;
+  provider?: string;
+  providerRef?: string;
+  refundsRef?: string;
+  feeSnapshot?: { organiserPayoutMinor?: number; faceMinor?: number };
+}
+
+export function sumWhiteLabelPayable(events: PayableEvent[]): number {
+  const refundedRefs = new Set<string>();
+  for (const e of events) {
+    if (e.intent === 'refund' && e.refundsRef) refundedRefs.add(e.refundsRef);
+  }
+
+  let owed = 0;
+  for (const e of events) {
+    if (e.intent !== 'issue') continue;
+    // Card and mobile money only — box-office ('offline') is cash already taken, free owes nothing.
+    if (e.provider !== 'stripe' && e.provider !== 'bitripay') continue;
+    if (e.providerRef && refundedRefs.has(e.providerRef)) continue; // the order was refunded
+    const snap = e.feeSnapshot;
+    if (!snap) continue; // no quote recorded → not counted, never assumed zero-or-face blindly
+    const payout =
+      typeof snap.organiserPayoutMinor === 'number' ? snap.organiserPayoutMinor : snap.faceMinor ?? 0;
+    if (payout > 0) owed += Math.round(payout);
+  }
+  return owed;
 }
 
 export interface SettleInput {
@@ -153,11 +205,17 @@ export async function settleOrganiser(input: {
 /**
  * Settle one event's takings to its organiser — the per-event trigger.
  *
- * The organiser is owed the **face value of every online ticket** for the event (at 0%
- * commission they keep 100% of face; the platform's revenue is the buyer-side service fee it
- * already holds). Box-office tickets are excluded — that face is cash the organiser already
- * took at the door — exactly as the revenue page computes it. Keyed by the event, so settling
- * the same event twice pays once; a fresh event is a fresh, payable key.
+ * On the standard model the organiser is owed the **face value of every online ticket** (at
+ * 0% commission they keep 100% of face; the platform's revenue is the buyer-side service fee
+ * it already holds). Box-office tickets are excluded — that face is cash the organiser already
+ * took at the door — exactly as the revenue page computes it.
+ *
+ * On **white-label** the organiser's payout is not face: it is the `organiserPayoutMinor`
+ * each order recorded (buyer total − the platform's flat per-ticket cut − the card cost the
+ * organiser bears). So a white-label organiser settles from the recorded fee snapshots via
+ * `sumWhiteLabelPayable`, never from face — paying face would over-pay them by the platform's
+ * cut. Both models key on the event, so settling the same event twice pays once; a fresh
+ * event is a fresh, payable key.
  *
  * Deliberately settles only events that have **finished**: a refund before the event is
  * common and would otherwise mean clawing money back from a bank, which Connect does not do
@@ -180,15 +238,29 @@ export async function settleOrganiserEvent(
     return { ok: false, status: 'blocked', error: 'This event has not finished yet.' };
   }
 
-  // Face of online tickets only — single-field query, filtered in memory (no composite index).
-  const tickets = await db.collection('tickets').where('eventId', '==', eventId).get();
-  let payableMinor = 0;
-  for (const doc of tickets.docs) {
-    const t = doc.data() as { status?: string; paymentProvider?: string; price?: number };
-    if (t.status === 'refunded') continue;
-    if (t.paymentProvider === 'offline') continue; // box-office cash the organiser already holds
-    payableMinor += Math.round((Number(t.price) || 0) * 100);
+  // What the organiser is owed. White-label changes this from face value to the recorded
+  // white-label payout, so the branch is on the organiser, not the event.
+  const wl = await whiteLabelProfileFor(organiserId).catch(() => null);
+
+  let payableMinor: number;
+  if (wl) {
+    // White-label: sum the payout recorded on each order's fee snapshot — never face, and
+    // never recomputed from the current config (§16). Read from payment_events, which is
+    // where the quote was persisted; refunded orders net out inside sumWhiteLabelPayable.
+    const events = await db.collection('payment_events').where('eventId', '==', eventId).get();
+    payableMinor = sumWhiteLabelPayable(events.docs.map((d) => d.data() as PayableEvent));
+  } else {
+    // Standard: face of online tickets only — single-field query, filtered in memory.
+    const tickets = await db.collection('tickets').where('eventId', '==', eventId).get();
+    payableMinor = 0;
+    for (const doc of tickets.docs) {
+      const t = doc.data() as { status?: string; paymentProvider?: string; price?: number };
+      if (t.status === 'refunded') continue;
+      if (t.paymentProvider === 'offline') continue; // box-office cash the organiser already holds
+      payableMinor += Math.round((Number(t.price) || 0) * 100);
+    }
   }
+
   if (payableMinor <= 0) {
     return { ok: false, status: 'blocked', error: 'Nothing to settle for this event yet.' };
   }
@@ -199,7 +271,9 @@ export async function settleOrganiserEvent(
     currency: event.currency || 'GBP',
     reason: 'organiser_event',
     periodKey: eventId,
-    metadata: { eventId },
+    // `wl` marks the payout as the white-label amount for the audit trail — face and
+    // white-label payouts settle under the same per-event key, so a re-run still pays once.
+    metadata: { eventId, ...(wl ? { wl: '1' } : {}) },
   });
 }
 
