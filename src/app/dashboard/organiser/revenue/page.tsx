@@ -37,6 +37,15 @@ function Revenue({ profile }: { profile: UserProfile }) {
   const [tickets, setTickets] = React.useState<Ticket[]>([]);
   // Box-office service fee the organiser owes, per currency in minor units (net of refunds).
   const [owed, setOwed] = React.useState<Record<string, number>>({});
+  // White-label organisers keep their recorded payout, not face — the client cannot compute
+  // that, so the server returns it. Null / whiteLabel:false = a standard organiser, and the
+  // page keeps its face-value calculation untouched.
+  const [wl, setWl] = React.useState<{
+    whiteLabel: boolean;
+    payableMinor?: number;
+    grossMinor?: number;
+    orders?: Array<{ id: string; date: string; description: string; payoutMinor: number; currency: string }>;
+  } | null>(null);
   // Stripe Connect payout-account status. `enabled` false = Connect is off platform-wide.
   const [connect, setConnect] = React.useState<{
     enabled: boolean;
@@ -62,6 +71,12 @@ function Revenue({ profile }: { profile: UserProfile }) {
       .then((res) => res.json())
       .then((data: { owed?: Record<string, number> }) => {
         if (!cancelled) setOwed(data.owed ?? {});
+      })
+      .catch(() => undefined);
+    authedFetch('/api/white-label/owed')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setWl(data);
       })
       .catch(() => undefined);
     authedFetch('/api/connect/onboard')
@@ -142,7 +157,7 @@ function Revenue({ profile }: { profile: UserProfile }) {
     () => tickets.filter((t) => t.paymentProvider !== 'offline'),
     [tickets]
   );
-  const { gross, platformTotal: commission, net } = settle(onlineTickets, terms);
+  const settled = settle(onlineTickets, terms);
 
   // The door-sale fees owed, as a single settlement-currency figure (the page pays out in
   // GBP; it already pools ticket amounts across currencies the same way).
@@ -150,6 +165,15 @@ function Revenue({ profile }: { profile: UserProfile }) {
     () => Object.values(owed).reduce((sum, minor) => sum + minor, 0) / 100,
     [owed]
   );
+
+  // White-label organisers keep their recorded PAYOUT, not face — so on white-label the
+  // balance, the credited figure and the statement all come from the server (Slice E's
+  // arithmetic), never the client-side face guess. `net` on a white-label account would
+  // overstate what they will actually receive by the platform's per-ticket cut.
+  const isWhiteLabel = Boolean(wl?.whiteLabel);
+  const gross = isWhiteLabel ? (wl?.grossMinor ?? 0) / 100 : settled.gross;
+  const commission = settled.platformTotal;
+  const net = isWhiteLabel ? (wl?.payableMinor ?? 0) / 100 : settled.net;
   const balance = Math.max(0, net - feesOwed);
 
   // The standard model charges the organiser nothing and pays 100% of face — platform
@@ -161,6 +185,28 @@ function Revenue({ profile }: { profile: UserProfile }) {
   // Running-balance statement, oldest first. Box-office sales are excluded — they never
   // pay out — so the statement reconciles to the available balance above.
   const statement = React.useMemo(() => {
+    // White-label: one line per paid order, crediting the recorded payout (not face). The
+    // running balance reconciles to the available balance above the same way the standard
+    // statement does.
+    if (isWhiteLabel) {
+      const lines = [...(wl?.orders ?? [])].sort((a, b) => a.date.localeCompare(b.date));
+      let running = 0;
+      return lines
+        .map((order) => {
+          const credit = order.payoutMinor / 100;
+          running += credit;
+          return {
+            id: order.id,
+            date: order.date,
+            description: order.description,
+            debit: 0,
+            credit,
+            balance: running,
+            currency: order.currency,
+          };
+        })
+        .reverse();
+    }
     let running = 0;
     return [...onlineTickets]
       .sort((a, b) => a.purchasedAt.localeCompare(b.purchasedAt))
@@ -179,7 +225,7 @@ function Revenue({ profile }: { profile: UserProfile }) {
         };
       })
       .reverse();
-  }, [onlineTickets, terms]);
+  }, [isWhiteLabel, wl, onlineTickets, terms]);
 
   if (loading) {
     return (
@@ -194,7 +240,13 @@ function Revenue({ profile }: { profile: UserProfile }) {
       <div>
         <h1 className="font-headline text-2xl font-bold">Revenue &amp; payouts</h1>
         <p className="text-sm text-muted-foreground">
-          {hasCommission ? (
+          {isWhiteLabel ? (
+            <>
+              Your white-label payout — what you keep after your own booking fee, the
+              platform&apos;s flat per-ticket fee and the card cost you bear. Not face value,
+              and computed from what each order actually recorded.{' '}
+            </>
+          ) : hasCommission ? (
             <>
               Your balance after your agreed platform commission of {terms.percent}% plus{' '}
               {formatCurrency(terms.adminFee)} per ticket.{' '}
@@ -234,14 +286,26 @@ function Revenue({ profile }: { profile: UserProfile }) {
         <Card>
           <CardContent className="p-6">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Online sales (paid to you)
+              {isWhiteLabel ? 'Fans paid (all-in)' : 'Online sales (paid to you)'}
             </p>
             <p className="mt-1 font-headline text-2xl font-bold">{formatCurrency(gross)}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-6">
-            {hasCommission ? (
+            {isWhiteLabel ? (
+              <>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Fees &amp; card costs
+                </p>
+                <p className="mt-1 font-headline text-2xl font-bold tabular-nums text-destructive">
+                  -{formatCurrency(Math.max(0, gross - net))}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Platform per-ticket fee and card processing, deducted before your payout.
+                </p>
+              </>
+            ) : hasCommission ? (
               <>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
                   Commission withheld
@@ -365,9 +429,11 @@ function Revenue({ profile }: { profile: UserProfile }) {
             <CardHeader>
               <CardTitle>Account statement</CardTitle>
               <CardDescription>
-                {hasCommission
-                  ? 'Every sale, fee and running balance.'
-                  : 'Every online sale and running balance — you keep the full face value.'}
+                {isWhiteLabel
+                  ? 'Every paid order and running balance — credited at your white-label payout.'
+                  : hasCommission
+                    ? 'Every sale, fee and running balance.'
+                    : 'Every online sale and running balance — you keep the full face value.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">

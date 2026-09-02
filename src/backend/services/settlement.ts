@@ -67,7 +67,7 @@ export interface PayableEvent {
   provider?: string;
   providerRef?: string;
   refundsRef?: string;
-  feeSnapshot?: { organiserPayoutMinor?: number; faceMinor?: number };
+  feeSnapshot?: { organiserPayoutMinor?: number; faceMinor?: number; buyerTotalMinor?: number };
 }
 
 export function sumWhiteLabelPayable(events: PayableEvent[]): number {
@@ -275,6 +275,87 @@ export async function settleOrganiserEvent(
     // white-label payouts settle under the same per-event key, so a re-run still pays once.
     metadata: { eventId, ...(wl ? { wl: '1' } : {}) },
   });
+}
+
+/**
+ * A white-label organiser's true balance for the dashboard — payout, not face.
+ *
+ * The revenue page computes a standard organiser's balance client-side from ticket face
+ * value, which is correct there (they keep 100% of face). A white-label organiser keeps
+ * their recorded payout instead, which the client cannot compute (it depends on the
+ * per-order card cost). So this returns the authoritative figures, summed across all their
+ * events' recorded snapshots the same way settlement pays them, and the page shows these
+ * instead of the face guess.
+ *
+ * Pooled into one settlement currency exactly as the page already pools ticket amounts.
+ */
+export interface WhiteLabelOwed {
+  /** What the organiser will actually be paid, across all their online orders (minor units). */
+  payableMinor: number;
+  /** What fans paid in total — buyer totals — for the "fans paid" figure (minor units). */
+  grossMinor: number;
+  currency: string;
+  /** Per-order lines for the statement, newest first. */
+  orders: Array<{ id: string; date: string; description: string; payoutMinor: number; currency: string }>;
+}
+
+export async function whiteLabelOwedForOrganiser(organiserId: string): Promise<WhiteLabelOwed> {
+  const empty: WhiteLabelOwed = { payableMinor: 0, grossMinor: 0, currency: 'GBP', orders: [] };
+  if (!isAdminConfigured() || !organiserId) return empty;
+  const db = getAdminDb();
+
+  // The organiser's events — single-field query, and the title/currency for each line.
+  const eventsSnap = await db.collection('events').where('organizerId', '==', organiserId).get();
+  if (eventsSnap.empty) return empty;
+  const titleOf = new Map<string, { title: string; currency: string }>();
+  for (const doc of eventsSnap.docs) {
+    const e = doc.data() as { title?: string; currency?: string };
+    titleOf.set(doc.id, { title: e.title ?? 'Event', currency: e.currency ?? 'GBP' });
+  }
+
+  // Their payment events, gathered in id batches of 10 (Firestore `in` limit).
+  const eventIds = [...titleOf.keys()];
+  const all: PayableEvent[] = [];
+  const rich: Array<PayableEvent & { providerEventId?: string; eventId?: string; receivedAt?: string }> = [];
+  for (let i = 0; i < eventIds.length; i += 10) {
+    const batch = eventIds.slice(i, i + 10);
+    const snap = await db.collection('payment_events').where('eventId', 'in', batch).get();
+    for (const doc of snap.docs) {
+      const data = doc.data() as PayableEvent & { eventId?: string; receivedAt?: string };
+      all.push(data);
+      rich.push({ ...data, providerEventId: doc.id });
+    }
+  }
+
+  const payableMinor = sumWhiteLabelPayable(all);
+
+  // Gross (buyer totals) and per-order lines, over the same non-refunded card/momo issues.
+  const refundedRefs = new Set<string>();
+  for (const e of all) if (e.intent === 'refund' && e.refundsRef) refundedRefs.add(e.refundsRef);
+
+  let grossMinor = 0;
+  const orders: WhiteLabelOwed['orders'] = [];
+  for (const e of rich) {
+    if (e.intent !== 'issue') continue;
+    if (e.provider !== 'stripe' && e.provider !== 'bitripay') continue;
+    if (e.providerRef && refundedRefs.has(e.providerRef)) continue;
+    const snap = e.feeSnapshot;
+    if (!snap) continue;
+    const payout =
+      typeof snap.organiserPayoutMinor === 'number' ? snap.organiserPayoutMinor : snap.faceMinor ?? 0;
+    grossMinor += Math.round(snap.buyerTotalMinor ?? 0);
+    const meta = e.eventId ? titleOf.get(e.eventId) : undefined;
+    orders.push({
+      id: e.providerEventId ?? `${e.eventId}-${orders.length}`,
+      date: e.receivedAt ?? '',
+      description: meta?.title ?? 'Event',
+      payoutMinor: Math.round(payout),
+      currency: meta?.currency ?? 'GBP',
+    });
+  }
+  orders.sort((a, b) => b.date.localeCompare(a.date));
+
+  return { payableMinor, grossMinor, currency: 'GBP', orders };
 }
 
 /** A party's payout history, newest first. */

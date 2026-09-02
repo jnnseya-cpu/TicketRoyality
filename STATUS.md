@@ -1034,10 +1034,12 @@ organiser can actually be put on and sell under. Built as four verified slices:
   stays on the standard model at checkout (the DRC corridor is `active: false` anyway). A
   documented follow-up. (Settlement already counts a white-label org's momo payouts if any
   exist, via `sumWhiteLabelPayable`.)
-- **The revenue page's displayed balance** still sums face client-side (`settle` in
-  pricing.ts), so a white-label organiser sees face rather than their true payout. The
-  actual payout (slice E) is correct; this is a display-accuracy follow-up, not a money
-  error — the page needs to fetch the white-label owed amount from the server to match.
+- ~~The revenue page's displayed balance still sums face client-side~~ **— fixed (slice F).**
+  `whiteLabelOwedForOrganiser` + `GET /api/white-label/owed` return the true payout summed
+  from the recorded snapshots (the same arithmetic settlement pays), and the revenue page
+  shows it for white-label organisers — available balance, "fans paid", "fees & card costs",
+  and a per-order statement — instead of the face-value overstatement. The standard
+  face-value path is untouched (`whiteLabel: false` keeps the client calculation).
 - **The digital ticket + receipt emails** still carry the TicketRoyality mark — de-branding
   them needs the brand plumbed through the ticket list and mail templates.
 - **Slice D — custom domains (Phase 3).** The `customDomain` is captured and validated in
