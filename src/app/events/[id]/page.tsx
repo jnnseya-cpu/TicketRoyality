@@ -25,6 +25,7 @@ import { TrackView } from '@/frontend/components/common/TrackView';
 import { AuctionLots } from '@/frontend/components/giving/AuctionLots';
 import { GiftRegistry } from '@/frontend/components/giving/GiftRegistry';
 import { getEvents, getEventById } from '@/shared/data/repositories';
+import { whiteLabelProfileFor } from '@/backend/services/white-label';
 import { eventImageSeed } from '@/shared/constants/placeholder-images';
 import { formatEventDate } from '@/shared/utils';
 
@@ -56,6 +57,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   // related-events block is an enhancement, the event itself is the product.
   const allEvents = await getEvents().catch(() => []);
   const groups = relatedGroups(event, allEvents);
+
+  // White-label: if this event's organiser sells under their own brand, resolve their fee
+  // profile so the ticket box prices on it. Null (the common case) is the standard model.
+  const wl = await whiteLabelProfileFor(event.organizerId).catch(() => null);
 
   const isPast = new Date(event.date).getTime() < Date.now();
   const totalCapacity =
@@ -368,7 +373,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                   Nearly sold out — only {remaining} ticket{remaining === 1 ? '' : 's'} left
                 </div>
               )}
-              <TicketBox event={event} />
+              <TicketBox
+                event={event}
+                whiteLabel={wl ? { brandName: wl.brandName, profile: wl.profile } : undefined}
+              />
             </>
           )}
 

@@ -16,7 +16,13 @@ import { useToast } from '@/frontend/hooks/use-toast';
 import { formatCurrency } from '@/shared/utils';
 import { DonationBox } from '@/frontend/components/giving/DonationBox';
 import { TicketPrice } from '@/frontend/components/pricing/TicketPrice';
-import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
+import {
+  computeOrderFees,
+  computeWhiteLabelOrder,
+  toMajor,
+  toMinor,
+  type WhiteLabelFeeProfile,
+} from '@/shared/fees';
 import { resolveLinePrice, tierSaleWindow, companionRuleBroken } from '@/shared/pricing';
 import { meetsTier } from '@/shared/loyalty-tiers';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
@@ -29,7 +35,15 @@ import type { Event, Membership } from '@/shared/types';
  * Buy box. Tier picker + quantity, then either add-to-cart or a direct checkout
  * through Stripe, Bitripay or offline mobile money.
  */
-export function TicketBox({ event }: { event: Event }) {
+export function TicketBox({
+  event,
+  whiteLabel,
+}: {
+  event: Event;
+  /** Resolved server-side on the event page when the organiser is white-label. Its
+      presence swaps the price preview onto the organiser's own booking fee and brand. */
+  whiteLabel?: { brandName?: string; profile: WhiteLabelFeeProfile };
+}) {
   const { user, userProfile } = useAuth();
   const { addItem } = useCart();
   const { toast } = useToast();
@@ -215,6 +229,33 @@ export function TicketBox({ event }: { event: Event }) {
       : [{ faceMinor: toMinor(unitPrice), qty: quantity }],
     isMomoCurrency ? { rail: 'bitripay_momo', countryCode: 'CD' } : undefined
   );
+
+  /*
+   * White-label preview. When the organiser is white-label and this is the card rail, the
+   * fee shown is THEIR booking fee, not the platform's — matching what the checkout will
+   * actually charge (Slice B). Mobile money stays on the standard model for now, so the
+   * preview only diverges on the card rail. Presentational: the authoritative price is the
+   * server's, this only keeps the summary honest to it.
+   */
+  const wlQuote =
+    whiteLabel && !isMomoCurrency
+      ? computeWhiteLabelOrder(
+          hasTypes
+            ? mixEntries.map((entry) => ({ faceMinor: toMinor(entry.type.price), qty: entry.count }))
+            : [{ faceMinor: toMinor(unitPrice), qty: quantity }],
+          whiteLabel.profile
+        )
+      : null;
+  const feeLabel = wlQuote
+    ? `${whiteLabel!.brandName ?? 'Booking'} fee`
+    : 'TicketRoyality Service Fee';
+  const displayFeeMinor = wlQuote
+    ? whiteLabel!.profile.feeMode === 'pass'
+      ? wlQuote.bookingFeeMinor
+      : 0
+    : quote.serviceFeeMinor;
+  const displayBuyerTotalMinor = wlQuote ? wlQuote.buyerTotalMinor : quote.buyerTotalMinor;
+
   // A rail with no credentials must not be offered — see use-payment-methods.
   const methods = usePaymentMethods();
   /*
@@ -799,11 +840,11 @@ export function TicketBox({ event }: { event: Event }) {
               {isFree ? 'Free' : formatCurrency(lineTotal, event.currency)}
             </span>
           </div>
-          {quote.serviceFeeMinor > 0 && (
+          {displayFeeMinor > 0 && (
             <div className="flex items-baseline justify-between text-sm">
-              <span className="text-muted-foreground">TicketRoyality Service Fee</span>
+              <span className="text-muted-foreground">{feeLabel}</span>
               <span className="tabular-nums">
-                {formatCurrency(toMajor(quote.serviceFeeMinor), event.currency)}
+                {formatCurrency(toMajor(displayFeeMinor), event.currency)}
               </span>
             </div>
           )}
@@ -820,15 +861,20 @@ export function TicketBox({ event }: { event: Event }) {
             <span className="font-headline text-2xl font-bold text-primary">
               {isFree && donationMinor === 0
                 ? 'Free'
-                : formatCurrency(toMajor(quote.buyerTotalMinor + donationMinor), event.currency)}
+                : formatCurrency(toMajor(displayBuyerTotalMinor + donationMinor), event.currency)}
             </span>
           </div>
-          {!isFree && (
-            <p className="text-xs text-muted-foreground">
-              The organiser receives {formatCurrency(lineTotal, event.currency)} — 100% of the
-              ticket value. We charge them nothing.
-            </p>
-          )}
+          {!isFree &&
+            (wlQuote ? (
+              <p className="text-xs text-muted-foreground">
+                Sold by {whiteLabel!.brandName ?? 'the organiser'} on TicketRoyality.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                The organiser receives {formatCurrency(lineTotal, event.currency)} — 100% of the
+                ticket value. We charge them nothing.
+              </p>
+            ))}
         </div>
 
         {/*
