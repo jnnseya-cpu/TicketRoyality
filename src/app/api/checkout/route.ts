@@ -4,7 +4,8 @@ import { createCheckoutSession, isStripeConfigured, type CheckoutLine } from '@/
 import { createIntent, isKodaConfigured, toKodaAmount } from '@/backend/payments/koda';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
-import { computeOrderFees, toMajor, toMinor } from '@/shared/fees';
+import { computeOrderFees, computeWhiteLabelOrder, toMajor, toMinor } from '@/shared/fees';
+import { resolveOrderWhiteLabel } from '@/backend/services/white-label';
 import { placeHold, releaseHold } from '@/backend/services/holds';
 import type { Coupon, TicketTier } from '@/shared/types';
 import {
@@ -70,6 +71,10 @@ export async function POST(request: Request) {
 
   const form = await request.formData();
   const lines: CheckoutLine[] = [];
+  /* Every ticketed event in this order, so white-label pricing can be resolved once the
+     lines are built. White-label is a per-organiser model; it applies only when the whole
+     order is one white-label organiser's (see resolveOrderWhiteLabel). */
+  const orderEventIds: string[] = [];
   /* Carried through the whole checkout so both the single-event and cart paths can prove
      a hidden tier was legitimately unlocked. One code per checkout: a basket mixing two
      different partners' hidden rates is not a real purchase. */
@@ -262,6 +267,7 @@ export async function POST(request: Request) {
       if (itemLines.length === 0) itemLines.push({ name, amount, quantity, currency });
 
       lines.push(...itemLines);
+      if (item.eventId) orderEventIds.push(String(item.eventId));
       if (item.eventId && item.tierId) {
         claimables.push({ eventId: item.eventId, tierId: item.tierId, quantity, currency });
         cartRefs.push({
@@ -338,6 +344,7 @@ export async function POST(request: Request) {
     const eventId = String(form.get('eventId') ?? '');
     const tierId = String(form.get('tierId') ?? '');
     const quantity = Math.max(1, Math.min(10, Number(form.get('quantity') ?? 1)));
+    if (eventId) orderEventIds.push(eventId);
 
     // The authoritative price. Only falls back to the posted amount when the Admin SDK
     // is unavailable, which is a deployment fault rather than a normal path.
@@ -470,18 +477,55 @@ export async function POST(request: Request) {
    * it per paid ticket and sums, which is why this is a single quantity-1 line rather
    * than a per-ticket charge Stripe would round differently.
    */
-  const quote = computeOrderFees(
-    lines.map((line) => ({ faceMinor: toMinor(line.amount), qty: line.quantity }))
-  );
+  const feeLines = lines.map((line) => ({ faceMinor: toMinor(line.amount), qty: line.quantity }));
+  // Standard quote, always computed — it carries the pricing/config versions the §16
+  // snapshot needs, and is the fee model for every order that is not white-label.
+  const quote = computeOrderFees(feeLines);
 
-  if (quote.serviceFeeMinor > 0) {
+  /*
+   * White-label pricing. Applies only when the whole order is one white-label organiser's
+   * (resolveOrderWhiteLabel enforces that); otherwise `wl` is null and nothing below
+   * changes — the standard service fee stands.
+   *
+   * On white-label the platform's flat service fee is replaced by the organiser's own
+   * booking fee: charged to the fan on top of face in `pass` mode, funded from their own
+   * payout in `absorb` mode (so no fan-facing line at all). The platform's revenue moves
+   * to a flat per-ticket cut, recorded in metadata for settlement and accounting. Face
+   * value, issuance and the tickets themselves are untouched — white-label changes who
+   * bears which fee, never what a ticket is.
+   *
+   * Deliberately scoped to the card rail here; the mobile-money path stays on the standard
+   * model for now (the DRC corridor is inactive), a documented follow-up rather than a
+   * silent half-build.
+   */
+  const wl = await resolveOrderWhiteLabel(orderEventIds);
+  const wlQuote = wl ? computeWhiteLabelOrder(feeLines, wl.profile) : null;
+
+  const feeLineMinor = wlQuote
+    ? wl!.profile.feeMode === 'pass'
+      ? wlQuote.bookingFeeMinor
+      : 0
+    : quote.serviceFeeMinor;
+
+  if (feeLineMinor > 0) {
     lines.push({
-      name: 'TicketRoyality Service Fee',
-      amount: toMajor(quote.serviceFeeMinor),
+      // The organiser's own brand on their own booking fee — never "TicketRoyality" on a
+      // white-label receipt.
+      name: wlQuote ? `${wl!.brandName ?? 'Booking'} fee` : 'TicketRoyality Service Fee',
+      amount: toMajor(feeLineMinor),
       quantity: 1,
       currency,
     });
   }
+
+  // The money fields the metadata and success page use, resolved once so the two rails of
+  // this order (fan-facing total, organiser payout) agree with whichever model priced it.
+  const orderBuyerTotalMinor = wlQuote ? wlQuote.buyerTotalMinor : quote.buyerTotalMinor;
+  const orderServiceFeeMinor = wlQuote ? wlQuote.bookingFeeMinor : quote.serviceFeeMinor;
+  const orderOrganiserPayoutMinor = wlQuote
+    ? wlQuote.organiserPayoutMinor
+    : quote.organiserPayoutMinor;
+  const orderPlatformRevenueMinor = wlQuote ? wlQuote.platformFeeMinor : quote.serviceFeeNetMinor;
 
   /*
    * A gift, added after the quote so it is **not** part of the fee base.
@@ -916,7 +960,7 @@ export async function POST(request: Request) {
       // amt/cur are for the success page's conversion pixels only — analytics, never
       // authority. The charged amount is decided by the lines above.
       successUrl: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}&amt=${toMajor(
-        quote.buyerTotalMinor + donationMinor + registryMinor
+        orderBuyerTotalMinor + donationMinor + registryMinor
       )}&cur=${encodeURIComponent(currency)}`,
       cancelUrl: `${siteUrl}/checkout/cancel`,
       // Carried through to the webhook, which is what actually issues the tickets.
@@ -936,9 +980,18 @@ export async function POST(request: Request) {
         pricingVersion: String(quote.pricingVersion),
         feeConfigVersion: quote.configVersion,
         faceMinor: String(quote.faceMinor),
-        serviceFeeMinor: String(quote.serviceFeeMinor),
-        buyerTotalMinor: String(quote.buyerTotalMinor),
-        organiserPayoutMinor: String(quote.organiserPayoutMinor),
+        // On a white-label order these carry the organiser's booking fee, their payout and
+        // the fan total from computeWhiteLabelOrder; otherwise the standard quote. Same
+        // field names so the webhook's fee snapshot records either without branching.
+        serviceFeeMinor: String(orderServiceFeeMinor),
+        buyerTotalMinor: String(orderBuyerTotalMinor),
+        organiserPayoutMinor: String(orderOrganiserPayoutMinor),
+        // White-label markers, empty on a standard order. `platformRevenueMinor` is the
+        // platform's clean cut (flat per-ticket on white-label, service fee net of VAT on
+        // the standard model) — recorded for settlement and profitability accounting.
+        wl: wlQuote ? '1' : '',
+        wlBrand: wlQuote ? (wl!.brandName ?? '') : '',
+        platformRevenueMinor: String(orderPlatformRevenueMinor),
         // Issuance consumes this hold, so the seat moves from held to sold in one step
         // rather than being briefly free between the two.
         holdId,

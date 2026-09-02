@@ -77,6 +77,38 @@ export async function whiteLabelProfileFor(
   };
 }
 
+/**
+ * White-label for a whole order, from its event ids.
+ *
+ * White-label is a per-organiser fee model, so it applies to an order only when **every**
+ * ticketed line belongs to **one** white-label organiser — the same conservative rule the
+ * attribution path already uses ("cart spans organisers → skip"). A basket that mixes a
+ * white-label organiser with anyone else prices on the standard model, which is always
+ * safe. Returns null for an empty list (a donation-only or registry-only order).
+ */
+export async function resolveOrderWhiteLabel(
+  eventIds: string[]
+): Promise<ResolvedWhiteLabel | null> {
+  if (!isAdminConfigured()) return null;
+  const distinct = [...new Set(eventIds.filter(Boolean))];
+  if (distinct.length === 0) return null;
+
+  let organisers: Array<string | undefined>;
+  try {
+    const snaps = await Promise.all(
+      distinct.map((id) => getAdminDb().collection('events').doc(id).get())
+    );
+    organisers = snaps.map((snap) => (snap.data()?.organizerId as string | undefined));
+  } catch {
+    return null; // fail to the standard path
+  }
+
+  const [first] = organisers;
+  if (!first || !organisers.every((owner) => owner === first)) return null;
+
+  return whiteLabelProfileFor(first);
+}
+
 /** The raw config for the settings UI (whether or not enabled). Never returns privileged edits. */
 export async function whiteLabelConfigFor(
   organiserId: string
