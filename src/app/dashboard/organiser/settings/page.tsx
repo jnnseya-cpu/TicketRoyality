@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/fro
 import { DeleteAccountDialog } from '@/frontend/components/dashboard/DeleteAccountDialog';
 import { ProfileForm } from '@/frontend/components/dashboard/ProfileForm';
 import { RequireRole } from '@/frontend/components/dashboard/RequireRole';
+import { WhiteLabelSettings } from '@/frontend/components/dashboard/WhiteLabelSettings';
 import { useAuth } from '@/frontend/hooks/use-auth';
 import { commissionTermsFor } from '@/shared/pricing';
 import { formatCurrency } from '@/shared/utils';
@@ -48,6 +49,19 @@ export default function OrganiserSettingsPage() {
               <Badge variant={profile.status === 'approved' ? 'success' : 'secondary'}>
                 Account {profile.status}
               </Badge>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>White-label</CardTitle>
+              <CardDescription>
+                Sell under your own brand and set your own booking fee. Enabled per account
+                by the TicketRoyality team.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <WhiteLabelSettings />
             </CardContent>
           </Card>
 
