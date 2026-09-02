@@ -1019,15 +1019,25 @@ organiser can actually be put on and sell under. Built as four verified slices:
   checkout will charge, and "Sold by {brand} on TicketRoyality" instead of the false
   "100% of face / we charge them nothing".
 
+- **E — settlement** (`backend/services/settlement.ts`). `settleOrganiserEvent` now branches
+  on the organiser: white-label organisers settle the recorded **payout**, not face. Paying
+  face would over-pay them by the platform's cut. `sumWhiteLabelPayable` (pure, 7 tests)
+  sums `feeSnapshot.organiserPayoutMinor` over non-refunded card/mobile-money issue events —
+  refunds net out by the shared payment-intent ref, box-office and free are excluded, a
+  pre-payout-field snapshot falls back to `faceMinor`, and a snapshot-less event is skipped
+  rather than guessed. Read from the snapshot, never recomputed (§16). Same per-event key,
+  so a re-run pays once. Inert until Connect is enabled; correct the moment it is.
+
 **Deliberately NOT built, and not implied:**
 
-- **Mobile-money white-label.** The card rail is wired; the KODA/mobile-money rail stays
-  on the standard model (the DRC corridor is `active: false` anyway). A documented
-  follow-up, not a silent half-build.
-- **White-label settlement.** Paying the organiser their white-label payout (which, unlike
-  the standard model, is not face value) belongs to the **gated Stripe Connect** work.
-  The payout amount is recorded correctly; nothing pays it out until Connect is enabled,
-  and the settlement path must branch on `wl` before it is.
+- **Mobile-money white-label pricing.** The card rail is wired; the KODA/mobile-money rail
+  stays on the standard model at checkout (the DRC corridor is `active: false` anyway). A
+  documented follow-up. (Settlement already counts a white-label org's momo payouts if any
+  exist, via `sumWhiteLabelPayable`.)
+- **The revenue page's displayed balance** still sums face client-side (`settle` in
+  pricing.ts), so a white-label organiser sees face rather than their true payout. The
+  actual payout (slice E) is correct; this is a display-accuracy follow-up, not a money
+  error — the page needs to fetch the white-label owed amount from the server to match.
 - **The digital ticket + receipt emails** still carry the TicketRoyality mark — de-branding
   them needs the brand plumbed through the ticket list and mail templates.
 - **Slice D — custom domains (Phase 3).** The `customDomain` is captured and validated in
