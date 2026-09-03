@@ -993,6 +993,35 @@ price"). One surface leaked face — the homepage **video spotlight** (`VideoAds
 `allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
 typecheck, lint, build.
 
+### 3 September — Stripe Connect turned on: automatic payouts that actually fire (owner request)
+
+`STRIPE_CONNECT_ENABLED` was undeclared, so `isConnectConfigured()` was always false and
+no payout could fire. And even with it on, payouts only fired from the manual **Withdraw**
+button — an organiser who never opened their revenue page was never paid. Both fixed, plus a
+latent money bug that would have silently broken the "settles the day Connect is enabled"
+promise.
+
+- **The flag** (`apphosting.yaml`): `STRIPE_CONNECT_ENABLED: "true"`, declared with the three
+  console-side prerequisites written next to it (Connect enabled on the Stripe account, a real
+  `STRIPE_SECRET_KEY`, organiser onboarding). It fails **safe** without them — a transfer that
+  cannot be made records `blocked`/`failed`, never a wrong or double payment.
+- **Automatic settlement** (`settleFinishedEvents` + `/api/cron/settle-events`): a scheduled
+  sweep settles every finished event to its organiser's connected account, idempotent by the
+  per-event key, skipping an already-paid event on one cheap read. Scheduler command in
+  `DEPLOY.md` (hourly). Does nothing while Connect is off (`connectOff: true`).
+- **The latent bug** (`settle()`): the first attempt claimed the payout key as `blocked`, and
+  every retry then returned `already-settled` — so a payout blocked *before* the organiser
+  finished onboarding would **never** fire once they did. Now a `blocked`/`failed` key is
+  retried (only a `paid` one is done); the transfer carries that same key as its Stripe
+  idempotency key, so a retry — even a concurrent one — can never move the money twice. This
+  is what makes "settles the moment the account is ready" actually true, under the stable
+  event key, rather than needing a fresh key each time.
+
+Verified: 11/11 settlement tests, typecheck, lint, production build. **Owner-side to finish:**
+enable Connect on the Stripe account, set the real `STRIPE_SECRET_KEY`, and create the
+`ticketroyality-settle` scheduler job (all in DEPLOY.md). Until then the rail is on in code and
+inert in fact — by design.
+
 ### 2 September — White-label made usable: Phase 1b + 2 wired (owner "build and make ready")
 
 The 29 August entry built the fee **model** only. This makes white-label a thing an

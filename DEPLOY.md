@@ -511,6 +511,42 @@ curl -s -H "Authorization: Bearer $CRON_SECRET" \
 `implemented: true` with counts for `released`, `lotsClosed` and `webhooks`. A `401`
 means `CRON_SECRET` did not reach the runtime.
 
+### Automatic organiser payouts — `/api/cron/settle-events`
+
+`/api/cron/release-holds` runs every minute; this one does not need to. It settles every
+finished event to its organiser's connected account — the payout that otherwise only fires
+when an organiser opens their revenue page and presses **Withdraw**. Idempotent by the
+per-event key, so hourly is plenty:
+
+```bash
+gcloud scheduler jobs create http ticketroyality-settle \
+  --project ticketroyality \
+  --location europe-west1 \
+  --schedule "0 * * * *" \
+  --uri "https://ticketroyality.com/api/cron/settle-events" \
+  --http-method GET \
+  --headers "Authorization=Bearer $CRON_SECRET"
+```
+
+`implemented: true` with `paid` / `blocked` / `failed` / `skipped` counts. `connectOff: true`
+means Stripe Connect is not enabled yet (see below) — the sweep did nothing, on purpose.
+
+## Enabling Stripe Connect (organiser payouts + white-label settlement)
+
+`STRIPE_CONNECT_ENABLED` is `"true"` in `apphosting.yaml`, so the code path is on. That
+alone moves no money — it fails **safe** until three console-side things are also true:
+
+1. **Connect enabled on the Stripe account** — Stripe Dashboard → Connect → get started
+   (Express accounts). Without it, transfers error and are recorded `failed`, never sent.
+2. **A real `STRIPE_SECRET_KEY`** in Secret Manager (the same key the card charges use).
+   With the flag `"true"` but no key, `isConnectConfigured()` stays false and nothing fires.
+3. **Each organiser finishes onboarding** — their revenue page shows "Connect a payout
+   account"; until they complete Stripe Express, their settlements record `blocked` and
+   retry automatically the run after they finish (the settle key is retried, not sealed).
+
+Nothing here can double-pay: every transfer carries the per-event payout key as its Stripe
+idempotency key, and a paid event is skipped on a single read.
+
 ## Verify it actually works
 
 Do these in order. Each one catches a different failure.

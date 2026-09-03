@@ -156,6 +156,20 @@ env:
     availability:
       - RUNTIME
 
+  # Stripe Connect — organiser payouts to their own bank, and white-label settlement.
+  # "true" turns the payout rail ON in code: the onboarding flow, the Withdraw button and
+  # the automatic /api/cron/settle-events sweep all go live. It fails SAFE if the Stripe
+  # account is not ready — a transfer that cannot be made is recorded blocked/failed and
+  # retried, never a wrong or double payment. For real money to move, three things must
+  # ALSO be true, and they are console actions, not code:
+  #   1. Connect is enabled on the Stripe account (Stripe Dashboard → Connect).
+  #   2. A real STRIPE_SECRET_KEY is set in Secret Manager (see above).
+  #   3. Each organiser has finished Stripe Express onboarding (revenue page → Connect).
+  - variable: STRIPE_CONNECT_ENABLED
+    value: "true"
+    availability:
+      - RUNTIME
+
   # Scheduled sweeps (/api/cron/*). While off: the cron routes refuse every caller, so
   # nothing releases stale checkout holds, closes auction lots, or delivers webhooks.
   - variable: CRON_SECRET

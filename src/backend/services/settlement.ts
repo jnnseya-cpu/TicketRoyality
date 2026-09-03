@@ -136,9 +136,20 @@ export async function settle(input: SettleInput): Promise<SettleResult> {
   try {
     await ref.create({ ...base, status: 'blocked' });
   } catch (error) {
-    if ((error as { code?: number }).code === 6) return { ok: true, status: 'already-settled' };
-    reportError(error, { scope: 'settlement.claim', key: input.key });
-    return { ok: false, status: 'failed', error: 'Could not start the payout.' };
+    if ((error as { code?: number }).code !== 6) {
+      reportError(error, { scope: 'settlement.claim', key: input.key });
+      return { ok: false, status: 'failed', error: 'Could not start the payout.' };
+    }
+    // The key already exists. Only a **paid** debt is done; a `blocked` or `failed` one is
+    // retryable — this is exactly the case that matters for "settles the moment the account
+    // is ready", where the first attempt claimed the key while Connect was off or the
+    // organiser had not finished onboarding. Retrying is safe: the transfer below carries
+    // this same key as its Stripe idempotency key, so a re-attempt can never move the money
+    // twice even under a concurrent run. Falling through re-runs the Connect checks + transfer.
+    const existing = (await ref.get()).data() as Payout | undefined;
+    if (existing?.status === 'paid') {
+      return { ok: true, status: 'already-settled' };
+    }
   }
 
   // Connect off, or nothing to pay to: leave it recorded as blocked. The debt stays owed
@@ -275,6 +286,67 @@ export async function settleOrganiserEvent(
     // white-label payouts settle under the same per-event key, so a re-run still pays once.
     metadata: { eventId, ...(wl ? { wl: '1' } : {}) },
   });
+}
+
+export interface SweepResult {
+  scanned: number;
+  paid: number;
+  blocked: number;
+  failed: number;
+  skipped: number;
+  /** True when Connect is not enabled — the sweep did nothing, on purpose. */
+  connectOff?: boolean;
+}
+
+/**
+ * Settle every finished event that is not already paid — the automatic per-event payout.
+ *
+ * The manual "Withdraw" button settles one organiser's events on demand; this is the sweep
+ * that makes the payout fire on its own, so an organiser is paid after each event without
+ * anyone pressing anything (the one evening nobody presses it is the evening they go unpaid).
+ * A scheduler calls it; it is idempotent by the same per-event key, so running it every hour
+ * pays each event exactly once.
+ *
+ * Cheap before it is thorough: an event whose payout is already `paid` is skipped on a single
+ * document read, before the heavier summation runs. Everything else — refunds, the white-label
+ * payout, the blocked-until-onboarded state — is `settleOrganiserEvent`'s job, unchanged.
+ *
+ * Does nothing while Connect is off, rather than claiming payout keys it cannot honour.
+ */
+export async function settleFinishedEvents(limit = 300): Promise<SweepResult> {
+  const zero: SweepResult = { scanned: 0, paid: 0, blocked: 0, failed: 0, skipped: 0 };
+  if (!isAdminConfigured()) return zero;
+  if (!isConnectConfigured()) return { ...zero, connectOff: true };
+
+  const db = getAdminDb();
+  const nowIso = new Date().toISOString();
+  // Finished events only — a single-field range on the ISO date string (no composite index).
+  // Event dates are ISO strings throughout, so a string range is chronologically correct.
+  const snap = await db.collection('events').where('date', '<=', nowIso).limit(limit).get();
+
+  const out: SweepResult = { ...zero };
+  for (const doc of snap.docs) {
+    out.scanned += 1;
+    const organiserId = doc.data()?.organizerId as string | undefined;
+    if (!organiserId) {
+      out.skipped += 1;
+      continue;
+    }
+    // One cheap read to skip an event already paid, before the summation query.
+    const key = payoutKey('organiser', organiserId, 'organiser_event', doc.id);
+    const paidAlready = await db.collection(PAYOUTS).doc(key).get();
+    if (paidAlready.exists && (paidAlready.data() as Payout).status === 'paid') {
+      out.skipped += 1;
+      continue;
+    }
+
+    const result = await settleOrganiserEvent(organiserId, doc.id);
+    if (result.ok && result.status === 'paid') out.paid += 1;
+    else if (result.ok) out.skipped += 1; // already-settled
+    else if (result.status === 'blocked') out.blocked += 1;
+    else out.failed += 1;
+  }
+  return out;
 }
 
 /**
