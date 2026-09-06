@@ -1066,7 +1066,9 @@ organiser can actually be put on and sell under. Built as four verified slices:
   a client write: the organiser sets brand + booking fee + mode + requested domain and
   **can never** write `enabled` or `platformPerTicketMinor` — the platform's revenue
   switch. Superuser grants from the commissions page; the organiser edits from Settings
-  with a live £20 preview through the real engine.
+  with a live £20 preview through the real engine, and a plain-language "how white-label is
+  charged" panel. The default platform cut is **50p** per paid ticket — a seed only; the
+  superuser sets the real figure per organiser on grant.
 - **B — the money** (`api/checkout/route.ts` + `resolveOrderWhiteLabel`). When a whole
   order is one white-label organiser's (single-organiser rule, mirroring attribution),
   the **card** checkout prices via `computeWhiteLabelOrder`: the platform service-fee line

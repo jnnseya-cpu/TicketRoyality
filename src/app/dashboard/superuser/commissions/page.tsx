@@ -47,7 +47,7 @@ function WhiteLabelDialog({ organiser, onSaved }: { organiser: UserProfile; onSa
   const [saving, setSaving] = React.useState(false);
   const wl = organiser.whiteLabel;
   const [enabled, setEnabled] = React.useState(wl?.enabled === true);
-  const [platformFee, setPlatformFee] = React.useState(toMajor(wl?.platformPerTicketMinor ?? 40));
+  const [platformFee, setPlatformFee] = React.useState(toMajor(wl?.platformPerTicketMinor ?? 50));
 
   const save = async () => {
     setSaving(true);

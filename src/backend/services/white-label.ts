@@ -28,7 +28,7 @@ import type { WhiteLabelConfig } from '@/shared/types';
  */
 
 /** Defaults for a config that exists but has not been fully filled in. */
-const DEFAULT_PLATFORM_PER_TICKET_MINOR = 40; // 40p, the tested reference cut. Superuser overrides on grant.
+const DEFAULT_PLATFORM_PER_TICKET_MINOR = 50; // 50p per paid ticket. A default only — the superuser sets the real cut per organiser on grant.
 
 export interface ResolvedWhiteLabel {
   organiserId: string;

@@ -117,6 +117,7 @@ export function WhiteLabelSettings() {
           You can prepare your brand name and fee below now — they’ll apply the moment
           white-label is enabled for you.
         </p>
+        <ChargesPanel platformPerTicketMinor={platformPerTicketMinor} />
         <Editor
           brandName={brandName}
           setBrandName={setBrandName}
@@ -142,6 +143,8 @@ export function WhiteLabelSettings() {
         <span className="font-semibold text-foreground">{gbp(platformPerTicketMinor)}</span> per
         paid ticket. Your booking fee below is your own revenue.
       </p>
+
+      <ChargesPanel platformPerTicketMinor={platformPerTicketMinor} />
 
       <Editor
         brandName={brandName}
@@ -186,6 +189,53 @@ export function WhiteLabelSettings() {
       </div>
 
       <SaveButton saving={saving} onSave={save} />
+    </div>
+  );
+}
+
+/**
+ * A plain-language summary of how a white-label organiser is charged, so the money is
+ * legible without reading the £20 preview. Numbers are the real model, not marketing: the
+ * platform fee is the actual per-ticket cut; the card figures are the Stripe UK card rail
+ * the organiser bears (shared/constants/fees.ts).
+ */
+function ChargesPanel({ platformPerTicketMinor }: { platformPerTicketMinor: number }) {
+  const fee = platformPerTicketMinor > 0 ? platformPerTicketMinor : 50;
+  const feeLabel = `£${(fee / 100).toFixed(2)}`;
+  return (
+    <div className="rounded-[--radius] border border-border/60 bg-background/40 p-4 text-sm">
+      <p className="font-mono text-xs uppercase tracking-[0.16em] text-primary">
+        How white-label is charged
+      </p>
+      <ul className="mt-3 space-y-2">
+        <li className="flex gap-2">
+          <span className="text-primary">•</span>
+          <span>
+            <span className="font-medium text-foreground">We charge a flat {feeLabel} per paid ticket</span>
+            {' '}— 0% commission, no subscription. Free tickets cost nothing.
+          </span>
+        </li>
+        <li className="flex gap-2">
+          <span className="text-primary">•</span>
+          <span>
+            <span className="font-medium text-foreground">You cover card processing</span> — about
+            1.5% + 20p per card charge, plus 10p per order (your brand, your processor). It’s taken
+            from your payout, and it’s why our flat fee never balloons on a dear ticket.
+          </span>
+        </li>
+        <li className="flex gap-2">
+          <span className="text-primary">•</span>
+          <span>
+            <span className="font-medium text-foreground">Your booking fee is your revenue</span> —
+            set any %/flat below (or zero). <span className="font-medium text-foreground">Pass</span>{' '}
+            it and fans pay it on top; <span className="font-medium text-foreground">absorb</span> it
+            and it comes out of your take.
+          </span>
+        </li>
+      </ul>
+      <p className="mt-3 border-t border-border/60 pt-2 text-xs text-muted-foreground">
+        On each ticket you keep: face + your fee (if passed) − our {feeLabel} − card cost.
+      </p>
     </div>
   );
 }
