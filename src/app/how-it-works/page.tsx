@@ -214,6 +214,17 @@ export default function HowItWorksPage() {
             </CardContent>
           </Card>
         </div>
+
+        <p className="mt-6 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Selling at scale, or want your own brand?</span>{' '}
+          On a white-label plan you sell under your own name, set your own fan booking fee, and
+          keep your own payout — TicketRoyality takes a small per-ticket cut instead of the
+          buyer service fee. It’s enabled by arrangement:{' '}
+          <Link href="/contact" className="text-primary underline-offset-4 hover:underline">
+            talk to us
+          </Link>
+          .
+        </p>
       </section>
 
       <div className="rounded-xl border border-primary/25 bg-primary/5 p-8 text-center">

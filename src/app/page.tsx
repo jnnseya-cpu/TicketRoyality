@@ -8,6 +8,7 @@ import {
   Handshake,
   LayoutGrid,
   Megaphone,
+  Palette,
   QrCode,
   ScanLine,
   ShieldCheck,
@@ -100,6 +101,13 @@ const CORE_FEATURES = [
     body: 'Concerts, matches, conferences, festivals, VIP nights — with tiers, presales, season tickets, tables and tracked promoter links, all from one event.',
   },
   {
+    icon: Palette,
+    title: 'Sell under your own brand',
+    // White-label: computeWhiteLabelOrder + whiteLabelProfileFor. Admin-granted, so framed
+    // honestly as "by arrangement" — not a self-serve toggle.
+    body: 'White-label: run the whole thing under your own name and set your own fan booking fee. Your brand on the event page and the checkout, your fee, your payout — we take a small per-ticket cut and stay out of sight. Enabled by arrangement — talk to us.',
+  },
+  {
     icon: QrCode,
     title: 'Secure QR Tickets',
     body: 'Every ticket gets a unique QR code that can only be used once, preventing duplicates and unauthorised resale.',
@@ -154,18 +162,18 @@ const CORE_FEATURES = [
 ];
 
 const SEGMENTS = [
-  { icon: Megaphone, audience: 'For Organisers', value: 'More control, more revenue, zero fraud.' },
-  { icon: Users, audience: 'For Fans', value: 'Faster entry, safer tickets, better experience.' },
-  { icon: Building2, audience: 'For Venues', value: 'Cleaner operations, real-time visibility.' },
-  { icon: TrendingUp, audience: 'For Promoters', value: 'Professional ticket sales without chaos.' },
+  { icon: Megaphone, audience: 'For Organisers', value: 'Keep 100% of face, sell at the door, paid to your own bank.' },
+  { icon: Users, audience: 'For Fans', value: 'One all-in price, a QR that can’t be faked, seconds through the gate.' },
+  { icon: Building2, audience: 'For Venues', value: 'Per-zone capacity, live occupancy, a scanner that works offline.' },
+  { icon: TrendingUp, audience: 'For Promoters', value: 'A tracked link, honest counting, commission recorded to the penny.' },
 ];
 
 const EXPERIENCE_STEPS = [
-  'Elegant checkout.',
-  'Branded digital tickets.',
-  'Instant confirmation.',
-  'Fast gate entry.',
-  'Premium event credibility.',
+  'One all-in price, shown before you pay.',
+  'The ticket in your wallet a second later.',
+  'A QR that refreshes every 30 seconds.',
+  'Scanned in at the gate in under a second.',
+  'You still get in if the venue’s signal drops.',
 ];
 
 const REVENUE_TOOLS = [
