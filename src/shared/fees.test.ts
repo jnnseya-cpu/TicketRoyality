@@ -401,8 +401,8 @@ test('pounds convert to pence without drift', () => {
 console.log('\nPricing engine — white-label (per-organiser fee)\n');
 
 // A representative white-label profile: the organiser charges the fan a 5% + 50p booking
-// fee, the platform takes a flat 40p per ticket.
-const WL = { buyerFeePct: 5, buyerFeeFixedMinor: 50, platformPerTicketMinor: 40 } as const;
+// fee; the platform takes 2% of face per paid ticket, never below the 50p floor.
+const WL = { buyerFeePct: 5, buyerFeeFixedMinor: 50, platformPct: 2, platformMinPerTicketMinor: 50 } as const;
 
 test('white-label: fan pays face + the organiser booking fee, passed', () => {
   const q = computeWhiteLabelOrder([{ faceMinor: 2000, qty: 1 }], { ...WL, feeMode: 'pass' });
@@ -415,19 +415,29 @@ test('white-label: absorbed fee is not added to the fan price', () => {
   assert.equal(q.buyerTotalMinor, 2000); // fan pays face; organiser funds the fee
 });
 
-test('white-label: the platform fee is a flat per-paid-ticket cut, and clean profit', () => {
-  const one = computeWhiteLabelOrder([{ faceMinor: 2000, qty: 1 }], { ...WL, feeMode: 'pass' });
-  const three = computeWhiteLabelOrder([{ faceMinor: 2000, qty: 3 }], { ...WL, feeMode: 'pass' });
-  assert.equal(one.platformFeeMinor, 40);
-  assert.equal(three.platformFeeMinor, 120);
+test('white-label: the platform fee is the greater of the % and the floor, per paid ticket', () => {
+  // £20: 2% = 40p, below the 50p floor → 50p.
+  const cheap = computeWhiteLabelOrder([{ faceMinor: 2000, qty: 1 }], { ...WL, feeMode: 'pass' });
+  assert.equal(cheap.platformFeeMinor, 50);
+  // £50: 2% = 100p, above the floor → 100p, and it scales per paid ticket.
+  const dear = computeWhiteLabelOrder([{ faceMinor: 5000, qty: 3 }], { ...WL, feeMode: 'pass' });
+  assert.equal(dear.platformFeeMinor, 300); // 100p × 3
+});
+
+test('white-label: the platform never charges below £0.50, whatever the floor is set to', () => {
+  const q = computeWhiteLabelOrder(
+    [{ faceMinor: 2000, qty: 1 }],
+    { buyerFeePct: 0, buyerFeeFixedMinor: 0, feeMode: 'pass', platformPct: 0, platformMinPerTicketMinor: 10 }
+  );
+  assert.equal(q.platformFeeMinor, 50); // floor set to 10p, engine still charges £0.50
 });
 
 test('white-label: the organiser bears the card cost, not the platform', () => {
-  // £20 passed: fan pays £21.50; Stripe 1.5% of £21.50 + 20p + 10p infra = 62p; platform
-  // keeps its flat 40p; the organiser nets the remainder.
+  // £20 passed: fan pays £21.50; Stripe 1.5% of £21.50 + 20p + 10p = 62p; platform keeps 50p
+  // (the floor, since 2% of £20 is only 40p); the organiser nets the remainder.
   const q = computeWhiteLabelOrder([{ faceMinor: 2000, qty: 1 }], { ...WL, feeMode: 'pass' });
   assert.equal(q.processingCostMinor, 62);
-  assert.equal(q.organiserPayoutMinor, 2048); // 2150 − 40 − 62
+  assert.equal(q.organiserPayoutMinor, 2038); // 2150 − 50 − 62
   assert.ok(q.organiserProfitable);
 });
 
@@ -440,10 +450,10 @@ test('white-label: a free guest list costs the organiser nothing', () => {
 });
 
 test('white-label: fee settings that would net the organiser below zero are flagged', () => {
-  // A 50p ticket absorbed, no booking fee, 30p platform cut: 30p + 31p card > 50p face.
+  // A 50p ticket absorbed, no booking fee: the 50p platform floor + ~31p card > 50p face.
   const q = computeWhiteLabelOrder(
     [{ faceMinor: 50, qty: 1 }],
-    { buyerFeePct: 0, buyerFeeFixedMinor: 0, feeMode: 'absorb', platformPerTicketMinor: 30 }
+    { buyerFeePct: 0, buyerFeeFixedMinor: 0, feeMode: 'absorb', platformPct: 0, platformMinPerTicketMinor: 50 }
   );
   assert.ok(!q.organiserProfitable);
   assert.ok(q.organiserPayoutMinor < 0);

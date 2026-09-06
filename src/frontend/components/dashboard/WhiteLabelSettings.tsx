@@ -27,7 +27,9 @@ export function WhiteLabelSettings() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [enabled, setEnabled] = React.useState(false);
-  const [platformPerTicketMinor, setPlatformPerTicketMinor] = React.useState(0);
+  // The platform's cut, set by us: a small % of face, floored per paid ticket.
+  const [platformPct, setPlatformPct] = React.useState(0);
+  const [platformMinMinor, setPlatformMinMinor] = React.useState(0);
 
   const [brandName, setBrandName] = React.useState('');
   const [feePct, setFeePct] = React.useState(0);
@@ -44,7 +46,8 @@ export function WhiteLabelSettings() {
         const data = await res.json();
         if (!alive) return;
         setEnabled(Boolean(data.enabled));
-        setPlatformPerTicketMinor(Number(data.platformPerTicketMinor) || 0);
+        setPlatformPct(Number(data.platformPct) || 0);
+        setPlatformMinMinor(Number(data.platformMinPerTicketMinor) || 0);
         setBrandName(String(data.brandName ?? ''));
         setFeePct(Number(data.buyerFeePct) || 0);
         setFeeFixed(toMajor(Number(data.buyerFeeFixedMinor) || 0));
@@ -94,7 +97,8 @@ export function WhiteLabelSettings() {
     buyerFeePct: feePct,
     buyerFeeFixedMinor: toMinor(feeFixed),
     feeMode,
-    platformPerTicketMinor,
+    platformPct,
+    platformMinPerTicketMinor: platformMinMinor,
   });
   const gbp = (m: number) => `£${toMajor(Math.round(m)).toFixed(2)}`;
 
@@ -117,7 +121,7 @@ export function WhiteLabelSettings() {
           You can prepare your brand name and fee below now — they’ll apply the moment
           white-label is enabled for you.
         </p>
-        <ChargesPanel platformPerTicketMinor={platformPerTicketMinor} />
+        <ChargesPanel platformPct={platformPct} platformMinMinor={platformMinMinor} />
         <Editor
           brandName={brandName}
           setBrandName={setBrandName}
@@ -139,12 +143,14 @@ export function WhiteLabelSettings() {
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
         White-label is <span className="font-semibold text-primary">on</span> for your
-        account. You keep face value; the platform takes a flat{' '}
-        <span className="font-semibold text-foreground">{gbp(platformPerTicketMinor)}</span> per
-        paid ticket. Your booking fee below is your own revenue.
+        account. The platform takes{' '}
+        <span className="font-semibold text-foreground">{platformPct}%</span> of face per paid
+        ticket, never below{' '}
+        <span className="font-semibold text-foreground">{gbp(Math.max(50, platformMinMinor))}</span>.
+        Your booking fee below is your own revenue.
       </p>
 
-      <ChargesPanel platformPerTicketMinor={platformPerTicketMinor} />
+      <ChargesPanel platformPct={platformPct} platformMinMinor={platformMinMinor} />
 
       <Editor
         brandName={brandName}
@@ -199,9 +205,15 @@ export function WhiteLabelSettings() {
  * platform fee is the actual per-ticket cut; the card figures are the Stripe UK card rail
  * the organiser bears (shared/constants/fees.ts).
  */
-function ChargesPanel({ platformPerTicketMinor }: { platformPerTicketMinor: number }) {
-  const fee = platformPerTicketMinor > 0 ? platformPerTicketMinor : 50;
-  const feeLabel = `£${(fee / 100).toFixed(2)}`;
+function ChargesPanel({
+  platformPct,
+  platformMinMinor,
+}: {
+  platformPct: number;
+  platformMinMinor: number;
+}) {
+  const pct = platformPct > 0 ? platformPct : 2;
+  const floorLabel = `£${(Math.max(50, platformMinMinor) / 100).toFixed(2)}`;
   return (
     <div className="rounded-[--radius] border border-border/60 bg-background/40 p-4 text-sm">
       <p className="font-mono text-xs uppercase tracking-[0.16em] text-primary">
@@ -211,7 +223,9 @@ function ChargesPanel({ platformPerTicketMinor }: { platformPerTicketMinor: numb
         <li className="flex gap-2">
           <span className="text-primary">•</span>
           <span>
-            <span className="font-medium text-foreground">We charge a flat {feeLabel} per paid ticket</span>
+            <span className="font-medium text-foreground">
+              We charge {pct}% of face per paid ticket, never below {floorLabel}
+            </span>
             {' '}— 0% commission, no subscription. Free tickets cost nothing.
           </span>
         </li>
@@ -220,7 +234,7 @@ function ChargesPanel({ platformPerTicketMinor }: { platformPerTicketMinor: numb
           <span>
             <span className="font-medium text-foreground">You cover card processing</span> — about
             1.5% + 20p per card charge, plus 10p per order (your brand, your processor). It’s taken
-            from your payout, and it’s why our flat fee never balloons on a dear ticket.
+            from your payout — the card cost is yours, so our cut stays a clean % of face.
           </span>
         </li>
         <li className="flex gap-2">
@@ -234,7 +248,8 @@ function ChargesPanel({ platformPerTicketMinor }: { platformPerTicketMinor: numb
         </li>
       </ul>
       <p className="mt-3 border-t border-border/60 pt-2 text-xs text-muted-foreground">
-        On each ticket you keep: face + your fee (if passed) − our {feeLabel} − card cost.
+        On each ticket you keep: face + your fee (if passed) − our cut ({pct}%, min {floorLabel}) −
+        card cost.
       </p>
     </div>
   );

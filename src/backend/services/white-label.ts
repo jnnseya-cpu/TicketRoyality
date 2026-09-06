@@ -10,8 +10,8 @@ import type { WhiteLabelConfig } from '@/shared/types';
  * ## Why every write here is server-side
  *
  * A white-label config has two kinds of field, and only one kind is the organiser's to
- * set. `brandName`, the booking-fee inputs and `feeMode` are theirs. `enabled` and
- * `platformPerTicketMinor` are **the platform's revenue switch** — the organiser must
+ * set. `brandName`, the booking-fee inputs and `feeMode` are theirs. `enabled` and the
+ * `platform*` fee fields are **the platform's revenue switch** — the organiser must
  * never be able to flip themselves live, or set the platform's cut to zero. If the
  * config were a client write governed by `firestore.rules`, keeping an organiser out of
  * two nested fields of an object they otherwise own is exactly the kind of rule that is
@@ -27,8 +27,10 @@ import type { WhiteLabelConfig } from '@/shared/types';
  * no half-on state.
  */
 
-/** Defaults for a config that exists but has not been fully filled in. */
-const DEFAULT_PLATFORM_PER_TICKET_MINOR = 50; // 50p per paid ticket. A default only — the superuser sets the real cut per organiser on grant.
+/** Defaults for a config that exists but has not been fully filled in. Seeds only — the
+ *  superuser sets the real figures per organiser on grant. */
+const DEFAULT_PLATFORM_PCT = 2; // a small % of face per paid ticket
+const DEFAULT_PLATFORM_MIN_PER_TICKET_MINOR = 50; // £0.50 floor — the owner's "no less than £0.50"
 
 export interface ResolvedWhiteLabel {
   organiserId: string;
@@ -71,8 +73,15 @@ export async function whiteLabelProfileFor(
       buyerFeePct: clampPct(config.buyerFeePct),
       buyerFeeFixedMinor: clampMinor(config.buyerFeeFixedMinor),
       feeMode: config.feeMode === 'pass' ? 'pass' : 'absorb',
-      platformPerTicketMinor:
-        clampMinor(config.platformPerTicketMinor) || DEFAULT_PLATFORM_PER_TICKET_MINOR,
+      // A small % of face; an explicit 0 (floor-only) is preserved, only an unset field
+      // takes the default.
+      platformPct:
+        config.platformPct !== undefined ? clampPct(config.platformPct) : DEFAULT_PLATFORM_PCT,
+      // The floor, falling back to a legacy flat value, then the default. The engine hard-
+      // clamps this to at least £0.50 whatever is stored.
+      platformMinPerTicketMinor:
+        clampMinor(config.platformMinPerTicketMinor ?? config.platformPerTicketMinor) ||
+        DEFAULT_PLATFORM_MIN_PER_TICKET_MINOR,
     },
   };
 }
@@ -136,7 +145,7 @@ export interface OrganiserWhiteLabelSettings {
 
 /**
  * The organiser's own white-label settings. Writes ONLY the organiser-controlled fields —
- * `enabled` and `platformPerTicketMinor` are never touched here, so this endpoint can be
+ * `enabled` and the platform fee fields are never touched here, so this endpoint can be
  * exposed to the organiser without ever letting them switch themselves live or zero the
  * platform's cut. Merged, so a partial save does not clear the rest of the config.
  */
@@ -187,13 +196,17 @@ export async function saveWhiteLabelSettings(
  */
 export async function grantWhiteLabel(
   organiserId: string,
-  input: { enabled: boolean; platformPerTicketMinor?: number }
+  input: { enabled: boolean; platformPct?: number; platformMinPerTicketMinor?: number }
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!organiserId || !isAdminConfigured()) return { ok: false, error: 'Unavailable.' };
 
   const update: Record<string, unknown> = { 'whiteLabel.enabled': input.enabled === true };
-  if (input.platformPerTicketMinor !== undefined) {
-    update['whiteLabel.platformPerTicketMinor'] = clampMinor(input.platformPerTicketMinor);
+  if (input.platformPct !== undefined) {
+    update['whiteLabel.platformPct'] = clampPct(input.platformPct);
+  }
+  if (input.platformMinPerTicketMinor !== undefined) {
+    // Stored as given; the engine never charges below £0.50 whatever is here.
+    update['whiteLabel.platformMinPerTicketMinor'] = clampMinor(input.platformMinPerTicketMinor);
   }
 
   try {
@@ -206,8 +219,11 @@ export async function grantWhiteLabel(
       buyerFeePct: existing?.buyerFeePct ?? 0,
       buyerFeeFixedMinor: existing?.buyerFeeFixedMinor ?? 0,
       feeMode: existing?.feeMode ?? 'absorb',
-      platformPerTicketMinor:
-        existing?.platformPerTicketMinor ?? DEFAULT_PLATFORM_PER_TICKET_MINOR,
+      platformPct: existing?.platformPct ?? DEFAULT_PLATFORM_PCT,
+      platformMinPerTicketMinor:
+        existing?.platformMinPerTicketMinor ??
+        existing?.platformPerTicketMinor ??
+        DEFAULT_PLATFORM_MIN_PER_TICKET_MINOR,
     };
     await getAdminDb()
       .collection('users')

@@ -993,6 +993,26 @@ price"). One surface leaked face — the homepage **video spotlight** (`VideoAds
 `allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
 typecheck, lint, build.
 
+### 6 September — white-label fee model: flat cut → a small %, floored at £0.50 (owner request)
+
+The owner changed the platform's white-label cut from a flat per-ticket fee to **a small
+percentage of face, floored** — "a small %, but no less than £0.50". The engine now charges
+`max(round(face × platformPct/100), platformMinPerTicketMinor)` per **paid** ticket, and a
+hard `PLATFORM_ABSOLUTE_MIN_MINOR = 50` means it can never charge below £0.50 whatever a
+per-organiser floor is set to. Free tickets still cost nothing; the organiser still bears
+the card cost, so the platform's cut stays clean profit.
+
+- `WhiteLabelFeeProfile` / `WhiteLabelConfig`: `platformPerTicketMinor` → `platformPct` +
+  `platformMinPerTicketMinor` (the old field kept `@deprecated` as a floor fallback, so any
+  config granted under the flat model still resolves safely — no migration needed pre-launch).
+- Defaults 2% / £0.50 are seeds only; the superuser sets both per organiser in the grant
+  dialog (now two inputs — % and floor). The organiser's settings screen and the
+  "how it's charged" panel state the % and floor, not a flat figure.
+- The `feeSnapshot.organiserPayoutMinor`/`platformRevenueMinor` recorded at checkout, and
+  everything downstream (settlement, revenue page), read the recorded figure, so they follow
+  the new model with no further change. 48/48 fee tests (rewritten for %+floor, incl. the
+  £0.50 absolute-minimum case). Verified: typecheck, lint, build.
+
 ### 6 September — the launch-readiness deep dive: a latent payout bug, and hardening (owner request)
 
 A full audit of "why can't we take the market by storm" surfaced a real money bug that the
@@ -1064,11 +1084,13 @@ organiser can actually be put on and sell under. Built as four verified slices:
   prices and brands exactly like the standard platform (no half-on state), and it fails
   to the standard path on any read error. Two writes, both server-side (Admin SDK), never
   a client write: the organiser sets brand + booking fee + mode + requested domain and
-  **can never** write `enabled` or `platformPerTicketMinor` — the platform's revenue
+  **can never** write `enabled` or the platform fee fields — the platform's revenue
   switch. Superuser grants from the commissions page; the organiser edits from Settings
   with a live £20 preview through the real engine, and a plain-language "how white-label is
-  charged" panel. The default platform cut is **50p** per paid ticket — a seed only; the
-  superuser sets the real figure per organiser on grant.
+  charged" panel. **Platform fee model (owner, 6 Sep): a small % of face per paid ticket,
+  floored — `max(platformPct% × face, platformMinPerTicketMinor)`, and the engine never
+  charges below £0.50 whatever the floor is set to.** Defaults 2% / £0.50 are seeds only;
+  the superuser sets the % and floor per organiser on grant.
 - **B — the money** (`api/checkout/route.ts` + `resolveOrderWhiteLabel`). When a whole
   order is one white-label organiser's (single-organiser rule, mirroring attribution),
   the **card** checkout prices via `computeWhiteLabelOrder`: the platform service-fee line

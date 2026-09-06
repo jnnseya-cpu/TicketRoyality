@@ -37,7 +37,7 @@ import type { UserProfile } from '@/shared/types';
 
 /**
  * The white-label grant — the superuser turns it on for an organiser and sets the
- * platform's per-ticket cut. This is the ONE place `enabled` and `platformPerTicketMinor`
+ * platform's cut (a small % of face, floored at £0.50). This is the ONE place `enabled` and the platform fee fields
  * are written, through the admin-guarded endpoint (never a client write of those fields).
  * The organiser sets their own brand and booking fee from their settings.
  */
@@ -47,7 +47,10 @@ function WhiteLabelDialog({ organiser, onSaved }: { organiser: UserProfile; onSa
   const [saving, setSaving] = React.useState(false);
   const wl = organiser.whiteLabel;
   const [enabled, setEnabled] = React.useState(wl?.enabled === true);
-  const [platformFee, setPlatformFee] = React.useState(toMajor(wl?.platformPerTicketMinor ?? 50));
+  const [platformPct, setPlatformPct] = React.useState(wl?.platformPct ?? 2);
+  const [platformMin, setPlatformMin] = React.useState(
+    toMajor(wl?.platformMinPerTicketMinor ?? wl?.platformPerTicketMinor ?? 50)
+  );
 
   const save = async () => {
     setSaving(true);
@@ -58,7 +61,8 @@ function WhiteLabelDialog({ organiser, onSaved }: { organiser: UserProfile; onSa
         body: JSON.stringify({
           organiserId: organiser.uid,
           enabled,
-          platformPerTicketMinor: toMinor(Number(platformFee)),
+          platformPct: Number(platformPct),
+          platformMinPerTicketMinor: toMinor(Number(platformMin)),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -89,7 +93,7 @@ function WhiteLabelDialog({ organiser, onSaved }: { organiser: UserProfile; onSa
           <DialogTitle>White-label for {organiser.companyName ?? organiser.fullName}</DialogTitle>
           <DialogDescription>
             Lets this organiser sell under their own brand. They set their own fan booking fee;
-            you set the platform’s flat cut per paid ticket.
+            you set the platform’s cut — a small % of face per paid ticket, never below the floor.
           </DialogDescription>
         </DialogHeader>
 
@@ -103,21 +107,36 @@ function WhiteLabelDialog({ organiser, onSaved }: { organiser: UserProfile; onSa
             />
             White-label enabled for this organiser
           </label>
-          <div className="space-y-2">
-            <Label htmlFor="wl-platform-fee">Platform cut (£ per paid ticket)</Label>
-            <Input
-              id="wl-platform-fee"
-              type="number"
-              min={0}
-              step="0.05"
-              value={platformFee}
-              onChange={(e) => setPlatformFee(Number(e.target.value))}
-            />
-            <p className="text-xs text-muted-foreground">
-              Clean platform revenue — the organiser bears the card cost, so this never goes
-              underwater on a dear ticket.
-            </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="wl-platform-pct">Platform % of face</Label>
+              <Input
+                id="wl-platform-pct"
+                type="number"
+                min={0}
+                max={25}
+                step="0.1"
+                value={platformPct}
+                onChange={(e) => setPlatformPct(Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="wl-platform-min">Min per ticket (£)</Label>
+              <Input
+                id="wl-platform-min"
+                type="number"
+                min={0.5}
+                step="0.05"
+                value={platformMin}
+                onChange={(e) => setPlatformMin(Number(e.target.value))}
+              />
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Per paid ticket: the greater of the % and the floor. Clean platform revenue — the
+            organiser bears the card cost. The engine never charges below £0.50, whatever the
+            floor is set to.
+          </p>
         </div>
 
         <DialogFooter>

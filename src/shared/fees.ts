@@ -404,9 +404,17 @@ export function validateFeeConfig(cfg: FeeConfig = ZERO_FEE_CONFIG): ConfigAudit
 /* ------------------------------------------------------------------------- */
 
 /**
+ * The platform never takes less than this per paid ticket on a white-label order, whatever
+ * a per-organiser floor is set to. £0.50 — the owner's rule ("a small %, but no less than
+ * £0.50"), so a cheap ticket still covers the cost of carrying it.
+ */
+export const PLATFORM_ABSOLUTE_MIN_MINOR = 50;
+
+/**
  * A white-label organiser's fee inputs. The organiser sells under their own brand and
- * sets their own fan-facing booking fee (their revenue); the platform earns a flat
- * per-ticket fee instead of the standard buyer service fee.
+ * sets their own fan-facing booking fee (their revenue); the platform earns a small
+ * percentage of face per paid ticket, floored at a minimum, instead of the standard buyer
+ * service fee.
  */
 export interface WhiteLabelFeeProfile {
   /** The organiser's booking fee, percentage of face. Zero is allowed. */
@@ -415,8 +423,14 @@ export interface WhiteLabelFeeProfile {
   buyerFeeFixedMinor: number;
   /** `pass` charges the fan the booking fee on top of face; `absorb` funds it from the payout. */
   feeMode: 'absorb' | 'pass';
-  /** The platform's flat cut per issued paid ticket, in minor units. This is platform revenue. */
-  platformPerTicketMinor: number;
+  /** The platform's cut as a percentage of face, per paid ticket. This is platform revenue. */
+  platformPct: number;
+  /**
+   * The platform's minimum cut per paid ticket, in minor units — the floor the percentage
+   * never falls below. Clamped to at least `PLATFORM_ABSOLUTE_MIN_MINOR` by the engine, so a
+   * lower value can never charge below £0.50.
+   */
+  platformMinPerTicketMinor: number;
 }
 
 export interface WhiteLabelQuote {
@@ -454,11 +468,11 @@ export interface WhiteLabelQuote {
  * same `round`, rail table and per-order platform cost as the standard path rather than
  * standing up a second copy of the arithmetic.
  *
- * The platform's revenue here is `platformPerTicketMinor` per paid ticket and nothing
- * else — the organiser bears the card cost — so the platform can never take a white-label
- * order at a loss. The guard that can trip is the *organiser's*: if their own booking fee
- * does not cover the platform fee plus card cost on a cheap ticket, `organiserProfitable`
- * is false and the UI must warn them before they sell.
+ * The platform's revenue here is a small percentage of face per paid ticket, floored at a
+ * minimum (never below £0.50), and nothing else — the organiser bears the card cost — so
+ * the platform can never take a white-label order at a loss. The guard that can trip is the
+ * *organiser's*: if their own booking fee does not cover the platform fee plus card cost on
+ * a cheap ticket, `organiserProfitable` is false and the UI must warn them before they sell.
  */
 export function computeWhiteLabelOrder(
   lines: OrderLine[],
@@ -484,9 +498,20 @@ export function computeWhiteLabelOrder(
 
   const buyerTotalMinor = faceMinor + (profile.feeMode === 'pass' ? bookingFeeMinor : 0);
 
-  // The platform's flat cut — per paid ticket, so a free guest list costs the organiser
-  // nothing, matching the standard model.
-  const platformFeeMinor = Math.max(0, profile.platformPerTicketMinor) * paidQuantity;
+  // The platform's cut — a small percentage of face per paid ticket, but never below the
+  // floor (itself never below £0.50). Applied per paid ticket, so a free guest list costs
+  // the organiser nothing, matching the standard model, and a cheap ticket still pays the
+  // floor rather than a sub-penny percentage.
+  const platformPct = Math.max(0, profile.platformPct);
+  const platformFloorMinor = Math.max(
+    PLATFORM_ABSOLUTE_MIN_MINOR,
+    Math.max(0, profile.platformMinPerTicketMinor)
+  );
+  const platformFeeMinor = paid.reduce(
+    (total, line) =>
+      total + Math.max(round((line.faceMinor * platformPct) / 100), platformFloorMinor) * line.qty,
+    0
+  );
 
   // Card + infra on the whole charge, once per order (the processor bills per transaction,
   // not per ticket). Borne by the organiser.

@@ -9,9 +9,9 @@ export const dynamic = 'force-dynamic';
 
 /**
  * The superuser turns white-label on (or off) for an organiser and sets the platform's
- * per-ticket cut — the platform's revenue switch, and the one field an organiser is never
+ * per-ticket cut (a small % of face, floored at £0.50) — the platform's revenue switch, and the one field an organiser is never
  * allowed to touch. Server-side with the Admin SDK, exactly like the placement grant:
- * `enabled` and `platformPerTicketMinor` are not fields the security rules whitelist for a
+ * `enabled` and the platform fee fields are not fields the security rules whitelist for a
  * client write, and they must not be.
  */
 export async function POST(request: Request) {
@@ -21,7 +21,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Server is not configured.' }, { status: 503 });
   }
 
-  let body: { organiserId?: unknown; enabled?: unknown; platformPerTicketMinor?: unknown };
+  let body: {
+    organiserId?: unknown;
+    enabled?: unknown;
+    platformPct?: unknown;
+    platformMinPerTicketMinor?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -35,8 +40,9 @@ export async function POST(request: Request) {
 
   const result = await grantWhiteLabel(organiserId, {
     enabled: body.enabled === true,
-    ...(body.platformPerTicketMinor !== undefined
-      ? { platformPerTicketMinor: Number(body.platformPerTicketMinor) }
+    ...(body.platformPct !== undefined ? { platformPct: Number(body.platformPct) } : {}),
+    ...(body.platformMinPerTicketMinor !== undefined
+      ? { platformMinPerTicketMinor: Number(body.platformMinPerTicketMinor) }
       : {}),
   });
 

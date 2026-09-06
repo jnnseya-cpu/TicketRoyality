@@ -47,7 +47,10 @@ export async function GET(request: Request) {
     feeMode: config?.feeMode ?? 'absorb',
     customDomain: config?.customDomain ?? '',
     // Read-only to the organiser — shown so they understand their economics, set by us.
-    platformPerTicketMinor: config?.platformPerTicketMinor ?? 0,
+    // A small % of face per paid ticket, with a floor (never below £0.50).
+    platformPct: config?.platformPct ?? 0,
+    platformMinPerTicketMinor:
+      config?.platformMinPerTicketMinor ?? config?.platformPerTicketMinor ?? 0,
   });
 }
 

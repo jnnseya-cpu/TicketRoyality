@@ -60,11 +60,11 @@ export interface UserProfile {
    * platform branding.
    *
    * When enabled, the organiser sells under their own brand and sets their own fan-facing
-   * booking fee (their revenue, may be zero), and the platform earns a flat per-ticket fee
-   * instead. See `computeWhiteLabelOrder` in `shared/fees.ts` for the authoritative
-   * arithmetic; the fields here are the inputs, never the computed prices. `platformPerTicketMinor`
-   * is set by the superuser (it is TicketRoyality's revenue); the fan-fee fields are the
-   * organiser's own.
+   * booking fee (their revenue, may be zero), and the platform earns a small % of face per
+   * paid ticket (floored) instead. See `computeWhiteLabelOrder` in `shared/fees.ts` for the
+   * authoritative arithmetic; the fields here are the inputs, never the computed prices. The
+   * platform fee fields are set by the superuser (they are TicketRoyality's revenue); the
+   * fan-fee fields are the organiser's own.
    */
   whiteLabel?: WhiteLabelConfig;
 
@@ -100,7 +100,7 @@ export interface UserProfile {
 /**
  * A white-label organiser's configuration. See `UserProfile.whiteLabel` and the
  * authoritative arithmetic in `computeWhiteLabelOrder` (`shared/fees.ts`). The fields here
- * are inputs, never computed prices. `platformPerTicketMinor` is superuser-set (platform
+ * are inputs, never computed prices. The `platform*` fields are superuser-set (platform
  * revenue); the fan-fee fields are the organiser's own.
  */
 export interface WhiteLabelConfig {
@@ -115,8 +115,12 @@ export interface WhiteLabelConfig {
   buyerFeeFixedMinor: number;
   /** `pass` charges the fan the booking fee on top of face; `absorb` funds it from the organiser's payout. */
   feeMode: 'absorb' | 'pass';
-  /** TicketRoyality's flat cut per issued paid ticket, in minor units. Superuser-set — this is platform revenue. */
-  platformPerTicketMinor: number;
+  /** TicketRoyality's cut as a percentage of face, per paid ticket. Superuser-set — platform revenue. */
+  platformPct: number;
+  /** TicketRoyality's minimum cut per paid ticket, in minor units — the floor (never below £0.50). Superuser-set. */
+  platformMinPerTicketMinor: number;
+  /** @deprecated Legacy flat cut; read as the floor fallback only. Superseded by platformPct + platformMinPerTicketMinor. */
+  platformPerTicketMinor?: number;
 }
 
 export type EventType = 'physical' | 'online' | 'livestream';
