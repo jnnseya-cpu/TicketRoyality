@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { fromKodaAmount, verifyWebhook } from '@/backend/payments/koda';
+import { unitFaceMajor } from '@/shared/fees';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { recordPaymentEvent } from '@/backend/services/payment-events';
 import { activatePlacement } from '@/backend/services/promotions';
@@ -350,20 +351,20 @@ export async function POST(request: Request) {
           tierId: meta.tierId,
           userId: meta.userId,
           quantity,
-          // KODA's units differ by currency — whole francs for CDF, cents for USD
-          // (see fromKodaAmount) — and the amount is the total, not a unit price.
-          // Both conversions have to happen, and forgetting either produces a ticket
-          // priced 100x wrong; the raw /100 that stood here did exactly that for CDF.
-          // A gift riding the order is subtracted first: it is not ticket money, and
-          // a refund must never return it as if it were.
-          price: data.amount
-            ? Math.max(
-                0,
-                fromKodaAmount(data.currency ?? 'CDF', data.amount) - donationMinor
-              ) /
-              100 /
-              quantity
-            : 0,
+          // FACE per ticket — what settlement pays the organiser — from the recorded
+          // order face, never the buyer's total. The KODA amount is the whole charge
+          // (face + the service fee the buyer paid on top, less any gift), so dividing it
+          // by quantity stored buyer-total as face and would have paid the organiser their
+          // own fee on settlement. The fallback still handles KODA's per-currency units
+          // (whole francs for CDF, cents for USD) and subtracts a gift, for a pre-snapshot
+          // order that recorded no face.
+          price: unitFaceMajor(
+            Number(meta.faceMinor ?? 0),
+            quantity,
+            data.amount
+              ? Math.max(0, fromKodaAmount(data.currency ?? 'CDF', data.amount) - donationMinor) / 100
+              : 0
+          ),
           currency: (data.currency ?? 'CDF').toUpperCase(),
           attendeeName: meta.attendeeName ?? 'Ticket holder',
           attendeeEmail: meta.attendeeEmail ?? '',

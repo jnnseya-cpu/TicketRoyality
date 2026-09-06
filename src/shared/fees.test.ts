@@ -21,6 +21,7 @@ import {
   computeWhiteLabelOrder,
   serviceFeeForTicket,
   toMinor,
+  unitFaceMajor,
   validateFeeConfig,
 } from './fees';
 import { ZERO_FEE_CONFIG, type PaymentRail } from './constants/fees';
@@ -446,6 +447,27 @@ test('white-label: fee settings that would net the organiser below zero are flag
   );
   assert.ok(!q.organiserProfitable);
   assert.ok(q.organiserPayoutMinor < 0);
+});
+
+console.log('\nPricing engine — ticket face vs buyer-total\n');
+
+test('unitFaceMajor stores face, not the buyer total', () => {
+  // A £20 ticket the buyer paid £21.29 for (face + fee). The ticket must carry face 20,
+  // or settlement would pay the organiser their own service fee.
+  assert.equal(unitFaceMajor(toMinor(20), 1, 21.29), 20);
+});
+
+test('unitFaceMajor splits the recorded face across the quantity', () => {
+  assert.equal(unitFaceMajor(toMinor(40), 2, 43.58), 20);
+});
+
+test('unitFaceMajor falls back to the buyer-total average only with no recorded face', () => {
+  // Pre-snapshot order: no faceMinor, so the buyer-total average is all there is.
+  assert.equal(unitFaceMajor(0, 2, 43), 21.5);
+});
+
+test('unitFaceMajor is zero on a zero quantity', () => {
+  assert.equal(unitFaceMajor(toMinor(20), 0, 20), 0);
 });
 
 const failed = results.filter(([, ok]) => !ok);

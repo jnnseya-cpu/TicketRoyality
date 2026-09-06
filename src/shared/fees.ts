@@ -525,3 +525,27 @@ export function toMinor(major: number): number {
 export function toMajor(minor: number): number {
   return minor / 100;
 }
+
+/**
+ * The face value of one ticket, in the float-pounds convention `ticket.price` uses.
+ *
+ * A ticket's `price` is its **face** — that is what settlement pays the organiser, what the
+ * revenue page and profitability console treat it as, and what a tier upgrade measures the
+ * difference from. Everywhere that mints a ticket must store face, never the buyer's total:
+ * the single-event webhooks used to divide the Stripe/KODA order total (face + the service
+ * fee the buyer paid on top) by the quantity, which stored buyer-total as face and would
+ * have paid the organiser their own service fee on settlement.
+ *
+ * Prefers the recorded order face (`faceMinor`, from the §16 quote snapshot). Falls back to
+ * the buyer-total average only for a pre-snapshot order that recorded no face, where it is
+ * the only figure available — the old behaviour, kept so those orders are not zeroed.
+ */
+export function unitFaceMajor(
+  faceMinor: number,
+  quantity: number,
+  fallbackTotalMajor: number
+): number {
+  if (quantity <= 0) return 0;
+  if (faceMinor > 0) return toMajor(faceMinor) / quantity;
+  return fallbackTotalMajor / quantity;
+}

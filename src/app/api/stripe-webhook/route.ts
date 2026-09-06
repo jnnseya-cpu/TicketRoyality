@@ -19,6 +19,7 @@ import { settlePassPurchase } from '@/backend/services/season-passes';
 import { settleCartOrderRedemption } from '@/backend/services/coupons';
 import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { reportError } from '@/backend/observability/report-error';
+import { unitFaceMajor } from '@/shared/fees';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -500,9 +501,11 @@ export async function POST(request: Request) {
           tierId: checkout.tierId,
           userId: checkout.userId,
           quantity: checkout.quantity,
-          // Unit price, not the session total: a partial refund reverses one ticket,
-          // and a ticket carrying the whole basket's value settles wrongly.
-          price: checkout.quantity > 0 ? checkout.amountTotal / checkout.quantity : 0,
+          // FACE per ticket — what settlement pays the organiser — never the buyer's
+          // total. `amountTotal` includes the service fee the buyer paid on top, so
+          // dividing it by quantity stored buyer-total as face and would have paid the
+          // organiser their own fee on settlement. Prefer the recorded order face.
+          price: unitFaceMajor(checkout.faceMinor, checkout.quantity, checkout.amountTotal),
           currency: checkout.currency,
           attendeeName: checkout.customerName ?? 'Ticket holder',
           attendeeEmail: checkout.customerEmail ?? '',

@@ -993,6 +993,37 @@ price"). One surface leaked face — the homepage **video spotlight** (`VideoAds
 `allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
 typecheck, lint, build.
 
+### 6 September — the launch-readiness deep dive: a latent payout bug, and hardening (owner request)
+
+A full audit of "why can't we take the market by storm" surfaced a real money bug that the
+earlier notes had filed as reporting-only — found precisely because Connect is now being
+switched on.
+
+- **P1 (money): single-event tickets stored buyer-total as face.** `ticket.price` is meant
+  to be **face** everywhere — settlement pays it to the organiser, the revenue page and
+  profitability console read it as face, and a tier upgrade measures the difference from it.
+  But the single-event **Stripe and KODA webhooks** recorded `amount_total / quantity` — the
+  buyer's total, which includes the service fee the buyer paid on top. Cart, hospitality and
+  free tickets already stored face; only these two paths were wrong. The consequence was
+  latent while Connect was off, and would have bitten the day it came on: **standard
+  organisers would have been paid face + fee — the platform paying out its own service-fee
+  revenue** — plus overstated revenue/GMV and *undercharged* tier upgrades. Fixed at the
+  root with `unitFaceMajor(faceMinor, quantity, fallbackTotal)` (`shared/fees.ts`, 4 tests):
+  both webhooks now store the recorded order face, falling back to the buyer-total average
+  only for a pre-snapshot order that recorded no face. Every reader already expected face, so
+  settlement, revenue, profitability and upgrades all become correct at once — this
+  supersedes the old "profitability overstates GMV" P2. 47/47 fee tests, 11/11 settlement.
+- **Security: `bitripay-checkout` neutralised.** It was unauthenticated and took a client
+  `amount` — a crafted POST could have paid a penny for a £200 ticket the day BitriPay keys
+  were added. It cannot be re-priced in place (its inputs carry no quantity/seats/hold), so
+  it now requires auth and refuses to create a payment from a client amount (501). BitriPay,
+  when set up, must be wired through the same server-priced `/api/checkout` machinery KODA
+  uses. Dormant, so zero user impact today.
+
+Not done, and said plainly: the members'-presale `userId` gate (P3, needs a live-verified
+client token flow), a CSP header, and the dependency vulns are addressed or deferred in the
+follow-up commits / recorded open items above.
+
 ### 3 September — Stripe Connect turned on: automatic payouts that actually fire (owner request)
 
 `STRIPE_CONNECT_ENABLED` was undeclared, so `isConnectConfigured()` was always false and
@@ -1450,19 +1481,21 @@ here and were made:
   inward) and hardened the denylist. DNS-rebinding remains a residual (needs resolve-time
   pinning) and is recorded, not closed.
 
-Recorded, NOT yet fixed (need live verification or wider tracing than this environment
-allows): (1) **the profitability console overstates GMV / double-counts fee revenue** —
-single-price ticket records store buyer-total as face (`functions/src/issuance.ts:98`,
-`profitability.ts:125`); a reporting-accuracy P2, no customer is mischarged. (2) **checkout
-trusts a client `userId` for the members'-presale gate** (`api/checkout/route.ts:372`) — an
-early-access escalation P3, price stays server-authoritative; the fix must preserve guest
-checkout, so it needs the live client verified first. (3) **`bitripay-checkout` is
-unauthenticated and client-priced** — dormant (503, no creds, no webhook) but must be
-re-priced + token-gated before BitriPay is ever enabled. (4) **no CSP header**; (5) **12
-transitive dependency vulns** (4 high) under `firebase-admin`/`google-cloud`.
+Recorded open items (updated 6 Sep): (1) ~~the profitability console overstates GMV~~
+**FIXED at root — see the 6 Sep entry.** (2) **checkout trusts a client `userId` for the
+members'-presale gate** (`api/checkout/route.ts:382`) — an early-access escalation P3, price
+stays server-authoritative; checkout is a native form POST (no bearer header), so the fix
+needs a client token flow verified against the live client first, and a wrong fix would
+block real members. Low exploitability: a Firebase uid is not public. Deferred, honestly.
+(3) ~~`bitripay-checkout` unauthenticated + client-priced~~ **NEUTRALISED — see 6 Sep.**
+(4) **no CSP header**; (5) **transitive dependency vulns** under `firebase-admin`/
+`google-cloud` (mostly un-fixable without upstream majors).
 
-Standing above all of it: the App Hosting rollout is **not serving new builds** — the
-release/rollback path is the top launch blocker regardless of code quality.
+The old "App Hosting rollout not serving new builds" note is **stale and removed**: the
+pipeline demonstrably ships — this session pushed to `main` repeatedly and the live site
+updated. The real launch gate is console/vendor (real payment keys, the Cloud Scheduler
+jobs, Stripe Connect on the account) plus proof, not the deploy path — see the 6 Sep
+"why can't we take the market storm" audit and `docs/runbooks/`.
 
 ### 2 September — the landing page, answered to a brutal critique (owner request)
 
