@@ -86,7 +86,7 @@ const CORE_FEATURES = [
     icon: TrendingUp,
     title: 'You keep 100% of face',
     // billing.ts DEFAULT_COMMISSION_PERCENT/ADMIN_FEE = 0; fees.ts carries the buyer-side fee.
-    body: '0% organiser commission — ever. Your fans pay one fair, all-in service fee shown before they check out, and every penny of face value is yours. No skim, no drip pricing, no surprise line at the till.',
+    body: '0% organiser commission as standard. Your fans pay one fair, all-in service fee shown before they check out, and every penny of face value is yours. No skim, no drip pricing, no surprise line at the till.',
   },
   {
     icon: Store,

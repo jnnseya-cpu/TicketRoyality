@@ -39,12 +39,12 @@ const PATHS = [
   {
     icon: Users,
     title: 'I want to promote events',
-    body: 'From 10,000 followers you earn 1% of every ticket you sell. Verified on engagement, paid monthly once your audience actually turns up.',
-    cta: { label: 'Growth & influencers', href: '/growth' },
+    body: 'An organiser gives you a tracked link with a commission they set. Your clicks and sales are counted honestly, and the organiser pays you directly.',
+    cta: { label: 'Growth & promoters', href: '/growth' },
     points: [
-      '1% of attributed ticket value',
-      'Paid from our fee, never the organiser’s',
-      'Disclosure built into every asset',
+      'Commission on face value, set by the organiser',
+      'Tracked on a fair, first-party link',
+      'The organiser pays you — we keep the record',
     ],
   },
 ];

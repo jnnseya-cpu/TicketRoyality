@@ -1889,8 +1889,11 @@ The honest state of the rest:
 3. **The remaining `dispatch()` call sites.** Refunds, failed issuance and organiser
    decisions now notify. Payouts, event changes and cancellations still do not.
 4. **Ticket transfer.** The most-requested consumer feature in ticketing.
-5. **Referral / influencer.** The only acquisition mechanism that works without waiting
-   months for SEO — and the one currently sold on `/growth` without existing.
+5. **Self-serve influencer programme.** Social sign-in, follower/engagement reading and
+   platform-paid payouts do not exist. `/growth` no longer sells them (rewritten 6 Sep to
+   the tracked-link promoter tool that IS built: an organiser assigns a `/r/CODE` link with
+   a commission, the platform records what is owed, the organiser pays directly). Building
+   the OAuth/verification/payout programme is the remaining, unbuilt step.
 
 ## Watch after deploying
 

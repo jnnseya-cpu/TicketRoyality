@@ -5,62 +5,43 @@ import { ArrowRight, BadgeCheck, Coins, Megaphone, ShieldCheck, Users } from 'lu
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent } from '@/frontend/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/frontend/components/ui/table';
 
 export const metadata: Metadata = {
-  title: 'Growth & Influencers',
+  title: 'Growth & Promoters',
   description:
-    'Earn 1% of every ticket you sell from 10,000 followers up. Verified on engagement, paid monthly, disclosed properly.',
+    'Promote the events you love and earn the commission the organiser sets — tracked on a fair, first-party link, recorded to the penny, disclosed properly.',
 };
 
-const TIERS = [
-  {
-    tier: 'Creator',
-    followers: '10,000+',
-    commission: '1%',
-    terms: 'Self-serve. Automatic once your account is verified.',
-  },
-  {
-    tier: 'Partner',
-    followers: '100,000+',
-    commission: '2%, negotiable',
-    terms: 'Manual review and a contract.',
-  },
-  {
-    tier: 'Ambassador',
-    followers: 'By invitation',
-    commission: 'Negotiated + fee',
-    terms: 'Contract, with optional exclusivity.',
-  },
-];
-
+/**
+ * This page describes the promoter/referral tool that actually exists in
+ * `backend/services/partners.ts`: an organiser hands out a tracked `/r/CODE` link with a
+ * commission they set, the platform counts the clicks and sales and records exactly what is
+ * owed, and the ORGANISER pays the promoter directly — the platform never moves that money.
+ *
+ * It deliberately does NOT promise a self-serve influencer programme (social sign-in,
+ * follower/engagement reading, follower-count tiers, or platform-paid monthly payouts): none
+ * of that is built, and the partner page already states plainly that the organiser pays.
+ */
 const STEPS = [
   {
     icon: Users,
-    title: 'Connect your account',
-    body: 'Sign in with Instagram, TikTok, YouTube or X. We read your follower count and engagement directly from the platform — you never type a number in.',
-  },
-  {
-    icon: BadgeCheck,
-    title: 'Get verified',
-    body: 'We check engagement rate, not just follower count. 10,000 followers at 4% engagement is worth more than 100,000 at 0.2%, and we price it that way.',
+    title: 'An organiser gives you a link',
+    body: 'A tracked link — ticketroyality.com/r/YOURCODE — set up by the organiser running the event, with a commission they decide. It sets a first-party cookie and redirects. No pixel, no fingerprinting, no cross-site tracking.',
   },
   {
     icon: Megaphone,
     title: 'Share what you actually like',
-    body: 'Pick events from the catalogue, get a tracked link and ready-made assets. Every asset ships with the paid-partnership disclosure already in it.',
+    body: 'Post your link to the events you would recommend anyway. A click is a click, never an impression, and the last click within seven days before a purchase is the one that counts.',
+  },
+  {
+    icon: BadgeCheck,
+    title: 'Your sales are counted, fairly',
+    body: 'Commission is worked out from the stored link when the payment lands — on face value, not the buyer’s total. A link scoped to one event earns on that event only, and an order that runs past your allocation earns on the part inside it, never rounded in your favour.',
   },
   {
     icon: Coins,
-    title: 'Get paid',
-    body: 'You earn 1% of the ticket value you drive. Commission confirms once your audience attends, holds 14 days, then pays out monthly from £25.',
+    title: 'The organiser pays you',
+    body: 'TicketRoyality records exactly what you are owed, with an audit row per order, and the organiser pays you directly — we do not move that money. You can see your own numbers any time at a private link, with no account and no buyer names.',
   },
 ];
 
@@ -69,23 +50,24 @@ export default function GrowthPage() {
     <div className="container py-12">
       <div className="mx-auto max-w-3xl text-center">
         <Badge variant="gold" className="mb-4">
-          Growth &amp; Influencers
+          Growth &amp; Promoters
         </Badge>
         <h1 className="font-headline text-3xl font-bold sm:text-5xl">
-          1% of every ticket you sell
+          Earn on the events you promote
         </h1>
         <p className="mt-4 text-lg text-muted-foreground">
-          From 10,000 followers up. Your commission comes out of our fee — never out of
-          the organiser&apos;s margin, so nobody has a reason to switch you off.
+          An organiser gives you a tracked link with a commission they set. Every click and sale
+          is counted for you — honestly, on face value — and the organiser pays you directly. We
+          keep the record.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button asChild size="lg">
-            <Link href="/register/customer">
-              Apply now <ArrowRight className="ml-1 h-4 w-4" />
+            <Link href="/contact">
+              Talk to the team <ArrowRight className="ml-1 h-4 w-4" />
             </Link>
           </Button>
           <Button asChild size="lg" variant="outline">
-            <Link href="/contact">Talk to the team</Link>
+            <Link href="/register/organiser">Run events? Give your promoters a link</Link>
           </Button>
         </div>
       </div>
@@ -110,53 +92,20 @@ export default function GrowthPage() {
         ))}
       </div>
 
-      <div className="mt-14">
-        <h2 className="font-headline text-2xl font-bold">Tiers</h2>
-        <Card className="mt-4">
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tier</TableHead>
-                  <TableHead>Followers</TableHead>
-                  <TableHead>Commission</TableHead>
-                  <TableHead>Terms</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {TIERS.map((tier) => (
-                  <TableRow key={tier.tier}>
-                    <TableCell className="font-medium">{tier.tier}</TableCell>
-                    <TableCell>{tier.followers}</TableCell>
-                    <TableCell className="font-semibold text-primary">
-                      {tier.commission}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{tier.terms}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-
       <div className="mt-14 grid gap-6 lg:grid-cols-2">
         <Card>
           <CardContent className="space-y-3 pt-6">
             <ShieldCheck className="h-7 w-7 text-primary" />
-            <h2 className="font-headline text-xl font-semibold">
-              You have to say it&apos;s an ad
-            </h2>
+            <h2 className="font-headline text-xl font-semibold">You have to say it&apos;s an ad</h2>
             <p className="text-sm text-muted-foreground">
-              A commission arrangement is a material connection, and the ASA in the UK
-              and the FTC in the US both require it to be clearly identifiable. Every
-              asset we hand you already carries the disclosure — you do not have to
-              remember it.
+              A commission arrangement is a material connection, and the ASA in the UK and the
+              FTC in the US both require it to be clearly identifiable. When you post your link,
+              label the post as a paid partnership — a simple &ldquo;#ad&rdquo; or the platform&apos;s
+              own paid-partnership tag is enough.
             </p>
             <p className="text-sm text-muted-foreground">
-              Post without it and we will tell you the first time. A second time and the
-              partnership ends with commission forfeit. It protects you more than it
-              protects us.
+              It protects you more than it protects us: an undisclosed paid post is the
+              creator&apos;s liability, not the brand&apos;s.
             </p>
           </CardContent>
         </Card>
@@ -164,28 +113,29 @@ export default function GrowthPage() {
         <Card>
           <CardContent className="space-y-3 pt-6">
             <Coins className="h-7 w-7 text-primary" />
-            <h2 className="font-headline text-xl font-semibold">How payment works</h2>
+            <h2 className="font-headline text-xl font-semibold">How the commission is counted</h2>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li>
-                <strong className="text-foreground">Attribution</strong> — last click
-                within 7 days, on a real click, never an impression.
+                <strong className="text-foreground">Attribution</strong> — the last real click
+                within seven days, never an impression.
               </li>
               <li>
-                <strong className="text-foreground">Confirmation</strong> — commission
-                confirms when your audience is scanned in at the door, not at checkout.
+                <strong className="text-foreground">Base</strong> — a percentage of face value,
+                set by the organiser, not of the service fee the buyer paid.
               </li>
               <li>
-                <strong className="text-foreground">Hold</strong> — 14 days after the
-                event, while refunds and chargebacks settle.
+                <strong className="text-foreground">Recorded</strong> — the moment the payment is
+                confirmed, with an audit row per order, idempotent so a retry never counts twice.
               </li>
               <li>
-                <strong className="text-foreground">Payout</strong> — monthly in
-                arrears, minimum £25, to your chosen method.
+                <strong className="text-foreground">Paid</strong> — by the organiser directly,
+                from their own take. TicketRoyality records what is owed; it does not hold or
+                move your commission.
               </li>
             </ul>
             <p className="text-sm text-muted-foreground">
-              Paying on attendance rather than purchase means we never claw money back
-              from you after you have spent it.
+              You see your clicks, sales and the amount owed on a private, read-only link — no
+              login, and no access to the buyers behind the numbers.
             </p>
           </CardContent>
         </Card>
@@ -195,9 +145,8 @@ export default function GrowthPage() {
         <CardContent className="space-y-3 py-10 text-center">
           <h2 className="font-headline text-2xl font-bold">Refer a friend</h2>
           <p className="mx-auto max-w-2xl text-muted-foreground">
-            Not a creator? Every account gets a referral link. Your friend saves on their
-            first order, and you get credit toward your next ticket once they have
-            actually been. Up to ten friends a month.
+            Not promoting for an organiser? Every account still gets a personal referral link.
+            Share it, and the sales it brings in are tracked to you the same honest way.
           </p>
           <Button asChild variant="outline">
             <Link href="/dashboard/customer">Find your link</Link>

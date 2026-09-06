@@ -32,7 +32,7 @@ const ROUTES = [
   {
     icon: Newspaper,
     title: 'Press & media',
-    body: 'Interviews, data requests and our annual ticket-pricing report. We publish our own figures and will share the methodology.',
+    body: 'Interviews, press enquiries and data requests — tell us your outlet and deadline and we will get back to you.',
   },
   {
     icon: ShieldAlert,

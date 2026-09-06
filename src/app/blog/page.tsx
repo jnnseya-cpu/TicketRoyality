@@ -66,8 +66,8 @@ export default function BlogPage() {
         </h1>
         <p className="mt-4 text-lg text-muted-foreground">
           Every feature explained properly — what it does, what it deliberately will not do,
-          and why. Plus city guides and data from our own transactions. Written and edited
-          by people; nothing here is generated and published automatically.
+          and why. Plus city guides and practical playbooks for running an event. Written and
+          edited by people; nothing here is generated and published automatically.
         </p>
       </div>
 

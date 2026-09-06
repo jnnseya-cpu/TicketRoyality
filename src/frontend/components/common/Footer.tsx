@@ -33,7 +33,7 @@ const COLUMNS = [
     title: 'Organise & grow',
     links: [
       { label: 'Get started', href: '/get-started' },
-      { label: 'Growth & Influencers', href: '/growth' },
+      { label: 'Growth & Promoters', href: '/growth' },
       { label: 'Launch your event', href: '/register/organiser' },
     ],
   },

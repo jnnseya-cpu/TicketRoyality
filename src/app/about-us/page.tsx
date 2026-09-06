@@ -27,7 +27,7 @@ const PRINCIPLES = [
   {
     icon: Globe,
     title: 'Meet people where they pay',
-    body: 'Cards today, with mobile money for the Congolese corridor — Vodacom, Airtel, Orange and Africell — built and awaiting its commercial go-live. A great event should not be gated by a payment method.',
+    body: 'Cards, and mobile money for the Congolese corridor — Vodacom, Airtel, Orange and Africell — live now. A great event should not be gated by a payment method.',
   },
 ];
 
