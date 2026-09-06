@@ -41,10 +41,23 @@ const nextConfig: NextConfig = {
   /**
    * Security headers, applied to every response.
    *
-   * CSP is deliberately absent here: it needs per-route nonces for Next's inline
-   * bootstrap scripts, which belongs in middleware rather than a static header.
-   * Shipping a broken CSP is worse than shipping none, because the first thing
-   * anyone does with a CSP that breaks the app is disable it permanently.
+   * A FULL CSP — one that restricts `script-src` and `connect-src` — still belongs in
+   * middleware: Next injects inline bootstrap scripts that need per-request nonces, and a
+   * `connect-src` tight enough to matter would have to enumerate every Firestore, Auth,
+   * Storage, FCM, Maps and analytics origin, which is exactly the list that white-screens
+   * the app the day one is missed. Shipping that blind is worse than shipping none.
+   *
+   * What ships here is the safe half of a CSP: the directives that carry real value AND
+   * need no origin allowlist, so they cannot break script, network or image loading.
+   * `default-src` is deliberately omitted — with it absent, `script-src`/`connect-src`/
+   * `img-src`/`style-src` stay unrestricted (load as before), and only these four enforce:
+   *   frame-ancestors 'none'  — clickjacking (the modern twin of X-Frame-Options: DENY)
+   *   base-uri 'self'         — a `<base>` injection cannot repoint every relative URL
+   *   object-src 'none'       — no Flash/plugin embeds
+   *   form-action 'self'      — an injected form cannot POST credentials off-site
+   *                             (every real form here posts to a same-origin /api route)
+   * The `script-src`/`connect-src` nonce work is the documented follow-up, to be verified
+   * against the live app rather than guessed.
    */
   async headers() {
     return [
@@ -53,6 +66,10 @@ const nextConfig: NextConfig = {
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
+          {
+            key: 'Content-Security-Policy',
+            value: "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'",
+          },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           {
             key: 'Permissions-Policy',

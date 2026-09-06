@@ -1488,8 +1488,11 @@ stays server-authoritative; checkout is a native form POST (no bearer header), s
 needs a client token flow verified against the live client first, and a wrong fix would
 block real members. Low exploitability: a Firebase uid is not public. Deferred, honestly.
 (3) ~~`bitripay-checkout` unauthenticated + client-priced~~ **NEUTRALISED — see 6 Sep.**
-(4) **no CSP header**; (5) **transitive dependency vulns** under `firebase-admin`/
-`google-cloud` (mostly un-fixable without upstream majors).
+(4) **CSP: the safe half now ships** — `frame-ancestors`/`base-uri`/`object-src`/
+`form-action` enforce in `next.config.ts` (no `default-src`, so script/network/image
+loading is untouched); the `script-src`/`connect-src` nonce work stays a live-verified
+follow-up. (5) **transitive dependency vulns** cut 20→18 (5 high→2 high) via a
+non-breaking `npm audit fix`; the residual is locked behind a `firebase-admin` v14 major.
 
 The old "App Hosting rollout not serving new builds" note is **stale and removed**: the
 pipeline demonstrably ships — this session pushed to `main` repeatedly and the live site
