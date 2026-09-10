@@ -54,8 +54,8 @@ export const DESTINATIONS = {
   },
   growth: {
     href: '/growth',
-    label: 'Growth & influencers',
-    blurb: 'The referral programme and the 1% influencer commission.',
+    label: 'Growth & promoters',
+    blurb: 'Tracked promoter links and the per-sale commission you set yourself.',
   },
   developers: {
     href: '/developers',

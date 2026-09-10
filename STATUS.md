@@ -109,7 +109,7 @@ and read. If it says **Not built**, it was looked for and is absent.
 | **Privileged API auth** | `requireUser()` verifies the Firebase ID token server-side (`checkRevoked`); `requireAdmin()` builds on it and re-reads `userType` from Firestore, so admin status has one source of truth. Both fail closed. | `backend/auth/require-user.ts`, `require-admin.ts` |
 | **Account deletion** | **Real erasure.** The dialog previously showed "scheduled for deletion, our team will confirm within 30 days", signed the user out and did **nothing** — no record, no email, no deletion, while the product claimed a UK GDPR Article 17 request had been accepted. It now deletes the Auth user and the `users` document, and **anonymises tickets rather than destroying them** (Art. 17(3)(b) retains the financial record; name, email and `userId` are stripped so nothing points back to a person). Refuses for a superuser — `grant:admin` runs from the server, so a self-delete leaves no way back in — and for an organiser holding sold tickets on an upcoming event, naming the events. The uid comes only from the verified token; the route accepts no uid in the body. | `backend/services/account-deletion.ts`, `/api/account/delete` |
 | **Segments page honesty** | `/industries` described twelve segments in the present tense. Seat-level inventory, gates admitting only assigned ticket types, sub-promoter settlement waterfalls, loyalty-gated presale, wristbands, an emergency blocklist, corporate tables with deposits, invite-only ticket types with access codes and a seat map editor with obstructed-view tagging — **none of those exist**, and five of them are rows in the *Not built* table below. Every card now states what the platform does today plus an explicit **Not yet** line. Corrected in the copy, **not** in the claim about the code. | `src/app/industries/page.tsx` |
-| Blog | 14 published articles, 6 topic hubs, generated link graph | `npm run check:links` |
+| Blog | 29 published articles, 7 topic hubs, generated link graph (4 drafts held back) | `npm run check:links` |
 | SEO | `robots.txt`, `sitemap.xml`, Article/FAQ/Breadcrumb schema. Private pages are **crawlable and `noindex`**, not `Disallow`ed — a blocked page that is linked still gets indexed, and blocking it is what stops Google learning it should not be. | `src/app/robots.ts`, `next.config.ts` |
 | Security headers | CSP-adjacent headers, HSTS, frame denial | `next.config.ts` |
 | **PWA** | Installable, `display: standalone`, `viewport-fit=cover` with `env(safe-area-inset-*)` so the app fills the screen and still clears the notch and home indicator. Service worker: network-first documents, cache-first immutable assets, and **`/api`, `/dashboard`, `/account`, `/cart`, `/checkout`, auth routes are never cached**. Offline fallback page; install prompt suppressed for 90 days after a dismissal. | `app/manifest.ts`, `public/sw.js` |
@@ -992,6 +992,30 @@ price"). One surface leaked face — the homepage **video spotlight** (`VideoAds
 `from {leadPrice}` (face) while checkout charges the all-in total. Now routed through
 `allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
 typecheck, lint, build.
+
+### 10 September — three 100/100 editorial articles published (owner request: volume of 90-scoring content)
+
+The fastest on-page ranking lever is volume of genuinely useful, high-scoring articles.
+The AI drafting agent makes that cheap **when an AI key is present**, which this environment
+has none of — so these three were hand-authored, each grounded only in verified platform
+facts and each scoring **100/100** against `scoreArticle` (600+ words, 120–160-char meta,
+≥2 H2s, ≥2 FAQ answers, live link slot, 3 tags, fresh, in a cluster):
+
+- **`how-to-avoid-fake-tickets`** (buying) — why a screenshot proves nothing and how an
+  **in-account transfer** (real: `api/tickets/transfer`, `backend/services/transfer.ts`)
+  removes the risk. Distinct from the feature articles; consumer-facing, evergreen.
+- **`selling-tickets-in-kinshasa`** (money) — mobile money as the default, cash at the door,
+  local pricing. Grounded in the **live DRC mobile-money corridor** (active, not roadmap).
+- **`promote-your-event-without-ads`** (selling) — the real **tracked-link** model
+  (`/r/[code]`, 30-day first-party cookie, organiser-set 0–50% commission computed
+  server-side on face, platform takes none — `backend/services/partners.ts`).
+
+Every claim was checked against the code, not the docs — the rule the sixteen retracted
+articles broke. All published as `status: 'shipped'`; `check:links` now reports **29
+published**. Also fixed a stale product-link card: the `growth` destination still named the
+removed "1% influencer commission"; it now reads "tracked promoter links and the per-sale
+commission you set yourself", matching the rewritten `/growth` page. Verified: typecheck,
+build, `check:links`, 12/12 SEO-score tests.
 
 ### 10 September — AI blog SEO: article scorer, richer schema, and a grounded drafting agent (owner request)
 
