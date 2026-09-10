@@ -24,6 +24,9 @@ import {
   type RecommendationOutput,
   type SimilarEventsInput,
   type SimilarEventsOutput,
+  BlogDraftOutputSchema,
+  type BlogDraftInput,
+  type BlogDraftOutput,
 } from './schemas';
 
 /**
@@ -376,3 +379,81 @@ export type TaskName = keyof typeof TASKS;
 export function isTaskName(value: unknown): value is TaskName {
   return typeof value === 'string' && value in TASKS;
 }
+
+/**
+ * The blog-drafting task — the engine behind the AI authoring assistant.
+ *
+ * It writes an SEO-structured draft, but under the same discipline as `event-draft`: it may
+ * give general, accurate how-to advice for organisers and attendees, and it may state facts
+ * about TicketRoyality ONLY from the supplied `facts` list. It must never invent a
+ * TicketRoyality feature, number or claim — that is exactly how sixteen false articles were
+ * published before (see STATUS.md / articles.ts), and the draft it returns is reviewed by a
+ * human and gated by `check:links` before anything ships.
+ *
+ * Deliberately absent from the `TASKS` registry and `TASK_INPUT_SCHEMAS`, so it cannot be
+ * called from the public, metered `/api/ai` route — it is an internal authoring tool.
+ */
+export const blogDraftTask: AiTask<BlogDraftInput, BlogDraftOutput> = {
+  name: 'blog-draft',
+  system:
+    'You are an SEO editor for a premium live-events ticketing platform. You write accurate, ' +
+    'genuinely useful articles that answer a real search query directly and early. You may give ' +
+    'general event-industry advice, but you state facts about TicketRoyality ONLY from the Facts ' +
+    'list you are given: never invent a feature, price, statistic or claim about the platform, and ' +
+    'when unsure, write generally rather than attributing anything to TicketRoyality. No hype, no ' +
+    'filler, no emoji.',
+  outputSchema: BlogDraftOutputSchema,
+  outputShape: `{
+  "title": string,        // <= 60 characters, states the question it answers
+  "excerpt": string,      // 120-160 characters, the meta description
+  "blocks": [             // body in order; >= 2 of type "heading"; plain text, no markdown
+    { "type": "heading", "text": string } |
+    { "type": "paragraph", "text": string } |
+    { "type": "list", "items": string[] }
+  ],
+  "answers": [            // 2-6 FAQ pairs; plain prose answers
+    { "question": string, "answer": string }
+  ],
+  "tags": string[]        // 3-8 lowercase topic tags
+}`,
+  render: (input) => {
+    const lines = [
+      `Write a blog article for the topic: ${input.topic}`,
+      `It sits in the "${input.clusterTitle}" cluster, which serves this search intent: ${input.clusterIntent}`,
+    ];
+    if (input.targetKeyword) {
+      lines.push(`Lead the title and the first sentence with this phrase where it reads naturally: "${input.targetKeyword}"`);
+    }
+    lines.push(
+      '',
+      'Facts about TicketRoyality you MAY state (do not state any platform fact not on this list):',
+      ...input.facts.map((f) => `- ${f}`)
+    );
+    if (input.upcoming?.length) {
+      lines.push(
+        '',
+        'Real upcoming events you may reference for colour (do not invent others):',
+        ...input.upcoming.map((e) => `- ${e.title} — ${e.city}, ${e.date}`)
+      );
+    }
+    lines.push(
+      '',
+      'Rules:',
+      '- At least 600 words across the blocks.',
+      '- At least two "heading" blocks breaking the piece into scannable sections.',
+      '- Answer the query directly in the first paragraph, before any preamble.',
+      '- 2-6 FAQ answers, each a self-contained factual sentence or two — this is what AI search quotes.',
+      '- Plain text only. No markdown, no links (the platform adds internal links automatically).',
+      '- Everything must be true. If you are not sure TicketRoyality does something, do not claim it does.',
+      '',
+      JSON_RULE
+    );
+    return lines.join('\n');
+  },
+  clamp: (output) => ({
+    ...output,
+    title: output.title.trim().slice(0, 80),
+    excerpt: output.excerpt.trim().slice(0, 200),
+    tags: output.tags.map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 8),
+  }),
+};

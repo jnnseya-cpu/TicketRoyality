@@ -185,3 +185,54 @@ export const RoomDraftOutputSchema = z.object({
     .max(40),
 });
 export type RoomDraftOutput = z.infer<typeof RoomDraftOutputSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Blog drafting — the AI authoring assistant (scripts/draft-article.ts).      */
+/*                                                                            */
+/* Authoring only: deliberately NOT added to TASK_INPUT_SCHEMAS, so it is not  */
+/* reachable from the public /api/ai route. A draft is always reviewed by a    */
+/* human and gated by check:links before it can ship.                         */
+/* -------------------------------------------------------------------------- */
+
+export const BlogDraftInputSchema = z.object({
+  topic: z.string().max(300),
+  /** The cluster this belongs under, for hub linking. */
+  clusterTitle: z.string().max(120),
+  clusterIntent: z.string().max(500),
+  /** Optional primary keyword to lead the title/excerpt with. */
+  targetKeyword: z.string().max(120).optional(),
+  /**
+   * Verified facts the model MAY state about TicketRoyality. The model must not attribute
+   * any platform feature, number or claim to TicketRoyality that is not in this list.
+   */
+  facts: z.array(z.string().max(500)).max(40),
+  /** Real upcoming events, for context only — titles/cities the piece can reference. */
+  upcoming: z
+    .array(z.object({ title: z.string().max(300), city: z.string().max(200), date: z.string().max(40) }))
+    .max(12)
+    .optional(),
+});
+export type BlogDraftInput = z.infer<typeof BlogDraftInputSchema>;
+
+const BlogBlockSchema = z.object({
+  type: z.enum(['paragraph', 'heading', 'list']),
+  text: z.string().max(4_000).optional(),
+  items: z.array(z.string().max(500)).max(12).optional(),
+});
+
+export const BlogDraftOutputSchema = z.object({
+  title: z.string().max(80).describe('Under 60 characters ideally; states the question it answers.'),
+  excerpt: z.string().max(200).describe('120–160 characters; becomes the meta description and social card.'),
+  blocks: z
+    .array(BlogBlockSchema)
+    .min(4)
+    .max(40)
+    .describe('Body in order. At least two heading blocks. Plain text, no markdown.'),
+  answers: z
+    .array(z.object({ question: z.string().max(200), answer: z.string().max(1_200) }))
+    .min(2)
+    .max(8)
+    .describe('FAQ pairs — the FAQPage rich result and what AI search quotes.'),
+  tags: z.array(z.string().max(40)).min(3).max(8),
+});
+export type BlogDraftOutput = z.infer<typeof BlogDraftOutputSchema>;

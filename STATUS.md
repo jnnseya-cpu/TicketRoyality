@@ -993,6 +993,34 @@ price"). One surface leaked face — the homepage **video spotlight** (`VideoAds
 `allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
 typecheck, lint, build.
 
+### 10 September — AI blog SEO: article scorer, richer schema, and a grounded drafting agent (owner request)
+
+Asked for an "AI agent SEO blog" at 90/100 that wins search and AI-engine answers. The blog
+already had strong bones — topic-cluster hubs, per-article canonical/OG, Article +
+BreadcrumbList + FAQPage JSON-LD, an inline auto-linker with a 10-link budget, link slots
+resolving against live inventory, and a full sitemap. The real gaps were three:
+
+- **An article SEO scorer.** `scoreArticle()` in `shared/seo-score.ts` (sibling to the event
+  scorer), 100 points across title length, meta-description band, heading structure, depth
+  (word count), **FAQ/answers**, internal links, tags, freshness and cluster. This is the
+  measurable "90/100" for blog content; 6 unit tests.
+- **Richer structured data.** The article JSON-LD is now `BlogPosting` (not generic `Article`)
+  with `image`, real `wordCount`, `articleSection`, `inLanguage`, and a publisher logo — more
+  rich-result and AI-answer eligibility.
+- **The AI agent.** `scripts/draft-article.ts` (`npm run draft:article -- "topic" cluster`):
+  a `blogDraftTask` through the Gemini→Claude→OpenAI gateway, **grounded only in a verified
+  platform-facts list** (same "never invent a platform fact" discipline as the event-draft
+  task — the exact rule the sixteen retracted articles broke), scored against `scoreArticle`
+  targeting ≥90, emitted as a **`status: 'draft'`** object for a human to fact-check and paste.
+  It never auto-publishes; `check:links` still gates truth. Needs an AI key to run; verified it
+  loads and fails gracefully without one.
+
+**Honest boundary (said plainly):** code cannot *guarantee* "top-5 on every search engine,
+social and AI" — rankings are earned through domain authority, backlinks, freshness and time,
+none of which a deploy controls. What ships here is the strongest on-page + structured-data +
+AEO foundation and a tool to produce 90/100 content at volume; the ranking is then earned.
+Verified: typecheck, lint, build, 12/12 SEO-score tests.
+
 ### 6 September — white-label fee model: flat cut → a small %, floored at £0.50 (owner request)
 
 The owner changed the platform's white-label cut from a flat per-ticket fee to **a small

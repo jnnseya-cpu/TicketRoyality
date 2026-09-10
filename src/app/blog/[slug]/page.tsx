@@ -114,17 +114,37 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
   const related = relatedArticles(article);
   const base = siteUrl();
 
+  // Real word count from the body — Google and the AI engines read `wordCount` as a
+  // depth signal, and a fabricated one is worse than none.
+  const wordCount = article.blocks.reduce((sum, b) => {
+    const text = b.text ?? '';
+    const items = (b.items ?? []).join(' ');
+    return sum + `${text} ${items}`.trim().split(/\s+/).filter(Boolean).length;
+  }, 0);
+
   const graph: Record<string, unknown>[] = [
     {
-      '@type': 'Article',
+      // BlogPosting, not the generic Article: it is the type search engines map to a blog
+      // post, and it carries the author/publisher/section fields the rich result wants.
+      '@type': 'BlogPosting',
       headline: article.title,
       description: article.excerpt,
       datePublished: article.published,
       dateModified: article.updated,
       keywords: article.tags.join(', '),
-      author: { '@type': 'Organization', name: article.author },
-      publisher: { '@type': 'Organization', name: 'TicketRoyality' },
-      mainEntityOfPage: `${base}/blog/${article.slug}`,
+      articleSection: cluster.title,
+      inLanguage: 'en-GB',
+      wordCount,
+      // The generated 1200×630 brand card — a real image URL, so the result is eligible
+      // for the thumbnail rather than none.
+      image: [`${base}/opengraph-image`],
+      author: { '@type': 'Organization', name: article.author, url: base },
+      publisher: {
+        '@type': 'Organization',
+        name: 'TicketRoyality',
+        logo: { '@type': 'ImageObject', url: `${base}/icons/icon-512.png` },
+      },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': `${base}/blog/${article.slug}` },
     },
     {
       // Breadcrumbs render as a path in search results instead of a bare URL, and they
