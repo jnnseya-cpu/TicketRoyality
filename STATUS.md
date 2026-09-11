@@ -993,6 +993,48 @@ price"). One surface leaked face — the homepage **video spotlight** (`VideoAds
 `allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
 typecheck, lint, build.
 
+### 11 September — production-readiness audit (owner request: stabilise & make deployable)
+
+A full sweep against the seven-point "make it production-ready" brief. The finding that
+matters: **the premises were mostly already met.** Verified, not assumed:
+
+- **Configs** — one of each, no duplicates: `firebase.json` (real) vs `firebase.emulator.json`
+  (minimal test config) serve different jobs; one `next.config.ts`, one lockfile, no
+  `vercel.json`, no `.firebaserc` needed (App Hosting deploys from `main` via GitHub). Nothing
+  to remove.
+- **Dependencies** — Next 15.5 / React 19 / firebase 11 / admin 13 / functions 6 / TS 5.7,
+  Node 22 everywhere (matches App Hosting runtime and `functions` `nodejs22`). No conflicts;
+  every `UNMET` in `npm ls` is an optional cross-platform native binary. No experimental Next
+  flags; `output: 'standalone'` correct.
+- **Build/lint/types/links** — clean build (exit 0, repeatable), `lint` clean, `typecheck`
+  clean, `check:links` green (29 published).
+- **Security** — `firestore.rules`/`storage.rules` are default-deny; every `allow read: if true`
+  is deliberately public data with no PII (seat-hold state, the live auction ticker, public
+  media), writes are owner-scoped+bounded or server-only. `test:rules` passes **49/49** against
+  the emulator — the material equivalent of the security simulator.
+- **Material test** — the full battery runs against a real Firestore emulator: **36 suites,
+  663 assertions, 0 failures** (idempotent issuance + payment loop, settlement, fees, pricing,
+  transfers, holds, redemption, humanity/App Check, cancellations, …).
+- **PWA/mobile** — full installable manifest (standalone, maskable icons, shortcuts), service
+  worker, and an install prompt (`InstallPrompt.tsx`) already present; notch-safe viewport.
+- **Dummy data** — none. Testimonials render nothing rather than fabricate; the only "mock"
+  hits are comments explaining why the tests use real in-process SMTP instead of mocks.
+
+**One real defect found and fixed:** `npm test` was not self-contained — it silently assumed
+`functions/node_modules` (a separate, gitignored package) was installed and broke at
+`test:payment-loop` with `Cannot find module 'firebase-functions/v2/firestore'` otherwise
+(would also break CI). Added a guarded `pretest` that runs `npm --prefix functions ci` only
+when those deps are missing (a 0.13s no-op otherwise), making the suite deterministic.
+
+**Honest boundaries (not done, with why):** actual deployment and a live URL need Firebase/GCP
+credentials and a push to `main`, which is the owner's action, not this environment's;
+"end-to-end encryption" is architecturally incompatible with the server-side authority the
+platform depends on (door validation, pricing, settlement) — what applies is TLS+HSTS in
+transit and provider encryption at rest, both present; "hacker-impenetrable" is not a claim
+any honest audit makes — remediation is an independent pen test, dependency scanning and rate-
+limit review. No product code was changed; nothing was "activated" that STATUS does not already
+record as built.
+
 ### 10 September — three 100/100 editorial articles published (owner request: volume of 90-scoring content)
 
 The fastest on-page ranking lever is volume of genuinely useful, high-scoring articles.
