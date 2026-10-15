@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import {
   ArrowRight,
+  Armchair,
   BadgeCheck,
   BarChart3,
   Building2,
@@ -144,11 +145,21 @@ const CORE_FEATURES = [
     body: 'Sales, attendance, revenue and who has walked in — updating live on one screen as it happens.',
   },
   {
+    icon: Armchair,
+    title: 'Colour-coded seat maps',
+    // Per-seat selection shipped (STATUS.md "Per-seat selection", 10 tests): sections carry
+    // a colour, buyers choose their own seats, and the seat is locked in the checkout hold
+    // transaction by document id in seat_locks — F12 cannot sell to two people. Irregular
+    // rooms (rowSpec: curved rakes, gangways, missing pillar seats, I/O-skipping row labels)
+    // are the "irregular rooms" entry, 21 tests. No "drag-seats canvas" claim — that one is
+    // a row editor with a live preview, not a free-floor canvas.
+    body: 'Build your room as it really is — colour-coded sections, lettered rows and real seat labels, even curved rakes, gangways and the missing seat where a pillar stands. Buyers pick their own seats, held while they pay, so F12 can never sell twice.',
+  },
+  {
     icon: LayoutGrid,
     title: 'Zones & Capacity',
     // Venue zones shipped: per-zone capacity, a zone scanner, tier allow-lists and a
-    // re-entry rule, all enforced in one transaction at the door. Seat-level inventory
-    // still is not built, so sections stay described as display and pricing.
+    // re-entry rule, all enforced in one transaction at the door.
     body: 'Doors inside the venue that admit only the tiers you assign, each with its own limit and its own re-entry rule, counted live as people come and go.',
   },
   {
