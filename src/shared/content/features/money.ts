@@ -242,4 +242,62 @@ export const MONEY_ARTICLES: Article[] = [
     linkSlots: [{ heading: 'Events built with AI', query: '', href: '/events' }],
     productLinks: ['registerOrganiser', 'howItWorks'],
   },
+  {
+    slug: 'donations-and-gift-aid',
+    title: 'Fundraising events: donations and Gift Aid done right',
+    kind: 'feature',
+    cluster: 'money',
+    tags: ['fundraising', 'gift aid', 'charity'],
+    excerpt:
+      'Add a real donation to any ticket, pay no platform fee on the gift, and reclaim 25% from HMRC — declarations and the relevant-value test handled correctly.',
+    published: '2026-10-22T10:00:00.000Z',
+    updated: '2026-10-22T10:00:00.000Z',
+    readMinutes: 6,
+    author: AUTHOR,
+    blocks: [
+      {
+        type: 'paragraph',
+        text: 'If your event raises money for a cause, the difference between a ticket and a gift is not a detail — it is the whole of whether you can claim Gift Aid, and getting it wrong is the kind of mistake HMRC queries after the claim rather than before. TicketRoyality is built around the one rule that governs all of it: Gift Aid is claimed on a gift, never on a payment for admission.',
+      },
+      { type: 'heading', text: 'A donation is a separate amount from the start' },
+      {
+        type: 'paragraph',
+        text: 'A ticket to a gala dinner buys admission and a meal, so no Gift Aid can be claimed on it — not on part of it, not on the "excess over cost". So on our checkout a donation is its own field and its own line, added after the ticket fee is computed, and it carries no platform fee at all. The card cost on a gift is ours to absorb; charging a percentage of a donation is the line that gets quoted back at you in public. No path on the platform can turn a ticket into a claimable gift, which is exactly the property an auditor is looking for.',
+      },
+      { type: 'heading', text: 'The reclaim is computed to the rule' },
+      {
+        type: 'paragraph',
+        text: 'We enforce HMRC’s relevant-value test — 25% of the gift up to £100, then £25 plus 5% of the excess, capped at £2,500 — so a "donation" that came bundled with a meal worth too much is refused before the claim is filed, not queried after it. The reclaim is rounded down per donation, never up and never on the total, because claiming a penny more than the entitlement is an incorrect claim, and a penny that reconciles to no single gift is one you cannot explain to an inspector. The arithmetic runs the same way on one gift and on ten thousand, so a busy campaign night does not quietly drift out of compliance as the volume climbs.',
+      },
+      { type: 'heading', text: 'Declarations are records, not settings' },
+      {
+        type: 'paragraph',
+        text: 'A Gift Aid declaration is stored with the exact wording and version the donor agreed to, and it is never edited and never deleted — because in an audit the question is what this donor was shown on the day, and an edited form cannot answer it. A withdrawal is stamped and kept rather than erased, and it is not retrospective: gifts made before it stay claimable. An enduring declaration reaches back four years, and declarations are matched to gifts at claim time, so a donor who gave three times and then signed one enduring declaration has made three claimable gifts, not none.',
+      },
+      { type: 'heading', text: 'The buyer always sees the gift clearly' },
+      {
+        type: 'paragraph',
+        text: 'On the checkout the donation shows above the total line, never slipped in after it, so nobody gives by accident and nobody feels tricked into giving — the fastest way to lose a donor is to make them feel the amount was nudged. And because a gift has to reach you intact, adding one makes the non-card rails unavailable rather than letting a mobile-money or alternative charge quietly collect the ticket total and drop the donation. A gift that silently vanishes is worse than one that was never offered.',
+      },
+      { type: 'heading', text: 'The claim comes out ready to file' },
+      {
+        type: 'paragraph',
+        text: 'The platform exports HMRC’s schedule as a CSV in the schedule’s own date format, and the dashboard shows you what is not claimable and why — "£600 across eleven gifts, no declaration" is a number you can act on by asking eleven people for an address. This is the schedule and the arithmetic, done the way the rules require; it is not tax advice, and the rates change, so the final claim is still yours to file.',
+      },
+    ],
+    answers: [
+      {
+        question: 'Can I claim Gift Aid on ticket sales for my charity event?',
+        answer:
+          'Not on the ticket itself — Gift Aid is claimed on a gift, never on payment for admission. On TicketRoyality a donation is a separate amount with its own line, carrying no platform fee, and only that gift is claimable. It exports as HMRC’s schedule, ready to file.',
+      },
+      {
+        question: 'How much Gift Aid can I reclaim on a donation?',
+        answer:
+          '25% of the gift up to £100, then £25 plus 5% of the excess, capped at £2,500 — HMRC’s relevant-value test, enforced before the claim is filed and rounded down per donation so you never claim more than the entitlement.',
+      },
+    ],
+    linkSlots: [{ heading: 'Fundraisers and galas on now', query: '', href: '/events' }],
+    productLinks: ['registerOrganiser', 'howItWorks'],
+  },
 ];

@@ -396,4 +396,125 @@ export const SELLING_ARTICLES: Article[] = [
     linkSlots: [{ heading: 'Series worth following', query: '', href: '/events' }],
     productLinks: ['registerCustomer', 'events'],
   },
+  {
+    slug: 'white-label-your-own-brand',
+    title: 'White-label: sell under your own brand, not ours',
+    kind: 'feature',
+    cluster: 'selling',
+    tags: ['white label', 'branding', 'fees'],
+    excerpt:
+      'Run the event page and checkout entirely under your own name, set your own booking fee, and keep the payout. Here is exactly what changes and what we take.',
+    published: '2026-10-22T10:00:00.000Z',
+    updated: '2026-10-22T10:00:00.000Z',
+    readMinutes: 6,
+    author: AUTHOR,
+    blocks: [
+      {
+        type: 'paragraph',
+        text: 'For most organisers, a ticketing platform showing its own name on the checkout is harmless. For some — an established venue, a promoter with a brand people already trust, an agency selling on behalf of clients — it is the whole problem. The buyer should feel they are dealing with you, start to finish, not with a third party they have never heard of. White-label is how that works on TicketRoyality.',
+      },
+      { type: 'heading', text: 'What white-label actually changes' },
+      {
+        type: 'paragraph',
+        text: 'With it switched on, the event page and the checkout run under your own name and brand. The buyer sees your identity on the page where they decide and the page where they pay — the two moments that matter — rather than ours. We stay out of sight. Underneath, nothing about the engine changes: the same secure tickets in the same wallet, the same anti-fraud door, the same idempotent issuance that cannot sell one seat twice. You are relabelling the shopfront, not rebuilding the platform, so none of the reliability is traded away for the branding.',
+      },
+      { type: 'heading', text: 'You set the fee' },
+      {
+        type: 'paragraph',
+        text: 'On the standard plan the buyer pays one all-in service fee and you keep the full face value. White-label hands you the dial: you set the booking fee your buyers pay, in your own name. That is the point of it — a venue that has always charged its own booking fee keeps doing exactly that, on its own page, at its own number, rather than inheriting ours.',
+      },
+      { type: 'heading', text: 'What we take, and why there is a floor' },
+      {
+        type: 'paragraph',
+        text: 'Our cut under white-label is a small percentage of each paid ticket, never below fifty pence per ticket. The percentage keeps it fair on cheap tickets; the floor keeps a sub-one-pound ticket from costing us more to process than it earns. It is deliberately small because the arrangement is a relabelling, not a different service — and the fee engine refuses a configuration that would leave you out of pocket once card costs are counted, rather than letting you discover that one reconciliation later.',
+      },
+      { type: 'heading', text: 'How you get paid' },
+      {
+        type: 'paragraph',
+        text: 'Settlement pays you the white-label amount — face value plus the fee you set, less our small cut — computed from the exact quote the order was made under, not recomputed from a later config. The arithmetic is done server-side and stored with the order, so a price change next month never rewrites what a sale last month owes you. It is the same settlement path every payout uses; white-label only changes the numbers it reads, never the guarantees around them.',
+      },
+      { type: 'heading', text: 'What it does not change' },
+      {
+        type: 'paragraph',
+        text: 'Branding is the only thing white-label touches. Refunds, chargebacks and disputes still run the same route, the door still scans the same tickets, and a buyer who needs help still reaches a real process rather than a dead end with your logo on it. For an agency selling on behalf of several clients, that matters more than the logo does: each client gets their own named front without you running a different, lightly-tested checkout for each one. One engine, many fronts, is far safer than many engines.',
+      },
+      { type: 'heading', text: 'Enabled by arrangement' },
+      {
+        type: 'paragraph',
+        text: 'White-label is not a self-serve toggle. It is granted per organiser, because setting your own fee under your own brand is a commercial arrangement rather than a checkbox — and because the honest version of this feature is one where we have agreed the terms with you, not one where anyone can quietly rebrand the platform and set a fee we never saw. If running the whole thing under your own name is what you need, that is a conversation, and a short one.',
+      },
+    ],
+    answers: [
+      {
+        question: 'Can I run ticket sales under my own brand instead of TicketRoyality?',
+        answer:
+          'Yes — white-label puts your name and branding on the event page and the checkout, the two places the buyer decides and pays. The engine underneath is unchanged: the same secure tickets, anti-fraud door and idempotent issuance.',
+      },
+      {
+        question: 'What does white-label cost, and how do I get it?',
+        answer:
+          'You set the booking fee your buyers pay; we take a small percentage of each paid ticket, never below 50p. It is granted per organiser by arrangement rather than a self-serve toggle, and the fee engine refuses a setup that would leave you out of pocket after card costs.',
+      },
+    ],
+    linkSlots: [{ heading: 'See what organisers are running', query: '', href: '/organisers' }],
+    productLinks: ['registerOrganiser', 'contact'],
+  },
+  {
+    slug: 'season-tickets-and-presales',
+    title: 'Season tickets and presales: sell the whole run',
+    kind: 'feature',
+    cluster: 'selling',
+    tags: ['season tickets', 'presales', 'renewals'],
+    excerpt:
+      'Sell a pass across every fixture, reward your regulars with first access, and keep inventory honest — each pass is a real book of tickets, not a door card.',
+    published: '2026-10-22T10:00:00.000Z',
+    updated: '2026-10-22T10:00:00.000Z',
+    readMinutes: 6,
+    author: AUTHOR,
+    blocks: [
+      {
+        type: 'paragraph',
+        text: 'A club night that runs every month, a theatre season, a home fixture list — the organisers who run them do not want to sell each date from scratch, and the regulars do not want to queue for each one. A season pass solves both, but only if the pass is a real thing the door and the accounts both understand, rather than a label that falls apart on the night when a steward is holding a phone and a queue is forming behind it.',
+      },
+      { type: 'heading', text: 'A pass is a book of tickets, not a magic card' },
+      {
+        type: 'paragraph',
+        text: 'On TicketRoyality a pass issues a real ticket for every covered fixture, rather than admitting on the pass itself. That is what a season ticket physically is — a book of tickets — and it matters for a concrete reason: a ticket redeems once, which is what stops one credential admitting two people, and a pass that tried to admit at twenty fixtures would mean either weakening that rule or growing a second door path nobody tests. Every pass ticket flows through the same door, zones, transfer and refund logic as any other ticket, because it is one.',
+      },
+      { type: 'heading', text: 'Inventory stays honest' },
+      {
+        type: 'paragraph',
+        text: 'Each fixture in the pass consumes real inventory in the tier you chose, so twenty pass holders are twenty seats gone from every night — a number that is actually subtracted, not a figure nobody added up until the room was too full. Availability is checked across every fixture before the card is charged, because a pass that seats somebody at nine of ten nights is a refund and an apology waiting to happen. And the price is spread across the fixtures, so refunding one cancelled night reverses a sensible share rather than the whole pass or nothing.',
+      },
+      { type: 'heading', text: 'Presales reward the regulars, enforced where it counts' },
+      {
+        type: 'paragraph',
+        text: 'A presale on the platform is not a separate product — it is an early tier with its own on-sale window, so it sells, counts and reconciles through the same path as everything else. Crucially the window is enforced server-side at checkout, not with a greyed-out button: a disabled button is still on sale to anyone who can post a form, and an early price given away by a crafted request cannot be taken back. A tier outside its window tells a buyer when it opens rather than how many are left.',
+      },
+      { type: 'heading', text: 'First access for people who actually turn up' },
+      {
+        type: 'paragraph',
+        text: 'A loyalty-gated presale opens early to the people who keep coming back, counted by events attended rather than tickets bought — because four tickets to one show is a group of friends, and counting them would hand the best window to whoever books for their mates. Standing is per organiser, never platform-wide, and the gate fails closed on an outage, because an early window given away by accident is not recoverable. It is a way to thank your regulars that cannot be gamed by buying in bulk once.',
+      },
+      { type: 'heading', text: 'The rest still just works' },
+      {
+        type: 'paragraph',
+        text: 'Because every pass fixture is an ordinary ticket, everything downstream behaves the way it already does. A pass holder can transfer a single night to a friend who can make it, and the transfer is the same secure handoff as any other — the old copy stops working the moment the new one lands. A cancelled fixture refunds its share of the pass without unpicking the rest of the season. Zones, the offline door and the wallet all treat a pass ticket as what it is: one more real ticket, with nothing special to remember and nothing new that can go wrong on the night.',
+      },
+    ],
+    answers: [
+      {
+        question: 'How do season tickets work on TicketRoyality?',
+        answer:
+          'A pass issues a real ticket for every covered fixture — a book of tickets — each redeeming once and consuming real inventory in the tier you chose. Availability is checked across every fixture before charging, and the price is spread so refunding one cancelled night reverses a sensible share.',
+      },
+      {
+        question: 'Can I give my regulars early access to tickets?',
+        answer:
+          'Yes — a presale is an early tier with its own on-sale window, enforced server-side at checkout. A loyalty-gated presale opens early to people counted by events attended, per organiser, so first access goes to those who actually keep turning up.',
+      },
+    ],
+    linkSlots: [{ heading: 'Series and seasons worth following', query: '', href: '/events' }],
+    productLinks: ['registerOrganiser', 'howItWorks'],
+  },
 ];
