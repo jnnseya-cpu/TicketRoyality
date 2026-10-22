@@ -308,4 +308,44 @@ export const OPERATIONS_ARTICLES: Article[] = [
     linkSlots: [{ heading: 'Online and hybrid events', query: '', href: '/events' }],
     productLinks: ['registerOrganiser', 'events'],
   },
+  {
+    slug: 'wristbands-and-nfc-tags',
+    title: 'Wristbands and NFC tags: admit on a band',
+    kind: 'feature',
+    cluster: 'operations',
+    tags: ['wristbands', 'nfc', 'access control'],
+    excerpt:
+      'Bind a wristband or NFC tag to a ticket and admit on the band — any cheap keyboard-wedge reader works, no SDK, no extra vendor, and the blocklist still applies.',
+    published: '2026-10-22T10:00:00.000Z',
+    updated: '2026-10-22T10:00:00.000Z',
+    readMinutes: 6,
+    author: AUTHOR,
+    blocks: [
+      { type: 'paragraph', text: 'For a festival, a conference or a multi-day event, a phone screen at every re-entry is friction nobody wants. A wristband or an NFC tag is faster and more robust, and TicketRoyality lets you bind one to a ticket and admit on the band — without signing up to a sixth vendor, buying proprietary hardware, or learning a new system to do it.' },
+      { type: 'heading', text: 'No SDK, no sixth vendor' },
+      { type: 'paragraph', text: 'Nearly every cheap RFID or NFC reader sold for events is a keyboard wedge: present a tag and it simply types the tag’s identifier and presses Enter, exactly as a keyboard would. So the integration is a focused text input, and the hardware stays yours — no SDK to license, no contract, no new account to reconcile. Typing a tag’s identifier by hand works identically when a reader fails, which is the kind of fallback that matters at eight in the evening in a field. Identifiers are normalised for case, colons and dashes, so the door does not care which reader you bought or how it happens to format what it reads.' },
+      { type: 'heading', text: 'One band, one ticket, both ways' },
+      { type: 'paragraph', text: 'A binding is one-to-one in both directions, and the database enforces it rather than a hopeful check: one tag cannot bind to a second ticket, which would be one band admitting two people, and one ticket cannot wear two live bands, which is a lost band replaced without releasing the old one. Uniqueness is the record’s own identity, so the second binding is refused by the database, not by remembering to look.' },
+      { type: 'heading', text: 'The blocklist applies exactly as it does to a QR' },
+      { type: 'paragraph', text: 'Admission on a band is a single transaction — two readers presenting one band admit exactly one person — and the emergency blocklist applies to a band precisely as it does to a QR code, refusing entry without consuming the ticket. The redemption path is deliberately written out in full for bands rather than sharing the QR door behind a "skip the signature checks" flag, because a flag like that is one boolean away from turning the secure path into a bearer path for everyone.' },
+      { type: 'heading', text: 'When a band is the right tool' },
+      { type: 'paragraph', text: 'Bands earn their place where a ticket is scanned more than once or where speed at the gate is everything: multi-day festivals, conferences with repeated re-entry, zones a guest moves between all evening. A phone comes out once, at binding, and after that a wrist does the work — faster for the guest and faster for the steward, with no battery to die and no screen to fumble in the rain. For a single-scan event a QR on a phone is simpler and there is no reason to add bands at all; the feature is there for the events that genuinely re-admit the same person many times.' },
+      { type: 'heading', text: 'Said plainly: a band is a bearer token' },
+      { type: 'paragraph', text: 'We state this at the desk and in the code: a wristband is a bearer token. There is no code to verify and nothing to rotate, because the security of a band is that a human puts it on a wrist and it does not come off. A cloned identifier would admit — which is exactly as true of every wristband ever made, paper or plastic, and why the real control is the steward at the gate, not any cryptography on the band. It is the right tool for throughput and re-entry, used with eyes open about what it is. The one thing not built is any specific manufacturer’s proprietary reader API — the keyboard-wedge path is the one that works everywhere, with whatever reader you already happen to own.' },
+    ],
+    answers: [
+      {
+        question: 'Can I admit guests with a wristband or NFC tag?',
+        answer:
+          "Yes — bind a tag's identifier to a ticket and admit on the band. Almost any cheap keyboard-wedge reader works with no SDK or extra vendor, and typing the identifier by hand works if a reader fails.",
+      },
+      {
+        question: 'Is a wristband secure?',
+        answer:
+          'A band is a bearer token, stated plainly: the security is that a steward puts it on a wrist. The blocklist refuses a band exactly as it does a QR, and bindings are one-to-one — but a cloned identifier admits, as with every wristband ever made.',
+      },
+    ],
+    linkSlots: [{ heading: 'Festivals and multi-day events', query: '', href: '/events' }],
+    productLinks: ['registerOrganiser', 'howItWorks'],
+  },
 ];

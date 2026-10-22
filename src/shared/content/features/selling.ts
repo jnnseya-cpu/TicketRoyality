@@ -50,7 +50,7 @@ export const SELLING_ARTICLES: Article[] = [
       },
       {
         type: 'paragraph',
-        text: 'Checkout-time holds — reserving stock while you enter card details — are specified but not yet built. Until they are, the buyer who loses that race has their payment confirmed and no ticket issued; it is flagged for refund rather than resolved silently. That is an honest description of a real gap, and it is why the tier count on an event page is availability rather than a promise.',
+        text: 'Checkout-time holds now close that gap on the single-event path: starting checkout reserves the stock for fifteen minutes, so the second buyer for the last ticket is refused before entering card details rather than after paying, and the hold is consumed in the same write that issues the ticket so a seat never reads as free in between. The multi-event basket still resolves at issuance, because holding stock across several events at once needs a transaction that spans them — so there the loser of a true race is refunded rather than held. Either way nobody is oversold and nothing is resolved silently.',
       },
       { type: 'heading', text: 'Reserved seating on top' },
       {
@@ -67,7 +67,7 @@ export const SELLING_ARTICLES: Article[] = [
       {
         question: 'What stops two people buying the last ticket?',
         answer:
-          'Capacity is enforced inside the transaction that issues tickets, so a tier can never exceed its quantity. If two payments race for the last ticket, one is issued and the other is flagged for refund rather than overselling the room.',
+          'Capacity is enforced inside the transaction that issues tickets, so a tier can never exceed its quantity. On a single-event checkout a fifteen-minute hold reserves the stock up front, so the second buyer is refused before paying; in a multi-event basket the loser of a true race is refunded rather than oversold.',
       },
     ],
     linkSlots: [{ heading: 'Events with tiered pricing', query: '', href: '/events' }],
@@ -515,6 +515,46 @@ export const SELLING_ARTICLES: Article[] = [
       },
     ],
     linkSlots: [{ heading: 'Series and seasons worth following', query: '', href: '/events' }],
+    productLinks: ['registerOrganiser', 'howItWorks'],
+  },
+  {
+    slug: 'pay-what-you-want-pricing',
+    title: 'Pay what you want: let the buyer name the price',
+    kind: 'feature',
+    cluster: 'selling',
+    tags: ['pricing', 'flexible pricing', 'community'],
+    excerpt:
+      'Let buyers name their price above a floor you set — a church door, a community night, a sliding-scale event — priced safely on the server and shown all-in.',
+    published: '2026-10-22T10:00:00.000Z',
+    updated: '2026-10-22T10:00:00.000Z',
+    readMinutes: 6,
+    author: AUTHOR,
+    blocks: [
+      { type: 'paragraph', text: 'A fixed price is the right tool most of the time, and the wrong one more often than organisers admit. A church with a suggested donation at the door, a community night that does not want to turn anyone away over money, a sliding-scale workshop where some people can pay more so others can pay less — for all of these, naming a single number either leaves money on the table or shuts people out. TicketRoyality lets a tier be pay-what-you-want instead, and does it without opening a hole anyone can drive a cheap ticket through.' },
+      { type: 'heading', text: 'How it works' },
+      { type: 'paragraph', text: 'A ticket tier can be set to "choose" rather than "fixed". On a choose tier the buyer names the amount they will pay, floored at a minimum you set — and that minimum can be zero, which is a real thing a church or a free community event genuinely needs. Everything else about the ticket is unchanged: it issues, scans, transfers and refunds exactly like any other, because a pay-what-you-want ticket is a normal ticket that happened to be priced by the person buying it.' },
+      { type: 'heading', text: 'The floor is yours, and the ceiling protects the buyer' },
+      { type: 'paragraph', text: 'The minimum you set is the floor, and it is what the catalogue advertises — the "from" price a browser sees, shown all-in with any fee included, so the figure on the listing is still the honest one. There is also a ceiling, set far above any realistic gift, for one practical reason: it stops a mistyped amount — an extra zero, a fat-fingered field — from becoming an unexplained card decline or a payment someone has to chase a refund for. The buyer is free within a sensible range and protected at the edge of it.' },
+      { type: 'heading', text: 'Why it is safe' },
+      { type: 'paragraph', text: 'The price a buyer names is only ever accepted on the server. One function resolves the line price, and it runs in the checkout route on both the single-event and the basket path — there is no second place a posted amount is trusted. The rule it enforces is stated precisely rather than relaxed: a fixed tier ignores the requested amount entirely, reading the mode from the stored event and never from the form. So a crafted request cannot turn a £250 fixed ticket into a one-pound "donation" — the only tiers that accept a chosen price are the ones you marked choose, and the floor on those is enforced the same way.' },
+      { type: 'heading', text: 'Who actually uses it' },
+      { type: 'paragraph', text: 'The pattern shows up more than you would expect once you look for it. A grassroots venue puts on a night and asks for five pounds or whatever you can spare, and takes more on the door because the people who can give ten now do. A workshop runs a sliding scale so a student and a salaried attendee both come. A community group runs a free event with a choose tier floored at zero, so the people who want to chip in have a frictionless way to, and nobody is forced to. In each case the floor protects the event and the freedom above it quietly raises the average.' },
+      { type: 'heading', text: 'What it does not do' },
+      { type: 'paragraph', text: 'Pay-what-you-want is a price on a ticket, not a charitable gift. If you are raising money for a cause and want to reclaim Gift Aid, that runs through the separate donation path, because a payment for admission and a gift are different things in law and must not be blurred. Pay-what-you-want is the right tool when you want the admission itself to be flexible — a door that lets everyone in and lets those who can, pay more — and it is deliberately kept simple so it cannot quietly become something it is not.' },
+    ],
+    answers: [
+      {
+        question: 'Can buyers choose how much to pay for a ticket?',
+        answer:
+          "Yes — set a tier to 'choose' and the buyer names their amount above a floor you set, which can be zero. The price is resolved on the server, so a fixed-price ticket can never be talked down by a crafted request.",
+      },
+      {
+        question: 'Is pay-what-you-want the same as taking a donation?',
+        answer:
+          'No. It is a flexible price on a ticket for admission, not a charitable gift. Gift Aid and donations run on a separate path, because in law a payment for admission and a gift are different things that must not be blurred.',
+      },
+    ],
+    linkSlots: [{ heading: 'Events on sale now', query: '', href: '/events' }],
     productLinks: ['registerOrganiser', 'howItWorks'],
   },
 ];

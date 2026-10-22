@@ -300,4 +300,84 @@ export const MONEY_ARTICLES: Article[] = [
     linkSlots: [{ heading: 'Fundraisers and galas on now', query: '', href: '/events' }],
     productLinks: ['registerOrganiser', 'howItWorks'],
   },
+  {
+    slug: 'silent-auction-lots',
+    title: 'Silent auction lots: bid from the room, fairly',
+    kind: 'feature',
+    cluster: 'money',
+    tags: ['auctions', 'fundraising', 'bidding'],
+    excerpt:
+      'Run silent-auction lots your guests bid on from their phones — one bid is one transaction, anti-sniping extends the close, and nobody can outbid themselves.',
+    published: '2026-10-22T10:00:00.000Z',
+    updated: '2026-10-22T10:00:00.000Z',
+    readMinutes: 6,
+    author: AUTHOR,
+    blocks: [
+      { type: 'paragraph', text: 'A silent auction is the part of a fundraising evening where the software most often embarrasses the organiser in front of a room full of guests. Two people are told they are winning the same lot; a bid vanishes; the whole thing runs until someone remembers to close it. TicketRoyality runs auction lots guests bid on from their phones, and the design starts from the failures, not the happy path.' },
+      { type: 'heading', text: 'One bid is one transaction' },
+      { type: 'paragraph', text: '"Read the high bid, add the increment, write it back" is the classic lost-update bug, and in an auction it does not merely lose data — it tells two people in the same room that they are winning, which is the exact moment an organiser stops trusting the screen in front of their guests. So a bid is a single transaction. Tested with simultaneous bids, it produces exactly one leader and counts exactly one bid. The person who lost the race is told the real current price — "it is £120 now" — rather than a bare error, because by the time a bid lands the lot has usually moved, and a next step beats a dead end.' },
+      { type: 'heading', text: 'Anti-sniping: a lot ends when bidding ends' },
+      { type: 'paragraph', text: 'A hard cut-off rewards the fastest connection over the highest bidder, so a bid placed inside the final window pushes the close out a little. A lot therefore ends when the bidding ends, not when the clock happens to run out. Earlier bids leave the time alone, or a lot with steady interest would run all night. And the lots close on a schedule, not on someone remembering to press a button — the one evening nobody presses it is the evening the auction runs until morning.' },
+      { type: 'heading', text: 'What a bidder can and cannot see' },
+      { type: 'paragraph', text: 'An auction is public about money and private about people. The screen shows the current price, how many bids a lot has had, and whether you are the one leading — never who else is bidding. You cannot outbid yourself, because raising your own winning bid only lifts the price you will pay and makes it look like the room is being milked. Whether a reserve has been met is shown, because a room bidding towards a wall it cannot see simply stops; the reserve amount itself is not, because that is your floor, not theirs.' },
+      { type: 'heading', text: 'Setting one up, and why it stays calm' },
+      { type: 'paragraph', text: 'A lot is attached to an event, given a starting price, a bid increment and an optional reserve, and it is live for guests to bid on from their own phones — no app to install, no queue at a clipboard. Because the price only ever moves up by the increment inside a transaction, and because you cannot raise your own leading bid, the number on the screen is always the real one, and the room can trust it. That trust is the whole point: a silent auction works when guests believe the display, and stops the instant they do not.' },
+      { type: 'heading', text: 'A bid buys goods, not a gift' },
+      { type: 'paragraph', text: 'A winning bid buys the lot, so it is a purchase and never touches the Gift Aid path — no reclaim is attempted on it, because an auction win is goods changing hands, not a donation. A lot that never meets its reserve closes unsold, because the reserve is your floor and selling under it was never the deal. Every bid is kept, not only the winning one, because "who bid what, and when" is always the question afterwards. Two honest limits, stated rather than hidden: there are no automatic maximum bids yet, and the live price updates on a short poll rather than a live socket.' },
+    ],
+    answers: [
+      {
+        question: 'Can my guests bid on auction lots from their phones?',
+        answer:
+          'Yes — lots are bid on from a phone, no app needed. Each bid is a single transaction, so simultaneous bids produce exactly one leader; the loser is shown the real current price, and you cannot outbid yourself.',
+      },
+      {
+        question: 'How does the auction stop last-second sniping?',
+        answer:
+          'A bid inside the final window pushes the close out, so a lot ends when bidding ends rather than when the clock runs out. Lots close on a schedule, not on someone remembering, and a lot that misses its reserve closes unsold.',
+      },
+    ],
+    linkSlots: [{ heading: 'Fundraising events on now', query: '', href: '/events' }],
+    productLinks: ['registerOrganiser', 'howItWorks'],
+  },
+  {
+    slug: 'gift-registry',
+    title: 'Gift registries: a list people give towards together',
+    kind: 'feature',
+    cluster: 'money',
+    tags: ['gift registry', 'weddings', 'group gifts'],
+    excerpt:
+      'A wedding list, baby shower or leaving collection — named gifts guests give towards, with the running total kept correct even when two give at the same moment.',
+    published: '2026-10-22T10:00:00.000Z',
+    updated: '2026-10-22T10:00:00.000Z',
+    readMinutes: 6,
+    author: AUTHOR,
+    blocks: [
+      { type: 'paragraph', text: 'A wedding list, a baby shower, a leaving collection for someone retiring: a set of named gifts, each with a cost, that a group of people give towards. It sounds like the simplest feature on the platform, and it is the one where a lazy implementation does the most damage — because the damage is a couple thanking someone for a gift the list forgot to record, or two guests paying for a mixer that was already bought. Those are the mistakes people remember, and they are precisely the ones a careless total or a double-counted payment creates.' },
+      { type: 'heading', text: 'The running total cannot drift' },
+      { type: 'paragraph', text: 'Each gift carries a running total, and that total only ever moves inside the same transaction that writes the contribution itself. Summing every contribution on each page load is correct but slow on a page a hundred guests are refreshing; incrementing the total outside a transaction is fast but loses contributions when two guests give at the same instant. Tested with simultaneous gifts, both count. And because the increment is idempotent by the payment event id, a redelivered payment never shows a guest as having given twice.' },
+      { type: 'heading', text: 'Fully funded means closed' },
+      { type: 'paragraph', text: 'A £400 mixer that has been paid for is not something two more guests should be able to buy, so a fully funded gift closes — and the check sits inside the same transaction as the increment, so a race cannot push it past its cost. More than the remaining balance is refused rather than quietly trimmed: taking £80 towards a £30 balance and keeping the difference is not a decision to make on a guest’s behalf. Part payments are allowed by default, because that is how a large item gets bought at all, and the unfunded gifts sort to the top so the list never looks finished when it is not.' },
+      { type: 'heading', text: 'How a guest gives' },
+      { type: 'paragraph', text: 'A guest opens the list, picks a gift and gives towards it — the whole amount if it is small, or a part of a larger one — through the same checkout the platform uses for everything else, with the same card handling and the same confirmation. There is nothing new for a guest to learn and nothing new for you to reconcile afterwards: a contribution is just a payment against a named item, recorded the moment it clears. Because part payments are on by default, a £300 item is reachable by six people giving £50 rather than waiting for one person willing to cover the lot.' },
+      { type: 'heading', text: 'What guests see, and what you get' },
+      { type: 'paragraph', text: 'Each contribution can carry a message, and the people the list is for get a who-gave-what list for the thank-you letters — the one piece of admin that actually matters afterwards. Guests, meanwhile, see only the totals, never each other’s names or amounts: a registry is shared about progress and private about people, which is the same principle the rest of the platform follows everywhere else it holds names and amounts.' },
+      { type: 'heading', text: 'No platform fee, and not a donation' },
+      { type: 'paragraph', text: 'Contributions ride the same checkout as everything else and carry no platform fee at all — a present should arrive whole, and skimming a percentage off a wedding gift is not a line anyone wants to defend. And a present is not a charitable donation: no Gift Aid is claimed, and registry money never reaches the donation path. It is a genuinely separate thing from fundraising, kept separate on purpose, so neither one quietly behaves like the other — a registry collects for a person, a donation gives to a cause, and the arithmetic and the rules behind each are different for good reason.' },
+    ],
+    answers: [
+      {
+        question: 'Can guests give towards a shared gift on a registry?',
+        answer:
+          'Yes — each named gift has a cost and guests give towards it, part-payments allowed by default. The running total only moves inside the transaction that records the contribution, so two guests giving at once both count and a gift cannot be overfunded.',
+      },
+      {
+        question: 'Is there a fee on gift-registry contributions?',
+        answer:
+          'No platform fee at all — a present should arrive whole. A registry contribution is also not a charitable donation: no Gift Aid is claimed, and the money never touches the donation path.',
+      },
+    ],
+    linkSlots: [{ heading: 'Celebrations and events', query: '', href: '/events' }],
+    productLinks: ['registerCustomer', 'events'],
+  },
 ];
