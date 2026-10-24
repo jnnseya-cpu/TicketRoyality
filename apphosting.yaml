@@ -177,20 +177,31 @@ env:
     availability:
       - RUNTIME
 
-  # Hashes public API keys. While unset the key store falls back to QR_SIGNING_KEY, and
-  # if neither is set `createKey` refuses outright rather than hashing with an empty
-  # string — a key hashed with a constant is not hashed, and storing it that way is the
-  # same as storing it in plaintext.
-  # Commented out until the secret exists, following the same convention as BitriPay
-  # below. App Hosting validates every secret reference when it builds a rollout, so a
-  # reference to a secret nobody has created yet fails the whole deploy — and the failure
-  # looks like "nothing is deploying" rather than "one line in this file is early".
+  # Signs the ticket QR so a forwarded screenshot is a stale code within 30 seconds
+  # (docs: "Tickets that can't be faked"). The signing functions FAIL SAFE: while this
+  # is unset they return no signature, so tickets fall back to an unsigned payload and
+  # the rotating-QR anti-forgery is INERT. It also backs the public-API-key hash below.
+  # Set it to activate both. Commented until the secret exists (an unresolved secret
+  # reference fails the whole rollout — see the convention note on API_KEY_SECRET).
+  #
+  # Create it (a long random value), then uncomment:
+  #   npx firebase apphosting:secrets:set QR_SIGNING_KEY --project ticketroyality
+#  - variable: QR_SIGNING_KEY
+#    secret: QR_SIGNING_KEY
+#    availability:
+#      - RUNTIME
+
+  # Hashes public API keys. While unset the key store falls back to QR_SIGNING_KEY; if
+  # NEITHER is set `createKey` refuses outright rather than hashing with an empty string
+  # — a key hashed with a constant is not hashed, and storing it that way is the same as
+  # storing it in plaintext. So set QR_SIGNING_KEY above (at minimum) before relying on
+  # the public API. Commented out until the secret exists, following the same convention
+  # as BitriPay below: App Hosting validates every secret reference when it builds a
+  # rollout, so a reference to a secret nobody has created yet fails the whole deploy —
+  # and the failure looks like "nothing is deploying" rather than "one line is early".
   #
   # Create it, then uncomment:
   #   npx firebase apphosting:secrets:set API_KEY_SECRET --project ticketroyality
-  #
-  # Until then the key store falls back to QR_SIGNING_KEY, which is set, so the public
-  # API keeps working — it is the fallback the module was written to have.
 #  - variable: API_KEY_SECRET
 #    secret: API_KEY_SECRET
 #    availability:
