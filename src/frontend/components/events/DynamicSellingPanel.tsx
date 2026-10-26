@@ -1,7 +1,16 @@
 'use client';
 
 import * as React from 'react';
-import { AlertTriangle, Check, Loader2, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  Loader2,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
+  Undo2,
+  Zap,
+} from 'lucide-react';
 
 import { Badge } from '@/frontend/components/ui/badge';
 import { Button } from '@/frontend/components/ui/button';
@@ -15,18 +24,19 @@ import {
 import { Switch } from '@/frontend/components/ui/switch';
 import { authedFetch } from '@/frontend/lib/authed-fetch';
 import { formatCurrency } from '@/shared/utils';
-import type { Event, PriceSuggestion } from '@/shared/types';
+import type { AutoPriceChange, Event, PriceSuggestion } from '@/shared/types';
 
 /**
- * AI dynamic selling.
+ * Dynamic selling — two modes, both organiser-controlled.
  *
- * The AI reads how the event is actually selling and proposes a price per tier. It does
- * **not** change anything: every suggestion is applied by the organiser, one at a time.
+ * AI review: the model reads how the event is selling and proposes a price per tier; the
+ * organiser applies the ones they agree with, one at a time.
  *
- * That is a deliberate choice rather than a missing feature, and the panel says so.
- * There are no checkout inventory holds yet, so a price that moved on its own could move
- * underneath somebody already in a checkout session — they would see one number and be
- * charged another. Until holds exist, a human approves each change.
+ * Automatic (opt-in): deterministic rules raise a scarce or rushing tier and lower a
+ * slow one near the date, within baseline-anchored caps (+15% to +50%, −10% to −30%).
+ * It applies the change, emails the organiser, and can be undone within 24 hours. Safe
+ * because checkout holds now exist and the rules never reprice a tier with seats held in
+ * a live checkout — so a price cannot move under someone mid-purchase.
  */
 export function DynamicSellingPanel({ event }: { event: Event }) {
   const [enabled, setEnabled] = React.useState(event.dynamicPricing?.enabled ?? false);
@@ -34,6 +44,10 @@ export function DynamicSellingPanel({ event }: { event: Event }) {
   const [reviewedAt, setReviewedAt] = React.useState(event.dynamicPricing?.lastReviewedAt ?? '');
   const [suggestions, setSuggestions] = React.useState<PriceSuggestion[]>(
     event.dynamicPricing?.suggestions ?? []
+  );
+  const [auto, setAuto] = React.useState(event.dynamicPricing?.auto ?? false);
+  const [autoLog, setAutoLog] = React.useState<AutoPriceChange[]>(
+    event.dynamicPricing?.autoLog ?? []
   );
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -80,6 +94,34 @@ export function DynamicSellingPanel({ event }: { event: Event }) {
       setReviewedAt(new Date().toISOString());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'The review could not run.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const toggleAuto = async (next: boolean) => {
+    setBusy('auto');
+    setError(null);
+    try {
+      await post({ action: 'auto', enabled: next });
+      setAuto(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not change automatic pricing.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const revert = async (tierId: string) => {
+    setBusy(`revert-${tierId}`);
+    setError(null);
+    try {
+      await post({ action: 'revert', tierId });
+      setAutoLog((prev) =>
+        prev.map((c) => (c.tierId === tierId && !c.reverted ? { ...c, reverted: true } : c))
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not undo that change.');
     } finally {
       setBusy(null);
     }
@@ -140,6 +182,82 @@ export function DynamicSellingPanel({ event }: { event: Event }) {
           </p>
         ) : (
           <>
+            <div className="rounded-lg border border-border p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 font-medium">
+                    <Zap className="h-4 w-4 text-primary" /> Automatic pricing
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Raise a tier at 25% left or selling fast (+15%, up to +50%); lower a slow
+                    tier inside the last 14 days (−10%, down to −30%). Each change emails you and
+                    can be undone here within 24 hours. A tier with seats held in checkout is never
+                    moved.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {busy === 'auto' && (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  <Switch
+                    checked={auto}
+                    disabled={busy !== null}
+                    onCheckedChange={(next) => void toggleAuto(next)}
+                    aria-label="Enable automatic pricing"
+                  />
+                </div>
+              </div>
+
+              {autoLog.length > 0 && (
+                <ul className="mt-3 space-y-2 border-t border-border pt-3">
+                  {autoLog.slice(0, 5).map((c) => {
+                    const revertable =
+                      !c.reverted && new Date(c.revertableUntil).getTime() >= Date.now();
+                    return (
+                      <li
+                        key={`${c.tierId}-${c.at}`}
+                        className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Badge variant={c.direction === 'increase' ? 'gold' : 'secondary'}>
+                            {c.direction === 'increase' ? (
+                              <TrendingUp className="h-3 w-3" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3" />
+                            )}
+                            {formatCurrency(c.fromPrice, event.currency)} →{' '}
+                            {formatCurrency(c.toPrice, event.currency)}
+                          </Badge>
+                          <span className="text-muted-foreground">
+                            {c.tierName} · {c.trigger.replace('_', ' ')}
+                          </span>
+                        </span>
+                        {c.reverted ? (
+                          <span className="text-xs text-muted-foreground">Undone</span>
+                        ) : revertable ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy !== null}
+                            onClick={() => void revert(c.tierId)}
+                          >
+                            {busy === `revert-${c.tierId}` ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Undo2 className="h-4 w-4" />
+                            )}
+                            Undo
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Undo window passed</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
             <div className="flex flex-wrap items-center gap-3">
               <Button size="sm" onClick={() => void review()} disabled={busy !== null}>
                 {busy === 'review' ? (

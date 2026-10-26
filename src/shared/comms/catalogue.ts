@@ -112,6 +112,7 @@ export const COMMS_CATALOGUE: CommsCategory[] = [
       { key: 'event.milestone', label: 'Sales milestone', subject: '{{event}} is {{percent}} sold', severity: 'success', channels: ['push', 'inapp'], audience: ['organiser'] },
       { key: 'event.sold_out', label: 'Sold out', subject: '{{event}} is sold out', severity: 'success', channels: ['email', 'push', 'inapp'], audience: ['organiser'] },
       { key: 'event.slow_sales', label: 'Sales behind forecast', subject: '{{event}} is tracking below forecast', severity: 'warning', channels: ['email', 'inapp'], audience: ['organiser'], note: 'cro.v1 — docs/03 §3.3' },
+      { key: 'pricing.auto_changed', label: 'Price changed automatically', subject: 'Prices updated automatically for {{event}}', severity: 'warning', channels: ['email', 'inapp'], audience: ['organiser'], mandatory: true, note: 'Automatic dynamic pricing — organiser can undo within the window' },
       { key: 'event.publish_blocked', label: 'Publish blocked', subject: '{{event}} cannot go live yet', severity: 'warning', channels: ['inapp'], audience: ['organiser'], note: 'Pre-publish checklist — docs/04 M22' },
       // To the platform inbox, not the organiser. Enquire used to be a mailto: link,
       // which silently does nothing on any machine without a default mail client — the

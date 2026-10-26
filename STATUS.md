@@ -91,7 +91,7 @@ and read. If it says **Not built**, it was looked for and is absent.
 | **Door scanner (B2 closed)** | Redemption moved off the organiser's browser and into `/api/tickets/redeem`. **One Firestore transaction**, so two doors scanning the same ticket at the same instant admit exactly one — the old path read the status and wrote `redeemed` separately, and both reads saw `valid`. The QR is **signed**: an HMAC over ticket id + event id, written at issuance, verified against a freshly recomputed value so a signature pasted onto a ticket document does not help either. Event ownership is proved server-side. The payload no longer carries the buyer's `userId` — nothing read it, and photographing a ticket revealed an account id. A drift between the app's and `functions/`' signing format throws at module load rather than refusing every genuine ticket at a gate. **Correction to this file's own earlier claim:** an unsigned QR was never forgeable into a free entry; redemption always required a real `valid` ticket. The defects were the missing transaction and the browser being the authority. A screenshot still works **once** by design — rotating codes are not built. | `backend/services/redeem.ts` — 14 emulator tests |
 | AI studio | Real generation call, through the gateway below | `/dashboard/organiser/ai-studio` |
 | **AI gateway** | **Gemini → Claude → OpenAI fallback chain.** One prompt per task shared by all three; output is only accepted once it parses *and* satisfies the task's zod schema, so prose or a wrong shape fails over rather than reaching the user. Billed from the answering provider's own token counts. | `src/backend/ai/gateway.ts` — 10 tests |
-| **AI dynamic selling** | Per-event toggle on the organiser's edit page. The AI reads real sell-through against time remaining and proposes a price per tier with its reasoning; **the organiser applies each one**. Automatic repricing was considered and rejected — there are no checkout inventory holds, so a self-moving price can move underneath someone mid-checkout. The task is **not** in `TASKS`, so it cannot be reached through `/api/ai`: `sold` and `quantity` are the entire argument for a price, and a client able to post them could manufacture a sell-out. Apply takes a tier id only; the price comes from the stored suggestion, and a tier edited since the review returns 409. Clamped to ±40%, never below zero, and **a free tier is never made paid**. | `backend/services/dynamic-pricing.ts` — 10 tests |
+| **AI dynamic selling** | Per-event toggle on the organiser's edit page. The AI reads real sell-through against time remaining and proposes a price per tier with its reasoning; **the organiser applies each one**. The task is **not** in `TASKS`, so it cannot be reached through `/api/ai`: `sold` and `quantity` are the entire argument for a price, and a client able to post them could manufacture a sell-out. Apply takes a tier id only; the price comes from the stored suggestion, and a tier edited since the review returns 409. Clamped to ±40%, never below zero, and **a free tier is never made paid**. **Automatic mode (opt-in) now exists alongside this** — deterministic rules (≤25% left or a demand rush → +15% to a +50% cap; slow inside 14 days → −10% to a −30% floor), run by `/api/cron/dynamic-pricing`, applied in a transaction with a per-tier price guard, then emailed with a 24h undo. It **never reprices a tier with seats held in a live checkout** — which is why it is safe now that holds exist and was not before. | `backend/services/dynamic-pricing.ts`, `shared/dynamic-auto-pricing.ts` — 10 + 14 unit + 7 emulator tests |
 | Video ad carousel | Homepage component | `VideoAds.tsx` |
 | ACU billing | 1 ACU = $0.01. **100 ACU free** on every account; top-ups $5 / $10 / $15. The cost multiplier lives in a **`server-only` module**, so a client component importing it fails the build — it is in no browser bundle, including an administrator's. `publicCharge()` is the only shape that may cross an API boundary. | `backend/billing/margin.ts` — 18 tests |
 | **Ticket delivery** | **SMTP email on issuance — one email per purchase, retried, outcome recorded** | `functions/src/email.ts` — 10 tests |
@@ -992,6 +992,33 @@ price"). One surface leaked face — the homepage **video spotlight** (`VideoAds
 `from {leadPrice}` (face) while checkout charges the all-in total. Now routed through
 `allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
 typecheck, lint, build.
+
+### 26 October — automatic dynamic pricing (owner spec: raise on scarcity/rush, cut when slow)
+
+Layered a deterministic, apply-and-notify automatic mode on top of the existing AI-advisory
+pricing, to the owner's rules and chosen bounds (apply+notify+undo; +15%/cap +50%,
+−10%/floor −30%):
+
+- **Pure rule engine** `shared/dynamic-auto-pricing.ts` (14 unit tests): ≤25% remaining or a
+  demand rush raises a tier; slow sales inside 14 days lower it; increases beat a decrease on
+  the same tier; caps/floor are measured against the tier's **baseline** (captured when auto
+  mode is switched on) so repeated nudges cannot compound past the bound; held / sold-out /
+  changed-in-24h / zero-baseline tiers are skipped.
+- **Server path** in `dynamic-pricing.ts` (7 emulator tests): `setAutoPricing` captures
+  baselines; `runAutoPricingForEvent` applies changes in a Firestore transaction with a
+  per-tier price guard (never overwrites a manual edit or a concurrent sweep); `sweepAutoPricing`
+  + `/api/cron/dynamic-pricing` (CRON_SECRET-gated) run it across all opted-in events and email
+  the organiser via the new `pricing.auto_changed` catalogue event; `revertAutoChange` restores
+  the previous price within 24h and is organiser-owned (403 for anyone else).
+- **UI** in `DynamicSellingPanel`: an automatic-mode toggle and a recent-changes list with Undo.
+- Corrected the stale "automatic repricing was rejected — no holds" note in the Built table and
+  the panel: holds exist now, and the engine refuses to move a held tier, which is what makes
+  automatic safe.
+
+**Owner action to make it fire:** add a Cloud Scheduler job hitting `/api/cron/dynamic-pricing`
+(suggested hourly) with the `Bearer CRON_SECRET` header — the `/api/cron/*` routes are triggered
+by Cloud Scheduler, which is configured in the console, not the repo. Verified: typecheck, build
+(route present), 14 unit + 7 emulator tests green.
 
 ### 11 September — production-readiness audit (owner request: stabilise & make deployable)
 

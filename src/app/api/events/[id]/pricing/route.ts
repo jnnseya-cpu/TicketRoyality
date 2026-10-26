@@ -4,6 +4,8 @@ import { requireUser } from '@/backend/auth/require-user';
 import {
   applySuggestion,
   reviewPricing,
+  revertAutoChange,
+  setAutoPricing,
   setDynamicPricing,
 } from '@/backend/services/dynamic-pricing';
 
@@ -48,6 +50,22 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   if (body.action === 'apply') {
     const result = await applySuggestion(id, caller.uid, String(body.tierId ?? ''));
+    return result.ok
+      ? NextResponse.json({ ok: true, tierId: result.tierId, price: result.price })
+      : NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  // Automatic rule-based mode: apply-and-notify within the organiser's baseline caps.
+  if (body.action === 'auto') {
+    const result = await setAutoPricing(id, caller.uid, body.enabled === true);
+    return result.ok
+      ? NextResponse.json({ ok: true, auto: result.auto })
+      : NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  // Undo one automatic change within its window.
+  if (body.action === 'revert') {
+    const result = await revertAutoChange(id, caller.uid, String(body.tierId ?? ''));
     return result.ok
       ? NextResponse.json({ ok: true, tierId: result.tierId, price: result.price })
       : NextResponse.json({ error: result.error }, { status: result.status });

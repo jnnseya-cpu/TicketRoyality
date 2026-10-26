@@ -511,8 +511,39 @@ export interface PriceSuggestion {
  * and rejected for now: there are no checkout inventory holds yet, so a price that
  * moves on its own can move underneath somebody who is mid-purchase.
  */
+/** One automatic price change, kept for the organiser's notice and the undo window. */
+export interface AutoPriceChange {
+  tierId: string;
+  tierName: string;
+  fromPrice: number;
+  toPrice: number;
+  direction: 'increase' | 'decrease';
+  trigger: 'scarcity' | 'rush' | 'slow_clearance';
+  /** ISO when the change was applied. */
+  at: string;
+  /** ISO until which the organiser can one-tap revert it. */
+  revertableUntil: string;
+  reverted?: boolean;
+}
+
 export interface DynamicPricing {
   enabled: boolean;
+  /**
+   * Automatic rule-based mode (apply-and-notify), distinct from the AI-advisory flow the
+   * `enabled`/`suggestions` fields drive. When on, the pricing cron may change tier prices
+   * within the baseline-anchored caps and then notify the organiser, who can undo.
+   */
+  auto?: boolean;
+  /** Tier id → price when automatic mode was switched on — the fixed reference for caps/floor. */
+  baselines?: Record<string, number>;
+  /** Tier id → `sold` at the last sweep, for the velocity (rush) signal. */
+  soldSnapshot?: Record<string, number>;
+  /** Tier id → ISO of the last automatic change, for the minimum-gap guard. */
+  autoChangedAt?: Record<string, string>;
+  /** ISO of the last automatic sweep. */
+  lastSweptAt?: string;
+  /** Recent automatic changes, newest first — powers the notification and the undo. */
+  autoLog?: AutoPriceChange[];
   lastReviewedAt?: string;
   summary?: string;
   suggestions?: PriceSuggestion[];
