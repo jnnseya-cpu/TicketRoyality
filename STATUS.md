@@ -1013,14 +1013,27 @@ so far, all pure/deterministic and fail-safe:
   the decision bands. Reproduces the §5 worked example exactly (86.25 / 83.5 → reviewable brief).
   10 tests.
 
-**Dormant until briefs exist:** with nothing written to `growth_brief_active`, every resolve
-returns baseline, so the live platform behaves exactly as before. **Nothing is user-visible.**
+- **`shared/trend/pipeline.ts`** — the signal pipeline: `deriveSalesObservations` (completed
+  sales → weekly per-category observations, refunds/out-of-window/unknown-event excluded),
+  `aggregateByTopic` (latest complete window vs history, in-progress week dropped) and
+  `scoreTopics`. Honest signal choice: no search log exists, so the native demand signal is
+  ticket sales by category — a **single source family**, capped at 69 confidence, so a real
+  spike reaches **watch/draft only, never a live action**. 6 unit tests.
+- **`backend/trend/trend-scan.ts`** + **`/api/cron/trend-scan`** (CRON_SECRET-gated) — reads
+  first-party sales + event categories, writes `observations` (idempotent by source/topic/
+  market/window) and one `opportunity_snapshots` row per topic. 3 emulator tests (spike →
+  watch snapshot, refunds excluded, re-run idempotent).
 
-**Not yet built (further native increments):** first-party signal ingestion from the platform's own
-events into observations; brief production + internal approval (superuser only); wiring the
-blog/SEO + pricing agents to consume the resolved brief; and native outcome measurement. No
-end-user UI is planned — the system stays invisible. Verified: typecheck, build, 26 unit tests
-(`test:growth-brief` + `test:brief-sdk` + `test:trend-scoring`).
+**Dormant / invisible:** with no briefs in `growth_brief_active` every resolve returns baseline;
+the scan only records signals and takes no action; **nothing is user-visible**. The scan needs
+an owner Cloud Scheduler job hitting `/api/cron/trend-scan` (Bearer CRON_SECRET) to run on a
+schedule, exactly like the other `/api/cron/*` routes.
+
+**Not yet built (further native increments):** brief production from a `reviewable_brief`
+opportunity + internal superuser approval; wiring the blog/SEO + pricing agents to consume the
+resolved brief; native outcome measurement. No end-user UI is planned. Verified: typecheck,
+build, 35 tests (`test:growth-brief` 9, `test:brief-sdk` 7, `test:trend-scoring` 10,
+`test:trend-pipeline` 6, `test:trend-scan` 3 emulator).
 
 ### 26 October — automatic dynamic pricing (owner spec: raise on scarcity/rush, cut when slow)
 
