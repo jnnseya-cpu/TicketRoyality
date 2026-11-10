@@ -993,6 +993,31 @@ price"). One surface leaked face — the homepage **video spotlight** (`VideoAds
 `allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
 typecheck, lint, build.
 
+### 10 November — Trend Intelligence host integration, increment 1 (owner: "integrate as a host")
+
+An external, standalone "Trend Intelligence AI" product (own stack/own repo) is designed to
+plug into a host platform and drive its existing agents through a versioned **Growth Brief**.
+This increment builds the HOST side of that contract in TicketRoyality — and nothing else
+changes, because it is **dormant by default**:
+
+- **`shared/trend/growth-brief.ts`** — the host-side mirror of the Growth Brief v1 schema
+  (Appendix A): a closed zod object (unknown fields rejected), ISO market, UTC-`Z` timestamps,
+  `valid_from < expires_at`, plus a `isBriefFresh()` freshness gate. 9 unit tests incl. the §6
+  canonical fixture.
+- **`backend/trend/brief-sdk.ts`** — `resolveEffectiveBrief(scope)`, the one call the host's
+  agents make before drafting. It **fails safe to baseline** on no configured engine, 204,
+  transient error, invalid payload or a stale brief — never throws, never serves a brief it
+  should not act on. Caches within a 60-second ceiling and **never beyond the brief's expiry**.
+  9 unit tests (fake engine, controlled clock, cache assertions).
+- Config `TREND_ENGINE_URL` / `TREND_ENGINE_TOKEN` (dormant placeholders in `.env.example`).
+  With them unset, every call returns baseline, so the live platform behaves exactly as before.
+
+**Not yet built (further increments):** the host AI adapter (`capabilities`/`generate_structured`
+over the existing gateway), first-party observation push, the owned-surface write adapter
+(`get_asset`/`apply_patch`/`get_receipt`/`restore_patch` with rollback), and wiring a real agent
+to consume the brief. The engine itself is a separate product/repo. Verified: typecheck, build,
+18 unit tests (`test:growth-brief` + `test:brief-sdk`).
+
 ### 26 October — automatic dynamic pricing (owner spec: raise on scarcity/rush, cut when slow)
 
 Layered a deterministic, apply-and-notify automatic mode on top of the existing AI-advisory
