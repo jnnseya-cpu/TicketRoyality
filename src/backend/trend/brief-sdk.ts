@@ -1,23 +1,26 @@
 import 'server-only';
 
+import { getAdminDb, isAdminConfigured } from '@/backend/firebase/admin';
 import { parseGrowthBrief, isBriefFresh, type GrowthBrief } from '@/shared/trend/growth-brief';
 
 /**
- * Effective-brief SDK (external spec §4, §14 step 5).
+ * Effective-brief resolver — NATIVE (external spec §4, §14 step 5), embedded in this
+ * platform rather than calling any separate engine.
  *
- * The one function the host's existing agents call before they draft: "resolve the
- * effective brief for this market, locale, channel and topic". Its defining property is
- * that it **fails safe to the host's baseline behaviour** — on no configured engine, no
- * eligible brief, a transient error, an invalid payload or a stale brief, it returns
- * `baseline`, never an exception and never a half-resolved brief. A brief is applied only
- * when it is schema-valid AND inside its freshness window.
+ * TicketRoyality produces, approves and stores its own Growth Briefs; this is the one
+ * call its existing agents make before drafting: "resolve the active approved brief for
+ * this market, locale, channel and topic". Its defining property is that it **fails safe
+ * to the platform's baseline behaviour** — on no active brief, a datastore error, an
+ * invalid stored payload or a stale brief, it returns `baseline`, never an exception and
+ * never a half-resolved brief. A brief is applied only when schema-valid AND fresh.
  *
- * Caching is bounded exactly as the spec requires: within a 60-second ceiling and
- * **never beyond the brief's own expiry**. The cache is a per-instance convenience; it is
- * never the authority to write or publish, and nothing here grants an agent new scope.
+ * The active brief lives at `growth_brief_active/{scopeKey}` so resolution is a single
+ * read with no index. Caching is bounded exactly as the spec requires: within a
+ * 60-second ceiling and **never beyond the brief's own expiry**. The cache is never the
+ * authority to write or publish, and nothing here grants an agent new scope.
  *
- * Dormant by default: with no `TREND_ENGINE_URL` configured, every call returns baseline,
- * so the platform behaves exactly as it does today until an engine is wired in.
+ * Dormant until briefs exist: with none written, every call returns baseline, so the
+ * platform behaves exactly as it does today.
  */
 
 export interface BriefScope {
@@ -30,9 +33,8 @@ export interface BriefScope {
 }
 
 export type BaselineReason =
-  | 'engine_not_configured'
-  | 'no_eligible_brief'
-  | 'engine_unavailable'
+  | 'no_active_brief'
+  | 'datastore_unavailable'
   | 'invalid_brief'
   | 'stale_brief';
 
@@ -40,16 +42,15 @@ export type EffectiveBrief =
   | { kind: 'brief'; brief: GrowthBrief }
   | { kind: 'baseline'; reason: BaselineReason };
 
+/** Loads the raw stored brief for a scope, or null if there is no active one. */
+export type BriefLoader = (scope: BriefScope) => Promise<unknown | null>;
+
 /** §14: cache within a 60-second ceiling. */
 const CACHE_CEILING_MS = 60_000;
-const DEFAULT_TIMEOUT_MS = 2_000;
 
 interface Deps {
-  engineUrl?: string;
-  token?: string;
-  fetchImpl?: typeof fetch;
+  loader?: BriefLoader;
   now?: () => number;
-  timeoutMs?: number;
 }
 
 interface CacheEntry {
@@ -58,26 +59,26 @@ interface CacheEntry {
 }
 const cache = new Map<string, CacheEntry>();
 
-export function isTrendEngineConfigured(): boolean {
-  return Boolean(process.env.TREND_ENGINE_URL);
-}
-
-function scopeKey(scope: BriefScope): string {
+export function scopeKey(scope: BriefScope): string {
   return `${scope.market}|${scope.locale}|${scope.channel}|${scope.topic ?? ''}`;
 }
+
+/** The native store: the active approved brief for a scope, a single Firestore read. */
+export const ACTIVE_BRIEF_COLLECTION = 'growth_brief_active';
+
+const firestoreLoader: BriefLoader = async (scope) => {
+  if (!isAdminConfigured()) throw new Error('datastore unavailable');
+  const snap = await getAdminDb().collection(ACTIVE_BRIEF_COLLECTION).doc(scopeKey(scope)).get();
+  return snap.exists ? (snap.data() ?? null) : null;
+};
 
 export async function resolveEffectiveBrief(
   scope: BriefScope,
   deps: Deps = {}
 ): Promise<EffectiveBrief> {
-  const engineUrl = deps.engineUrl ?? process.env.TREND_ENGINE_URL;
-  const token = deps.token ?? process.env.TREND_ENGINE_TOKEN;
+  const loader = deps.loader ?? firestoreLoader;
   const nowFn = deps.now ?? Date.now;
-  const fetchImpl = deps.fetchImpl ?? fetch;
   const nowMs = nowFn();
-
-  // Dormant / not wired: the platform's own baseline behaviour.
-  if (!engineUrl) return { kind: 'baseline', reason: 'engine_not_configured' };
 
   const key = scopeKey(scope);
   const cached = cache.get(key);
@@ -90,40 +91,16 @@ export async function resolveEffectiveBrief(
     cache.delete(key);
   }
 
-  const url = new URL(`${engineUrl.replace(/\/$/, '')}/v1/briefs:effective`);
-  url.searchParams.set('market', scope.market);
-  url.searchParams.set('locale', scope.locale);
-  url.searchParams.set('channel', scope.channel);
-  if (scope.topic) url.searchParams.set('topic', scope.topic);
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), deps.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-  let response: Response;
+  let raw: unknown | null;
   try {
-    response = await fetchImpl(url.toString(), {
-      method: 'GET',
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-      signal: controller.signal,
-    });
+    raw = await loader(scope);
   } catch {
-    // Timeout, abort, network failure — baseline, never throw.
-    return { kind: 'baseline', reason: 'engine_unavailable' };
-  } finally {
-    clearTimeout(timer);
+    return { kind: 'baseline', reason: 'datastore_unavailable' };
   }
 
-  // §16: 204 means no eligible brief for this scope.
-  if (response.status === 204) return { kind: 'baseline', reason: 'no_eligible_brief' };
-  if (!response.ok) return { kind: 'baseline', reason: 'engine_unavailable' };
+  if (raw === null || raw === undefined) return { kind: 'baseline', reason: 'no_active_brief' };
 
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    return { kind: 'baseline', reason: 'invalid_brief' };
-  }
-
-  const parsed = parseGrowthBrief(body);
+  const parsed = parseGrowthBrief(raw);
   if (!parsed.ok) return { kind: 'baseline', reason: 'invalid_brief' };
   if (!isBriefFresh(parsed.brief, nowMs)) return { kind: 'baseline', reason: 'stale_brief' };
 

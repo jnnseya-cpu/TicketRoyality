@@ -993,30 +993,34 @@ price"). One surface leaked face — the homepage **video spotlight** (`VideoAds
 `allInPriceLabelFromMajor`, so every "from £X" on the site includes the fee. Verified:
 typecheck, lint, build.
 
-### 10 November — Trend Intelligence host integration, increment 1 (owner: "integrate as a host")
+### 10 November — Trend Intelligence, embedded natively (owner: "embed onto the whole platform, invisible")
 
-An external, standalone "Trend Intelligence AI" product (own stack/own repo) is designed to
-plug into a host platform and drive its existing agents through a versioned **Growth Brief**.
-This increment builds the HOST side of that contract in TicketRoyality — and nothing else
-changes, because it is **dormant by default**:
+The external "Trend Intelligence" spec, built **natively inside TicketRoyality** rather than as a
+separate engine, and **invisible to end users** — it is headless server-side code that shapes
+what the existing agents (blog/SEO, dynamic pricing) produce; buyers never see it. Foundations
+so far, all pure/deterministic and fail-safe:
 
-- **`shared/trend/growth-brief.ts`** — the host-side mirror of the Growth Brief v1 schema
-  (Appendix A): a closed zod object (unknown fields rejected), ISO market, UTC-`Z` timestamps,
-  `valid_from < expires_at`, plus a `isBriefFresh()` freshness gate. 9 unit tests incl. the §6
-  canonical fixture.
-- **`backend/trend/brief-sdk.ts`** — `resolveEffectiveBrief(scope)`, the one call the host's
-  agents make before drafting. It **fails safe to baseline** on no configured engine, 204,
-  transient error, invalid payload or a stale brief — never throws, never serves a brief it
-  should not act on. Caches within a 60-second ceiling and **never beyond the brief's expiry**.
-  9 unit tests (fake engine, controlled clock, cache assertions).
-- Config `TREND_ENGINE_URL` / `TREND_ENGINE_TOKEN` (dormant placeholders in `.env.example`).
-  With them unset, every call returns baseline, so the live platform behaves exactly as before.
+- **`shared/trend/growth-brief.ts`** — the Growth Brief v1 closed schema (Appendix A): zod
+  `.strict`, ISO market, UTC-`Z` timestamps, `valid_from < expires_at`, + `isBriefFresh()`. 9 tests
+  incl. the §6 canonical fixture.
+- **`backend/trend/brief-sdk.ts`** — `resolveEffectiveBrief(scope)` resolves the active approved
+  brief from **the platform's own datastore** (`growth_brief_active/{scopeKey}`), not any external
+  engine. **Fails safe to baseline** on no active brief / datastore error / invalid / stale; never
+  throws; caches within a 60s ceiling and never beyond expiry. 7 tests (injected store, clock).
+- **`shared/trend/scoring.ts`** — the §5 detection & scoring maths: log-lift + robust-z anomaly
+  gate (c≥20, z≥2, ≥4 periods), opportunity score (25/25/20/15/15) with veto + zero-readiness
+  block, confidence (35/25/20/20) with the single-family 69 cap and 0/80/100 corroboration, and
+  the decision bands. Reproduces the §5 worked example exactly (86.25 / 83.5 → reviewable brief).
+  10 tests.
 
-**Not yet built (further increments):** the host AI adapter (`capabilities`/`generate_structured`
-over the existing gateway), first-party observation push, the owned-surface write adapter
-(`get_asset`/`apply_patch`/`get_receipt`/`restore_patch` with rollback), and wiring a real agent
-to consume the brief. The engine itself is a separate product/repo. Verified: typecheck, build,
-18 unit tests (`test:growth-brief` + `test:brief-sdk`).
+**Dormant until briefs exist:** with nothing written to `growth_brief_active`, every resolve
+returns baseline, so the live platform behaves exactly as before. **Nothing is user-visible.**
+
+**Not yet built (further native increments):** first-party signal ingestion from the platform's own
+events into observations; brief production + internal approval (superuser only); wiring the
+blog/SEO + pricing agents to consume the resolved brief; and native outcome measurement. No
+end-user UI is planned — the system stays invisible. Verified: typecheck, build, 26 unit tests
+(`test:growth-brief` + `test:brief-sdk` + `test:trend-scoring`).
 
 ### 26 October — automatic dynamic pricing (owner spec: raise on scarcity/rush, cut when slow)
 
